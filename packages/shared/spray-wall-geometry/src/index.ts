@@ -79,3 +79,42 @@ export {
 } from './look-preview';
 
 export { SPRAY_WALL_PHOTO_MAX_LONG_SIDE, SPRAY_WALL_PHOTO_MAX_PIXELS, sprayWallPhotoMaxLongSide } from './photo-size';
+
+export {
+  DEFAULT_TNUT_CORNERS,
+  DEFAULT_TNUT_DIMENSION,
+  MAX_TNUT_DIMENSION,
+  MAX_TNUT_HOLES,
+  MIN_TNUT_DIMENSION,
+  generateTnutGrid,
+  isValidTnutCorners,
+  isValidTnutGrid,
+  readTnutLayout,
+  tnutGridPath,
+  type TnutCorners,
+  type TnutGridOptions,
+  type TnutLayout,
+  type TnutPattern,
+  type SprayLedPlacement,
+  type TnutPoint,
+} from './tnut-layout';
+export { migrateTnutLayoutColumns } from './tnut-layout';
+export {
+  MAX_LED_POSITIONS,
+  MAX_WIRING_SKIP,
+  MAX_WIRING_TOTAL_SKIPS,
+  generateLedPositions,
+  createWiring,
+  connectWiring,
+  extendWiring,
+  cutWiring,
+  setWiringSkip,
+  setWiringInitialSkip,
+  assignLedIndices,
+  rowMajorLedIndices,
+  traceLedPath,
+  type LedPosition,
+  type TnutWiring,
+  type CableDirection,
+  type CableStartCorner,
+} from './led-layout';
