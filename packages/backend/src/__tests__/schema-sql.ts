@@ -4,12 +4,101 @@
  */
 
 import { readFileSync } from 'node:fs';
+// Reuse the existing generated account table and FK for actual social writes.
+const legacyAccountsSchema = readFileSync(
+  new URL('../../../db/drizzle/0016_exotic_valkyrie.sql', import.meta.url),
+  'utf8',
+)
+  .split('--> statement-breakpoint')
+  .filter(
+    (statement) =>
+      statement.trimStart().startsWith('CREATE TABLE IF NOT EXISTS "accounts"') ||
+      statement.includes('ALTER TABLE "accounts" ADD CONSTRAINT'),
+  )
+  .join('\n');
+// Public NextAuth callback proof: reuse legacy generated receipt tables. The
+// namespaced verification-token tombstones intentionally have no users FK.
+const legacyWebSessionSchema = readFileSync(
+  new URL('../../../db/drizzle/0016_exotic_valkyrie.sql', import.meta.url),
+  'utf8',
+)
+  .split('--> statement-breakpoint')
+  .filter(
+    (statement) =>
+      statement.trimStart().startsWith('CREATE TABLE IF NOT EXISTS "sessions"') ||
+      statement.trimStart().startsWith('CREATE TABLE IF NOT EXISTS "verificationTokens"') ||
+      statement.includes('ALTER TABLE "sessions" ADD CONSTRAINT'),
+  )
+  .join('\n');
+const authCurrentStoreFoundationSchema = readFileSync(
+  new URL('../../../db/drizzle/0291_auth_current_store_foundation.sql', import.meta.url),
+  'utf8',
+);
+const authUidVerificationSchema = readFileSync(
+  new URL('../../../db/drizzle/0292_auth_uid_email_verification.sql', import.meta.url),
+  'utf8',
+);
+const authUidPasswordRecoverySchema = readFileSync(
+  new URL('../../../db/drizzle/0293_auth_uid_password_recovery.sql', import.meta.url),
+  'utf8',
+);
+const authWebOAuthIdentitySchema = readFileSync(
+  new URL('../../../db/drizzle/0294_auth_web_oauth_identity.sql', import.meta.url),
+  'utf8',
+);
+// The tables behind partner OAuth, straight from the generated migration.
+const partnerOAuthSchema = readFileSync(
+  new URL('../../../db/drizzle/0296_partner_oauth_schema.sql', import.meta.url),
+  'utf8',
+);
+// The logbook change feed, straight from the migrations so the tests run the
+// triggers production runs. They are applied at the schema tail: the triggers
+// need boardsesh_ticks and board_climb_aliases to exist.
+const logbookChangesSchema = readFileSync(
+  new URL('../../../db/drizzle/0297_logbook_changes.sql', import.meta.url),
+  'utf8',
+);
+const logbookChangeTriggersSchema = readFileSync(
+  new URL('../../../db/drizzle/0298_logbook_change_triggers.sql', import.meta.url),
+  'utf8',
+);
+const logbookSnapshotsSchema = readFileSync(
+  new URL('../../../db/drizzle/0299_logbook_snapshots.sql', import.meta.url),
+  'utf8',
+);
+// The password-write trigger that ends partner connections, straight from the migration.
+const partnerRevocationTriggerSchema = readFileSync(
+  new URL('../../../db/drizzle/0300_partner_revocation_trigger.sql', import.meta.url),
+  'utf8',
+);
+// Binds snapshots to their partner connection; needs both tables above.
+const logbookSnapshotsConnectionSchema = readFileSync(
+  new URL('../../../db/drizzle/0301_logbook_snapshots_connection_fk.sql', import.meta.url),
+  'utf8',
+);
+// The publisher an app names at registration ("Made by"), with the migration's lock guard.
+const partnerPublisherNameSchema = readFileSync(
+  new URL('../../../db/drizzle/0302_oauth_app_publisher_name.sql', import.meta.url),
+  'utf8',
+);
+// BA-04 PR 1: credential stamps on auth_subject_cutoffs and mobile_refresh_tokens.
+const stampNewCredentialsSchema = readFileSync(
+  new URL('../../../db/drizzle/0303_stamp_new_credentials.sql', import.meta.url),
+  'utf8',
+);
 const sharedSprayDraftsSchema = readFileSync(
   new URL('../../../db/drizzle/0285_shared_spray_drafts.sql', import.meta.url),
   'utf8',
 );
 const climbMutationReceiptsSchema = readFileSync(
   new URL('../../../db/drizzle/0287_climb_mutation_receipts.sql', import.meta.url),
+  'utf8',
+);
+// The circuits a climber deleted in Boardsesh (#7240), straight from the
+// generated migration. The provider sync grant list names it, and the migrator
+// refuses to grant on a table that does not exist.
+const deletedUpstreamPlaylistsSchema = readFileSync(
+  new URL('../../../db/drizzle/0288_user_deleted_upstream_playlists.sql', import.meta.url),
   'utf8',
 );
 import { socialEntityTypeEnum } from '@boardsesh/db/schema';
@@ -107,6 +196,11 @@ const boardShareLinksSchema = readFileSync(
   new URL('../../../db/drizzle/0267_board_share_links.sql', import.meta.url),
   'utf8',
 );
+// A spray wall's LED setup, straight from the generated migration, after user_boards.
+const sprayWallLedSetupsSchema = readFileSync(
+  new URL('../../../db/drizzle/0304_spray_wall_led_setups.sql', import.meta.url),
+  'utf8',
+);
 // The workout a climber followed in a session (#6903), straight from the
 // generated migration, after board_sessions and users.
 const sessionWorkoutsSchema = readFileSync(
@@ -116,6 +210,9 @@ const sessionWorkoutsSchema = readFileSync(
 
 export const schemaSQL = `
   DROP TABLE IF EXISTS "climb_mutation_receipts" CASCADE;
+  DROP TABLE IF EXISTS "spray_wall_led_setups" CASCADE;
+  DROP TABLE IF EXISTS "user_deleted_upstream_playlists" CASCADE;
+  DROP TYPE IF EXISTS "upstream_playlist_source";
   DROP TABLE IF EXISTS board_share_links, resource_grants, resource_privacy, content_privacy, user_follow_requests, session_boards CASCADE;
   DROP TABLE IF EXISTS "board_session_queues" CASCADE;
   DROP TABLE IF EXISTS "session_health_kit_workouts" CASCADE;
@@ -124,6 +221,9 @@ export const schemaSQL = `
   DROP TABLE IF EXISTS "board_sessions" CASCADE;
   DROP TABLE IF EXISTS "user_climb_percentiles" CASCADE;
   DROP TABLE IF EXISTS "user_credentials" CASCADE;
+  DROP TABLE IF EXISTS "accounts" CASCADE;
+  DROP TABLE IF EXISTS "sessions";
+  DROP TABLE IF EXISTS "verificationTokens";
   DROP TABLE IF EXISTS "users" CASCADE;
 
   CREATE TABLE IF NOT EXISTS "users" (
@@ -135,6 +235,9 @@ export const schemaSQL = `
     "created_at" timestamp DEFAULT now() NOT NULL,
     "updated_at" timestamp DEFAULT now() NOT NULL
   );
+
+  ${legacyAccountsSchema}
+  ${legacyWebSessionSchema}
 
   CREATE TABLE IF NOT EXISTS "user_credentials" (
     "user_id" text PRIMARY KEY NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
@@ -959,6 +1062,7 @@ export const schemaSQL = `
     "angle" bigint DEFAULT 40 NOT NULL,
     "is_angle_adjustable" boolean DEFAULT true NOT NULL,
     "has_leds" boolean DEFAULT true NOT NULL,
+    "lit_by_wall_device" boolean DEFAULT false NOT NULL,
     "created_at" timestamp DEFAULT now() NOT NULL,
     "updated_at" timestamp DEFAULT now() NOT NULL,
     "serial_number" text,
@@ -1104,6 +1208,14 @@ export const schemaSQL = `
   );
   CREATE UNIQUE INDEX IF NOT EXISTS "board_climb_events_board_seq_unique" ON "board_climb_events" ("board_id", "seq");
   CREATE INDEX IF NOT EXISTS "board_climb_events_session_idx" ON "board_climb_events" ("session_id");
+  DROP TABLE IF EXISTS "kilter_aurora_benchmarks";
+CREATE TABLE "kilter_aurora_benchmarks" (
+	"climb_uuid" text NOT NULL,
+	"angle" integer NOT NULL,
+	"benchmark_difficulty" double precision NOT NULL,
+	"captured_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "kilter_aurora_benchmarks_climb_uuid_angle_pk" PRIMARY KEY("climb_uuid","angle")
+);
   DROP TABLE IF EXISTS "kilter_wall_sources";
 CREATE TABLE "kilter_wall_sources" (
 	"source_key" text PRIMARY KEY NOT NULL,
@@ -2216,4 +2328,37 @@ CREATE INDEX "board_climb_events_chronological_idx" ON "board_climb_events" USIN
   ${sessionWorkoutsSchema}
   ${sharedSprayDraftsSchema}
   ${climbMutationReceiptsSchema}
+  ${deletedUpstreamPlaylistsSchema}
+  ${sprayWallLedSetupsSchema}
+  DROP TABLE IF EXISTS auth_email_reservation_members;
+  DROP TABLE IF EXISTS auth_email_reservations;
+  DROP TABLE IF EXISTS auth_email_projection;
+  DROP TABLE IF EXISTS auth_security_mutation_events;
+  DROP TABLE IF EXISTS auth_subject_cutoffs;
+  ${authCurrentStoreFoundationSchema}
+  DROP TABLE IF EXISTS auth_email_verification_tokens;
+  DROP TABLE IF EXISTS auth_email_verification_state;
+  ${authUidVerificationSchema}
+  DROP TABLE IF EXISTS auth_password_recovery_tokens;
+  DROP TABLE IF EXISTS auth_password_recovery_state;
+  ${authUidPasswordRecoverySchema}
+  DROP TABLE IF EXISTS auth_web_oauth_intents;
+  DROP TABLE IF EXISTS auth_web_oauth_commands;
+  ${authWebOAuthIdentitySchema}
+  DROP TABLE IF EXISTS oauth_consent_interactions, oauth_refresh_ancestors, oauth_grants, oauth_subjects, oauth_connections, oauth_app_policy, oauth_consent, oauth_access_token, oauth_refresh_token, oauth_client_assertion, oauth_client_resource, oauth_resource, oauth_client, oauth_verification, oauth_session CASCADE;
+  ${partnerOAuthSchema}
+  DROP TABLE IF EXISTS logbook_changes;
+  DROP TABLE IF EXISTS logbook_change_watermark;
+  ${logbookChangesSchema};
+  ${logbookChangeTriggersSchema};
+  -- Test fixtures reset boardsesh_ticks with TRUNCATE; the guard against that
+  -- is covered by logbook-changes.test.ts, which enables it for its own test.
+  ALTER TABLE boardsesh_ticks DISABLE TRIGGER trg_boardsesh_ticks_logbook_truncate;
+  DROP TABLE IF EXISTS logbook_snapshot_chunks;
+  DROP TABLE IF EXISTS logbook_snapshots;
+  ${logbookSnapshotsSchema};
+  ${partnerRevocationTriggerSchema}
+  ${logbookSnapshotsConnectionSchema};
+  ${partnerPublisherNameSchema}
+  ${stampNewCredentialsSchema}
 `;

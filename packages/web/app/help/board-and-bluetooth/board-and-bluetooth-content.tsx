@@ -4,8 +4,10 @@ import React from 'react';
 import MuiLink from '@mui/material/Link';
 import { useTranslation } from 'react-i18next';
 import LocaleLink from '@/app/components/i18n/locale-link';
-import { PageShell, PageSection, Prose, ProseList } from '@/app/components/ui/page-shell';
+import { PageSection, Prose, ProseList } from '@/app/components/ui/page-shell';
+import HelpPageShell from '../help-page-shell';
 import HelpBreadcrumb from '../help-breadcrumb';
+import HelpCallout from '../help-callout';
 import HelpInstallSection from '../help-install-section';
 import { HelpScreenshot } from '../help-screenshot';
 import { HelpClip, HelpShots } from '../help-clip';
@@ -21,18 +23,28 @@ import { HelpClip, HelpShots } from '../help-clip';
  * Every label, alert text and sheet order quoted here is checked against
  * settings.json / common.json and the BleControlSheet, DevicePickerSheet,
  * use-board-bluetooth and live-activity-bridge sources in packages/mobile.
+ * Since 2.7 (#7188) `#driving` is where the What's New spotlight sends
+ * climbers: a tap previews, Put on board starts a drive timed by Stop driving
+ * after (lib/keep-lighting.ts, the clock and shrinking frost in
+ * play-drawer/wall-control.ts), and Disconnect Bluetooth when driving ends
+ * decides whether a stop keeps the link (use-driving-ended-disconnect.ts).
  */
 export default function BoardAndBluetoothContent() {
   const { t } = useTranslation('marketing');
 
   return (
-    <PageShell
+    <HelpPageShell
       title={t('help.bluetooth.hero.title')}
       lead={t('help.bluetooth.hero.subtitle')}
       breadcrumb={<HelpBreadcrumb current={t('help.bluetooth.breadcrumb')} />}
     >
       <PageSection id="connect" title={t('help.bluetooth.connect.title')}>
         <HelpShots>
+          <HelpClip
+            name="put-on-board-timed-drive"
+            alt={t('help.bluetooth.connect.timedClipAlt')}
+            caption={t('help.bluetooth.connect.timedClipCaption')}
+          />
           <HelpScreenshot
             shot="board-view"
             alt={t('help.bluetooth.connect.litShotAlt')}
@@ -40,7 +52,7 @@ export default function BoardAndBluetoothContent() {
           />
         </HelpShots>
         <Prose>{t('help.bluetooth.connect.p1')}</Prose>
-        <Prose>{t('help.bluetooth.connect.p2')}</Prose>
+        <HelpCallout>{t('help.bluetooth.connect.p2')}</HelpCallout>
         <Prose>{t('help.bluetooth.connect.p3')}</Prose>
         <Prose>{t('help.bluetooth.connect.p4')}</Prose>
       </PageSection>
@@ -56,6 +68,7 @@ export default function BoardAndBluetoothContent() {
         <Prose>{t('help.bluetooth.driving.p1')}</Prose>
         <Prose>{t('help.bluetooth.driving.p2')}</Prose>
         <Prose>{t('help.bluetooth.driving.p3')}</Prose>
+        <Prose>{t('help.bluetooth.driving.p4')}</Prose>
       </PageSection>
 
       <PageSection id="failed" title={t('help.bluetooth.failed.title')} lead={t('help.bluetooth.failed.intro')}>
@@ -76,15 +89,22 @@ export default function BoardAndBluetoothContent() {
             alt={t('help.bluetooth.hidden.shotAlt')}
             caption={t('help.bluetooth.hidden.shotCaption')}
           />
+          <HelpScreenshot
+            shot="board-lighting"
+            alt={t('help.bluetooth.hidden.lightingShotAlt')}
+            caption={t('help.bluetooth.hidden.lightingShotCaption')}
+          />
         </HelpShots>
         <Prose>{t('help.bluetooth.hidden.p1')}</Prose>
         <ProseList>
+          <li>{t('help.bluetooth.hidden.rowStopDriving')}</li>
           <li>{t('help.bluetooth.hidden.row1')}</li>
           <li>{t('help.bluetooth.hidden.row2')}</li>
           <li>{t('help.bluetooth.hidden.row3')}</li>
           <li>{t('help.bluetooth.hidden.row4')}</li>
         </ProseList>
         <Prose>{t('help.bluetooth.hidden.p2')}</Prose>
+        <Prose>{t('help.bluetooth.hidden.autoLight')}</Prose>
         <Prose>{t('help.bluetooth.hidden.p3')}</Prose>
       </PageSection>
 
@@ -135,6 +155,6 @@ export default function BoardAndBluetoothContent() {
           </li>
         </ProseList>
       </PageSection>
-    </PageShell>
+    </HelpPageShell>
   );
 }

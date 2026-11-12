@@ -26,6 +26,7 @@ export type PlayDrawerHiddenButtons = {
   favorite: boolean;
   share: boolean;
   queue: boolean;
+  playNext: boolean;
   mirror: boolean;
   angle: boolean;
 };
@@ -51,7 +52,6 @@ export type ClimbMenuGroups = readonly (readonly PlayDrawerMenuRowId[])[];
  * the first that has a row. Ids not listed here are never offered from the
  * player:
  *
- * - `preview`: the climber is already looking at the climb.
  * - `editEntry`: a logbook-only row.
  *
  * `tick` is offered only while the bar puts Log away (a timed block in wall
@@ -83,7 +83,7 @@ const LIVE_ON_BOARD_MISMATCH: ReadonlySet<PlayDrawerMenuRowId> = new Set<PlayDra
 function isOffered(id: PlayDrawerMenuRowId, { hidden, isActiveClimb }: PlayDrawerMenuRowOptions): boolean {
   switch (id) {
     case 'playNext':
-      return !isActiveClimb;
+      return hidden.playNext && !isActiveClimb;
     // These are bar buttons first. The menu only stands in while the bar has
     // put the button away, so the same action never shows up twice.
     case 'openQueue':

@@ -98,6 +98,11 @@ export type ClimbFilterFormInput = {
     selected: CollectionFilter;
     onSelect: (key: CollectionFilter) => void;
   };
+  /**
+   * The Benchmarks only switch (Verified only on Kilter), with what the word
+   * means when it needs saying. Null where it is not offered (a spray wall).
+   */
+  benchmarks: { label: string; subtitle?: string; value: boolean; onValueChange: (value: boolean) => void } | null;
   popularity: { onStatusChange: (status: StatusFilter) => void; onBucket: (bucket: number | undefined) => void };
   climbType: {
     show: boolean;
@@ -231,7 +236,7 @@ function progressSection(input: ClimbFilterFormInput): ClimbFilterFormSection | 
 }
 
 function qualitySection(input: ClimbFilterFormInput): ClimbFilterFormSection {
-  const { t, collection, popularity, filters, setFiltersPatch } = input;
+  const { t, collection, benchmarks, popularity, filters, setFiltersPatch } = input;
   return {
     key: 'quality',
     title: t('mobile.filter.section.quality'),
@@ -244,6 +249,18 @@ function qualitySection(input: ClimbFilterFormInput): ClimbFilterFormSection {
         selectedKey: collection.selected,
         onSelect: (key) => collection.onSelect(key as CollectionFilter),
       },
+      ...(benchmarks
+        ? [
+            {
+              kind: 'toggle' as const,
+              key: 'benchmarks',
+              label: benchmarks.label,
+              subtitle: benchmarks.subtitle,
+              value: benchmarks.value,
+              onValueChange: benchmarks.onValueChange,
+            },
+          ]
+        : []),
       {
         kind: 'select',
         key: 'minRating',

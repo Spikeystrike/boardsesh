@@ -17,6 +17,7 @@ export type {
   PlaylistSuggestionSource,
   PlaylistTrackContinuation,
   PlaylistTrackResume,
+  PlaylistTrackDetour,
   PlaylistTrackPage,
   SetCurrentClimbOptions,
   SetCurrentClimbTrigger,
@@ -49,6 +50,7 @@ export {
   historyCopyRuleFor,
   capHistory,
   clampNowSlotPayload,
+  replaceUpNext,
   lineAfterDelta,
   reorderAcrossLine,
   clampInsertPosition,
@@ -80,7 +82,7 @@ export {
 export type { QueueSequenceDecision } from './event-utils';
 
 // "Play next" placement maths — where a climb lands when it jumps the line.
-export { planPlayNext, playNextInsertPosition } from './play-next';
+export { planPlayNext, playNextInsertPosition, withoutListWalkFlag } from './play-next';
 export type { PlayNextPlan, PlayNextTarget, QueueAddPlacement } from './play-next';
 
 export {
@@ -100,6 +102,8 @@ export {
   withPlaylistTrackResume,
   withPlaylistTrackPlace,
   samePlaylistTrackResume,
+  asLookOffWall,
+  withoutLookOffWall,
 } from './playlist-suggestions';
 export type { QueueBoardKeyTarget, PreparedPlaylistClimbs } from './playlist-suggestions';
 

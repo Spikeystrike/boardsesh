@@ -565,6 +565,7 @@
           "mirror": "Mirror",
           "favorite": "Favorite",
           "angle": "Angle",
+          "playNext": "Play next",
           "share": "Share",
           "queue": "Queue"
         },
@@ -583,7 +584,7 @@
           "label": "Board control",
           "wallButton": "Wall button",
           "lightbulb": "Lightbulb",
-          "footer": "Both controls connect, light the climb and show who holds the board. Hold while connected for board options. Read the wall button’s label: You are driving the wall means each climb you pick lights up; tap that label to stop driving and stay connected. The lightbulb sits at the top right."
+          "footer": "Both controls connect, light the climb and show who holds the board. Hold while connected for board options. Read the wall button’s label: You are driving the wall means each climb you pick lights up; tap it to stop driving. Your phone stays connected unless Disconnect Bluetooth when driving ends is on. When a drive has a time limit, a clock beside the label and the shrinking frost show when it stops. The lightbulb sits at the top right."
         }
       },
       "climbView": {
@@ -614,7 +615,7 @@
         "modeOnTheMinuteHint": "Fixed windows from the moment you turn it on. Logging attempts or sends never resets the clock.",
         "autoAdvance": "Move to the next climb",
         "autoAdvanceHint": "Lights it on the wall for you, only while Boardsesh is open.",
-        "autoAdvanceBlocked": "Only the climber driving the wall can move the queue.",
+        "autoAdvanceBlocked": "Only the climber holding the board can move the queue.",
         "autoAdvanceNeedsLength": "Pick a rest length to move the queue automatically.",
         "cuesTitle": "Cues",
         "cuesFooter": "Off, you still get one heads-up buzz before the wall moves on its own.",
@@ -637,14 +638,14 @@
       },
       "miniPlayer": {
         "title": "Mini player",
-        "description": "The bar above the tabs. Tap it to open the climb.",
+        "description": "The bar above the tabs keeps the last climb you opened. Tap it to reopen it; Board light puts it on the board.",
         "buttons": {
           "next": "Next climb",
           "previous": "Previous climb",
           "wallDisplay": "Wall display"
         },
         "fixedNote": "Board light is always there, beside Log. Log is always last, under your thumb.",
-        "footer": "On iPhone the bar has room for one of these beside Board light and Log: the first one that's on.",
+        "footer": "On a phone the bar has room for one of these beside Board light and Log: the first one that's on.",
         "open": "Open",
         "collapsed": "Collapsed",
         "previewLabel": "Preview, {{shape}} bar: {{buttons}}",
@@ -753,7 +754,21 @@
         "workout": "Build a workout: Volume, Pyramid, Ladder or Grade Focus. Set a grade, preview the burns, send them one at a time.",
         "crew": "Climbing with people? Start a session and share one queue. Anyone sends the next burn, no passing the phone.",
         "record": "Your sends chart out here on Progress: grade spread and hardest send. Import your Kilter and Tension logbook from Aurora to start with your history.",
-        "accessory": "The bar at the bottom is always what's on the board. Flip climbs from there."
+        "accessory": "The bar at the bottom keeps the last climb you opened, until your queue moves on. Tap it to reopen that climb; its lightbulb puts it on the board and ✓ logs it. The climb on the wall stays at the top of Climbs.",
+        "previewFirst": {
+          "title": "A tap opens a preview. Put on board lights it.",
+          "windowSeconds": "Then you drive the wall: for {{seconds}} seconds after each climb lights, every climb you pick lights too.",
+          "windowMinute": "Then you drive the wall: for 1 minute after each climb lights, every climb you pick lights too.",
+          "windowMinutes": "Then you drive the wall: for {{minutes}} minutes after each climb lights, every climb you pick lights too.",
+          "untilStop": "Then you drive the wall: every climb you pick lights until you stop.",
+          "frost": "The frosted button means you are driving the wall: every climb you pick lights up. A drive from Put on board stops after the time set under Stop driving after (Settings › Board): a clock counts down beside the label and the frost shrinks as it runs out. Swipe the button left to drive with no end (once connected, you can also hold it and pick Light every climb). Tap it to stop.",
+          "frostScreenReader": "When the button reads You are driving the wall, every climb you pick lights up. A drive from Put on board stops after the time set under Stop driving after, in Settings › Board. Use the Light every climb action to drive with no end. Tap the button to stop.",
+          "frostOpenEnded": "The frosted button means you are driving the wall: every climb you pick lights up until you tap it to stop. Swipe the button left to start driving (once connected, you can also hold it and pick Light every climb).",
+          "frostOpenEndedScreenReader": "When the button reads You are driving the wall, every climb you pick lights up until you tap the button to stop. Use the Light every climb action to start driving.",
+          "settings": "Lighting settings",
+          "done": "Got it",
+          "close": "Close tip"
+        }
       },
       "link": {
         "title": "Bring your {{boardName}} sends with you",
@@ -822,6 +837,14 @@
         "finishTesting": "Finish testing PR #{{prNumber}}",
         "options": "Update options",
         "earlyUpdatesHelp": "Early updates may have rough edges. Changes apply next launch."
+      },
+      "previewFirstSpotlight": {
+        "title": "Look through climbs without lighting the board",
+        "tap": "A tap opens a preview. Put on board lights it, and then you drive the wall: the climbs you pick light too, until the time you chose runs out (45 seconds by default). Change it under Stop driving after in Settings › Board.",
+        "swipe": "Swipe the wall button left to drive the wall until you stop. While it glows in the climb's colours, every climb you pick lights up. Tap it to stop. When a drive has a time limit, a clock shows beside the label and the frost shrinks as the time runs out.",
+        "back": "The arrow at the top left ends a preview and takes you back to your pick, or to the climb on the wall. The bar at the bottom keeps the last climb you opened.",
+        "cta": "See how it works",
+        "dismiss": "Got it"
       }
     },
     "launchUpdate": {
@@ -914,6 +937,7 @@
   },
   "bluetooth": {
     "boardNotFound": "Couldn't find your board. Make sure it's on and nearby — and if another phone is connected to it, disconnect there first.",
+    "boardSwitchConnectFailed": "Switched boards, but couldn't connect to the new one. Move closer to it and try again.",
     "connectFailed": "Couldn't connect. Move closer to the board and try again.",
     "serviceMissing": "Connected, but the board didn't respond. Power-cycle it and try again.",
     "unavailable": "Bluetooth is off. Turn it on to connect to your board.",

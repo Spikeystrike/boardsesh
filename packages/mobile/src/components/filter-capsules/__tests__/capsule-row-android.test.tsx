@@ -61,7 +61,8 @@ vi.mock('@expo/ui/jetpack-compose', () => {
     FilterChip,
     DropdownMenu,
     DropdownMenuItem,
-    Row: ({ children }: ChildrenProps) => createElement('div', { 'data-row': true }, children),
+    Row: ({ children, modifiers }: ChildrenProps & { modifiers?: unknown }) =>
+      createElement('div', { 'data-row': true, 'data-row-modifiers': JSON.stringify(modifiers) }, children),
     Text: ({ children, color }: ChildrenProps & { color?: string }) =>
       createElement('span', { 'data-text-color': color }, children),
     Icon: ({ source, tint }: { source?: unknown; tint?: string }) =>
@@ -83,7 +84,10 @@ vi.mock('@expo/ui/jetpack-compose', () => {
 vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({
   fillMaxWidth: () => ({}),
   horizontalScroll: () => ({}),
-  padding: () => ({}),
+  padding: (start: number, top: number, end: number, bottom: number) => ({
+    modifier: 'padding',
+    arg: [start, top, end, bottom],
+  }),
   semantics: (arg: unknown) => ({ modifier: 'semantics', arg }),
 }));
 vi.mock('react-native', () => ({
@@ -94,7 +98,9 @@ vi.mock('react-native', () => ({
 vi.mock('../../../providers/theme-provider', () => ({
   useTheme: () => ({
     brandColors: { primary: '#A78BFA', primaryFill: '#7C3AED', onPrimary: '#FFFFFF', error: '#F87171' },
-    m3: { outline: '#817B8D', onSurfaceVariant: '#A9A2B6' },
+    m3: { outline: '#8A8A8A', onSurfaceVariant: '#B0B0B0' },
+    // ComposeHost maps these onto the Compose surface roles.
+    m3SurfaceContainers: { lowest: '#121212', low: '#161616', base: '#1A1A1A', high: '#262626', highest: '#2E2E2E' },
     systemColors: { label: '#EEEEEE' },
     colorScheme: 'dark',
   }),
@@ -189,14 +195,14 @@ describe('CapsuleRow.android', () => {
     // Idle chips name their own label, icon and border so none of them falls back
     // to the wallpaper palette (#6919); a selected chip clears it explicitly so a
     // chip toggled on loses its outline.
-    expect(row[0].getAttribute('data-idle-label-color')).toBe('#A9A2B6');
+    expect(row[0].getAttribute('data-idle-label-color')).toBe('#B0B0B0');
     expect(row[0].getAttribute('data-idle-icon-color')).toBe('#A78BFA');
     expect(row.map((chip) => chip.getAttribute('data-border'))).toEqual([
-      '1:#817B8D',
+      '1:#8A8A8A',
       '0:transparent',
       '0:transparent',
-      '1:#817B8D',
-      '1:#817B8D',
+      '1:#8A8A8A',
+      '1:#8A8A8A',
       '0:transparent',
     ]);
     // Only the Filters opener carries an icon; the rail has no chevron on Android.
@@ -316,5 +322,23 @@ describe('CapsuleRow.android', () => {
     );
     expect(container.querySelector('hr')).toBeNull();
     expect(chips(container)[0].getAttribute('data-selected')).toBe('true');
+  });
+
+  describe('dense', () => {
+    const rowPadding = (container: HTMLElement) =>
+      (JSON.parse(container.querySelector('[data-row]')?.getAttribute('data-row-modifiers') ?? '[]') as unknown[]).find(
+        (modifier) => (modifier as { modifier?: string }).modifier === 'padding',
+      );
+    const capsules: Capsule[] = [{ kind: 'sheet', key: 'filters', label: 'Filters', onPress: () => {} }];
+
+    it('keeps the 8dp vertical padding by default (the Logbook row)', () => {
+      const { container } = render(createElement(CapsuleRow, { capsules }));
+      expect(rowPadding(container)).toEqual({ modifier: 'padding', arg: [16, 8, 16, 8] });
+    });
+
+    it("drops the vertical padding so the chips' 48dp targets are the row's height", () => {
+      const { container } = render(createElement(CapsuleRow, { capsules, dense: true }));
+      expect(rowPadding(container)).toEqual({ modifier: 'padding', arg: [16, 0, 16, 0] });
+    });
   });
 });

@@ -1,19 +1,31 @@
-import { getServerSession } from 'next-auth/next';
+import { CredentialAuthorityUnavailable } from '@/app/lib/auth/credential-admission.server';
+import { unavailableCredentialResponse } from '@/app/lib/auth/credential-admission-response.server';
+import { getAdmittedServerSession } from '@/app/lib/auth/admitted-session.server';
 import { type NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/app/lib/db/db';
 import { esp32Controllers } from '@boardsesh/db/schema/app';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
-import { authOptions } from '@/app/lib/auth/auth-options';
 import { randomBytes } from 'crypto';
 
-const registerControllerSchema = z.object({
-  name: z.string().max(100).optional(),
-  boardName: z.enum(['kilter', 'tension']),
-  layoutId: z.number().int().positive(),
-  sizeId: z.number().int().positive(),
-  setIds: z.string().min(1),
-});
+const registerControllerSchema = z.discriminatedUnion('boardName', [
+  z.object({
+    name: z.string().max(100).optional(),
+    boardName: z.enum(['kilter', 'tension']),
+    layoutId: z.number().int().positive(),
+    sizeId: z.number().int().positive(),
+    setIds: z.string().min(1),
+  }),
+  z.object({
+    name: z.string().max(100).optional(),
+    boardName: z.literal('spray'),
+  }),
+]);
+
+// A Spraywall key is for wall devices (docs/wall-devices.md), which pick their board
+// when they subscribe, so there is no configuration to store. The columns are NOT
+// NULL, and 0 is never a real layout or size.
+const SPRAY_CONTROLLER_CONFIG = { layoutId: 0, sizeId: 0, setIds: '' };
 
 const deleteControllerSchema = z.object({
   controllerId: z.string().uuid(),
@@ -46,7 +58,7 @@ function generateApiKey(): string {
  */
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getAdmittedServerSession();
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -72,6 +84,7 @@ export async function GET() {
 
     return NextResponse.json({ controllers: controllerList });
   } catch (error) {
+    if (error instanceof CredentialAuthorityUnavailable) return unavailableCredentialResponse();
     console.error('Failed to get controllers:', error);
     return NextResponse.json({ error: 'Failed to get controllers' }, { status: 500 });
   }
@@ -83,7 +96,7 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getAdmittedServerSession();
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -96,7 +109,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: validationResult.error.issues[0].message }, { status: 400 });
     }
 
-    const { name, boardName, layoutId, sizeId, setIds } = validationResult.data;
+    const registration = validationResult.data;
+    const { name, boardName } = registration;
+    const { layoutId, sizeId, setIds } = registration.boardName === 'spray' ? SPRAY_CONTROLLER_CONFIG : registration;
     const apiKey = generateApiKey();
 
     const db = getDb();
@@ -131,6 +146,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
+    if (error instanceof CredentialAuthorityUnavailable) return unavailableCredentialResponse();
     console.error('Failed to register controller:', error);
     return NextResponse.json({ error: 'Failed to register controller' }, { status: 500 });
   }
@@ -141,7 +157,7 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getAdmittedServerSession();
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -164,6 +180,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof CredentialAuthorityUnavailable) return unavailableCredentialResponse();
     console.error('Failed to delete controller:', error);
     return NextResponse.json({ error: 'Failed to delete controller' }, { status: 500 });
   }

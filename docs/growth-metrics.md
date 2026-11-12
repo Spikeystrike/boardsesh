@@ -57,6 +57,51 @@ counts (see [analytics-consent.md](./analytics-consent.md)).
   flags until someone runs "Reset deleted person" for it; until then they are
   missing from people-based numbers even though their events arrive.
 
+### Historical active-account reconstruction
+
+The monthly active-account history before the first fully covered request-based
+30-day window is a separate database reconstruction. It is a lower-bound proxy
+for recorded activity, not historical proof of every app open or backend request.
+
+For dates before **2026-10-09**, count accounts that saved a tick with
+`origin = native`, created an explicit board session, or joined an explicit
+board session. Use tick `created_at`, session `created_at`, and participant
+`joined_at`: a backdated `climbed_at` is not evidence of app use on that day.
+Exclude imported ticks, inferred sessions, timestamps before account creation,
+and future actions. A native tick stays eligible after upload to an upstream
+logbook; a populated upstream ID alone does not make it an import.
+
+From **2026-10-09**, use `user_activity_days`. Each historical monthly point
+counts distinct accounts over the complete 30-day source union ending on the
+last UTC day of the month. Never sum daily or platform counts. October is a
+mixed action-proxy/request-history window. The reconstruction stops at October
+2026; ordinary `Active Users Snapshot` observations from **2026-11-07** onward
+supply the fully request-tracked windows.
+
+`packages/backend/src/services/historical-active-users.ts` owns this query and
+the export contract. The operator entry point is:
+
+```sh
+vp exec node --import tsx scripts/posthog/backfill-historical-active-users.ts
+vp exec node --import tsx scripts/posthog/backfill-historical-active-users.ts --apply
+```
+
+The first command is a read-only dry run. The explicit apply sends one
+`Historical Active Users Snapshot` per historical month, on
+`system:historical-active-users`, with a versioned deterministic UUID and noon
+UTC timestamp on the window's final day. Only window dates, count, method,
+version and source labels leave the database. No account identifiers or
+individual activity records are exported. A successful queue/flush attempt is
+not delivery evidence: verify the emitted aggregate rows in PostHog.
+
+Computation uses one repeatable-read, read-only transaction. It refuses the
+whole run if a mixed October window cannot be reconstructed from the retained
+request-day boundaries. This prevents a later retry, after the retention sweep,
+from publishing an artificially lower historical count. Preserved aggregate
+events let the chart retain history after source rows expire. Monthly chart
+queries keep the historical proxy, October transition, and request-based
+observations labelled separately.
+
 ## Populations
 
 A PostHog event says who sent it through two properties: `$lib` (which SDK) and
@@ -417,6 +462,133 @@ excluded.
 Baseline from the 2026-09-20 audit (2026-08-23 to 2026-09-19 UTC): search to
 send 1,808/2,361 (76.6%); queue adoption 323/2,361 (13.7%).
 
+### Connect release watch (2.7)
+
+The 2.7 phased release is watched on props of two events that already fire,
+never on new events, so 2.6.x and 2.7.x read side by side and the event count
+per session stays the same. Every one of these is absent on 2.6.x.
+
+`BLE Picker Devices Resolved` (once per picker session that showed its list,
+built by `blePickerSessionProps` in `@boardsesh/analytics`):
+
+| Prop                  | Meaning                                                                                                   |
+| --------------------- | --------------------------------------------------------------------------------------------------------- |
+| `targetFiltered`      | The list first showed filtered to a known gym or saved board.                                             |
+| `searchedAnyBoard`    | The climber tapped Search for any board, in the search or on the filtered list.                          |
+| `listedCount`         | Boards the list showed at close: while filtered, the target's own plus the unidentified ones of its type (#7202); every board found otherwise. |
+| `targetNotListedSeen` | "Your board isn't in the list" was on screen: boards were found, none of them the target.                |
+| `tipsSeen`            | The troubleshooting tips (hardware, location permission, Location services) were on screen. From 2026-11 the tips show 5 s into the scan (and for a known board while nothing listed may be the climber's), so the rate is not comparable with earlier events. |
+| `tipsShownAtMs`       | Milliseconds from the list showing to the tips first showing; null when they never did. From 2026-11 the tips come in 5 s into the scan, not at its end. |
+| `browsedForNow`       | The climber closed the picker with "Browse for now" (2026-11).                                            |
+| `secondsOpen`         | Whole seconds from the list showing to the session closing.                                               |
+| `phoneNeverConnected` | True until this phone's first connect; null while the phone's history hasn't loaded.                      |
+| `entrySurface`        | The `Board Connect Tapped` surface within 2 minutes before the list showed, or null.                      |
+
+The empty-or-not-listed share is sessions with `devicesTotal = 0` or
+`targetNotListedSeen = true` over all sessions. The per-group counts
+`targetMatchedDevices` / `targetUnknownDevices` / `targetOtherDevices` come
+from #7202.
+
+`Board Connect Tapped` gains `boardUuid` (the board the connect is for; the
+board moved to on a move to another gym board) and `phoneNeverConnected`, both
+absent when not known. A newcomer's first connect is `phoneNeverConnected =
+true`. `Drive Mode Ended` already carries `boardType` and `windowSec` (added for the
+MoonBoard keep-lighting field test; since 2026-11 a MoonBoard takes the same Stop
+driving after as every board), and a window that ran out reports `durationSec`
+to its end even when the app noticed late.
+
+#### Dashboard and alerts
+
+The watch has its own PostHog dashboard,
+[Boardsesh 2.7 connect release watch](https://us.posthog.com/project/412845/dashboard/2293063).
+Every chart is native production (`$lib = posthog-react-native`,
+`environment = production`), 2.6.0 and up, internal cohort excluded, daily for
+the last 14 days, and split by `$app_version` and OS, with iPadOS counted as
+iOS. Each chart shows up to 100 lines, so a release at 5%, the smallest line,
+is never the one left off.
+
+| Chart                     | Definition                                                                                                                                               |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Empty list share          | `BLE Picker Devices Resolved` with `devicesTotal = 0`, over all picker sessions.                                                                         |
+| Empty or not listed share | The empty-or-not-listed share above.                                                                                                                     |
+| Connect success rate      | `Bluetooth Connection Success` over Success plus `Bluetooth Connection Failed`, leaving out `failureReason = user_cancelled` (#3088).                    |
+| First light after connect | Sessions with a `Bluetooth Connection Success` followed by a `Climb Sent to Board Success`, over all sessions with a connect (counted by `$session_id`). |
+| Drive ends by reason      | `Drive Mode Ended` by `reason`: `window_ended`, `stopped`, `link_dropped`, `always_off`, `connect_failed` and the rest.                                  |
+| Dropped link share        | `Drive Mode Ended` with `reason = link_dropped`, over all drive ends.                                                                                    |
+| Lock Screen drives        | `Drive Mode Ended` with `startedBy = lock_screen`, by `reason`.                                                                                          |
+| Driving-ended disconnects | `Bluetooth Disconnected` with `disconnectTrigger = driving_ended`: Disconnect Bluetooth when driving ends let go of the board.                           |
+
+A Lock Screen stop has no reason of its own. The bulb stops the drive the way
+the frosted button does (`stopDrivingForLink`), so it reports
+`reason = stopped` and can't be told apart from an in-app stop. 2.6.x sends no
+`Drive Mode Ended`, so the drive charts have no store-version line.
+
+`link_dropped` is any loss of the link during a drive that didn't go through a
+stop (`resolveDriveModeExit` checks it before `board_changed`): a radio drop,
+a switch to another board mid-drive, a connection replaced by a new one, or
+another phone taking the box. The dropped link share and its alert count all of
+these, deliberate switches included.
+
+Since board plan item 8 (week 2 OTA), a `link_dropped` end the phone didn't
+cause carries `takenBy`: `named` (the climber heard "Sam took the board"),
+`anonymous` ("Another phone has the board") or null (no one took it: "Board
+disconnected"). It is left off a link the phone let go of itself, a hang-up on
+a bulb, a board switch or a replaced connection, so `takenBy` set is the drops
+a climber heard about, and `takenBy` not set on `link_dropped` is the ones they
+made. That end is sent once it is settled, up to 5 s after the drop, still
+with the drop's own `durationSec`. Before the OTA no end carries the key.
+A `link_dropped` end the phone didn't cause is lost if the app is killed
+inside that 5 s wait, so the dropped link share reads slightly low from this
+OTA on. Switching Bluetooth off mid-drive (iOS reports it as
+`bluetooth_unavailable` with `central state 4`; 3 is a revoked permission and
+2 a phone without Bluetooth LE) counts as the climber's own end and carries no `takenBy`.
+A Bluetooth stack reset (`central state 1`, or 0) is not theirs: that end
+carries `takenBy` like any other drop. On Android switching Bluetooth off still
+reads as a plain drop.
+
+An OTA keeps `$app_version`, so items that ship by OTA onto the release can't be
+told apart by version. To read one, split a chart by `ota_update_id` (a super
+property on every native event, registered by `OtaUpdateTracker`; events sent
+before it registers at launch carry none), or compare the 7 days before and
+after its publish date.
+
+The table at the bottom of the dashboard, "Connect alerts source", compares
+the release under watch (2.7.0 and up) with the store version (2.6.x) on each
+OS (iOS and Android, iPadOS folded into iOS) over the trailing 7 days. Four
+alerts read it; they were created switched off. The hold rule that uses them,
+their thresholds and their volume floor are in `docs/mobile-store-release.md`,
+"Phased release: hold at 5%".
+
+#### The Android GATT retry (#4143)
+
+On Android, a connect that fails with GATT status 133 or 147 (or with the
+status left out) retries once, inside the same 12 s budget. Both connect
+outcome events say what happened. `connectAttempts`, `retried` and
+`firstAttemptCode` are Android only: native iOS and web drop them
+(`firstAttemptCode` is also dropped when no retry ran). `retrySucceeded` is
+different: it is `false` on every `Bluetooth Connection Success` event without
+a retry, iOS and web included, and absent only on iOS and web failure events.
+So read the hit rate over `retried = true`, never over every event that
+carries `retrySucceeded`.
+
+| Prop               | Meaning                                                                             |
+| ------------------ | ----------------------------------------------------------------------------------- |
+| `connectAttempts`  | 0 = never reached the GATT connect, 1 = one attempt, 2 = the retry ran.             |
+| `retried`          | `true` when the retry ran (`connectAttempts = 2`).                                  |
+| `firstAttemptCode` | The GATT status that set the retry off: 133, 147, or null when Android left it out. |
+| `retrySucceeded`   | The retry won its GATT connect, even when MTU or service discovery failed after it. |
+
+The retry hit rate is `retrySucceeded` over `retried`, across both
+`Bluetooth Connection Success` and `Bluetooth Connection Failed`: a failure
+event can carry a retry that saved the GATT connect.
+
+`afterBoardSwitch` is on `Bluetooth Connection Success` and on the
+`Bluetooth Connection Failed` events classified from the connect error (not
+`dropped_after_connect` or `board_switch_timeout`), on every platform. It is
+`true` when the app switched boards for the connect: a climb on another board
+at the gym (#7001), or the picker's switch to the board a box belongs to. A
+failure there shows its own copy, which says the switch happened.
+
 ### Spray-wall activation
 
 A spray wall has no Bluetooth (`docs/spray-walls.md`, "No Bluetooth, and the
@@ -442,8 +614,13 @@ with no light kit.
 
 Saving a climb also fires `Set Active Climb`, because the create screen puts
 the saved climb on the queue. Those carry `trigger = 'climb_saved'` and are
-left out of step 2. A commit from the Put on the wall button carries
-`trigger = 'put_on_wall'`; it is a real pick and stays in step 2. Every spray wall starts empty and the first thing anyone
+left out of step 2. A commit from the Put on board button (or the MiniPlayer
+bulb's Put on board) carries `trigger = 'put_on_wall'`; it is a real pick and
+stays in step 2. From 2.7 a tap opens a preview, so `put_on_wall` is the main
+way a climber starts committing climbs (before 2.7 a tap committed it with no
+trigger). The climbs picked while the drive it starts runs commit through list
+activation with a null trigger, or with a navigation trigger; a step 2
+count across the 2.7 line mixes the two, so split it by app version. Every spray wall starts empty and the first thing anyone
 does on one is set a climb, so with saves counted step 2 would read "saved a
 climb" for nearly everyone and could not tell a climber who came back from one
 who did not. Next and Previous steps also fire it, with `trigger` `next`,
@@ -451,7 +628,7 @@ who did not. Next and Previous steps also fire it, with `trigger` `next`,
 In HogQL the filter is
 `coalesce(toString(properties.trigger), '') IN ('', 'put_on_wall')`: `trigger`
 is null on most climbs the climber chose and `put_on_wall` on one put up from a
-browse preview, so the filter keeps both and nothing else.
+browse preview (from 2.7, most of them), so the filter keeps both and nothing else.
 
 `boardType` on both step 2 events is the climb's own board, not the board the
 app has active. A spray climb opened from a shared link by someone whose active
@@ -870,6 +1047,52 @@ confirm App Store privacy disclosures describe advertising measurement and
 product analytics. Simulator, mocked and TestFlight dummy responses prove
 code paths only; they do not prove real campaign attribution.
 
+### Paid social (Reddit, Instagram)
+
+Dashboard: [Paid social: Reddit and Instagram](https://us.posthog.com/project/412845/dashboard/2297251).
+
+Reddit and Instagram ads link to www tagged
+`?utm_source=reddit|instagram&utm_medium=paid-social&utm_campaign=<code>&utm_content=<ad>`.
+The dashboard counts sources `reddit`, `instagram` and `meta`, lower-cased. A
+landing with a bare `rdt_cid` and no `utm_source` reads as `reddit` /
+`paid-social`; one with a bare `fbclid` reads as `meta` / `social`, the same
+fallback the store links use. The click ids are read from the event property
+when www sends one and from the landing URL otherwise. Instagram adds `fbclid` to unpaid links too (a bio
+link), so `meta` is not all paid: read the medium column.
+
+| Tile | Population | What it counts |
+| ---- | ---------- | -------------- |
+| Landing sessions by day | www (`$lib = js`) | Sessions whose first `$pageview` URL carried a paid-social tag. A later session of the same page load replays the tags but not the URL, so it is not a second landing. Crawler rule applied per person over the same window; arm 2 removals are a column of their own so the count can be quoted as a range. |
+| Store clicks and click-through by day | www | `App Install Click` in those sessions. Click-through is sessions with a click over landing sessions. The iOS and Android columns split the same sessions and can overlap. |
+| By ad (`utm_content`) | www | The same sessions and clicks per ad over the whole range. |
+| Android installs by install day | persons | `install_source` in the list, dated by `install_begin_timestamp`. People without an install time are one all-time row. `link_id` is our button's `placement`, never the ad. |
+| Android sign-ups and 7-day activation | persons + native Android events | Installs that began in the range. Sign-up is native `Signup Completed` from an hour before the install on: observed so far, and a 7-day rate over installs at least 7 days old. Activation is the Apple Ads definition: clean Android newcomers (`growth_native_newcomers`) with a `Climb Sent to Board Success` within 7 days of their first screen, maturity capped at the registry's cutoff. |
+
+- Every tile excludes cohort 295337 and uses the dashboard date range. Days are
+  UTC.
+- www tiles key on the session, not the person: landing visitors are anonymous
+  ("Campaign params on www").
+- Store clicks from the browser app at `/app` carry no landing tags and are not
+  counted.
+- The ad (`utm_content`) is known on www only. It never reaches an install: the
+  store link's `utm_content` is our link id.
+- **iOS installs from these ads can't be joined to a person.** App Store Connect →
+  App Analytics → Acquisition → Campaigns lists them under the campaign token
+  `reddit-<code>` / `instagram-<code>` (a bare `fbclid` visit is `meta`), after
+  5 first-time downloads, and only once `NEXT_PUBLIC_APP_STORE_PROVIDER_ID` is
+  set ("App Store" below).
+
+Definitions are in `scripts/posthog/paid-social-queries.ts`; the dashboard layout
+and copy are in `scripts/posthog/paid-social-dashboard.ts`. Print both with
+`vp exec node --import tsx scripts/posthog/export-paid-social-dashboard.ts`.
+Add `--validation` to print the exact queries that were run live for
+`paid-social-validation.json`: the five tiles over a fixed window, and the same
+SQL against sources that already had traffic (`ig`, `chatgpt.com`,
+`boardsesh`). The adjacent test checks each query's SHA-256, so editing a
+definition means running it again and recording the new hash and totals.
+`paid-social-deployment.json` records the dashboard, insight and tile IDs:
+update those insights in place rather than creating new ones.
+
 ### Link ids on Android installs
 
 A store link can carry a link id in `utm_content` (#6027). The app's referrer
@@ -1027,7 +1250,7 @@ event or person had a `utm_*` property: 0 of 6,661 sessions in the 28 days to
 an Instagram bio).
 
 `packages/web/app/lib/inbound-campaign.ts` now reads `utm_source`, `utm_medium`,
-`utm_campaign`, `utm_content`, `utm_term` and `gclid` off the landing URL, and
+`utm_campaign`, `utm_content`, `utm_term`, `gclid` (Google Ads), `fbclid` (Meta) and `rdt_cid` (Reddit Ads) off the landing URL, and
 `analytics.ts` sends whichever were present as plain event properties on
 `$pageview` and on every `track()` event (`App Install Click`, `Climb Handoff
 Clicked`, the gym funnel). PostHog derives the session's `$entry_utm_source`
@@ -1084,7 +1307,17 @@ Every store button on www builds its URL with `buildStoreUrl` in
 The visitor's tags win field by field. A gym that links its page from Instagram
 with a source and medium but no campaign still reports `gym-<slug>`. A landing
 URL with a `gclid` and no `utm_source` reads as `google` / `cpc`; the click id
-itself is not copied into the store link.
+itself is not copied into the store link. The same fallback exists for the other
+two click ids, only when there is no `utm_source`:
+
+| Bare click id | source   | medium        | Why                                                         |
+| ------------- | -------- | ------------- | ----------------------------------------------------------- |
+| `gclid`       | `google` | `cpc`         | Google Ads only                                             |
+| `rdt_cid`     | `reddit` | `paid-social` | Reddit appends it to ad clicks only                         |
+| `fbclid`      | `meta`   | `social`      | Meta also adds it to organic Facebook and Instagram taps, so it cannot be called paid |
+
+With several click ids the order is `gclid`, `rdt_cid`, `fbclid`. The visitor's
+own `utm_*` still win field by field.
 
 A visitor's `utm_medium` of `organic` (any case) or `(not set)` is not carried;
 the link keeps `web` or `qr`. Play writes those two values itself, and the app
@@ -1124,6 +1357,23 @@ installs in the 28 days before the change are gym-page clicks of unknown kind.
 
 The Capacitor retirement screen keeps its bare store URLs. It sends someone who
 already has the app to update it, which is not an install.
+
+### Paid social URLs (Reddit, Instagram)
+
+Tag every ad URL by hand; the bare click ids above are only the fallback.
+
+```
+https://www.boardsesh.com/?utm_source=reddit|instagram&utm_medium=paid-social&utm_campaign=<code>&utm_content=<ad>
+```
+
+- Only source, medium and campaign reach the stores. `utm_content` is replaced by
+  our placement link id (`hero`, `gym-page`, ...); the ad name stays on the www
+  events only.
+- The App Store `ct` is `<source>-<campaign>` cut to 30 characters, so keep
+  `<code>` at 18 characters or fewer (`instagram-` is 10, `reddit-` is 7).
+- iOS installs from these ads are aggregate-only in App Store Connect (5 or more
+  first-time downloads per `ct`) and need `NEXT_PUBLIC_APP_STORE_PROVIDER_ID`.
+  Android installs carry the tags into `install_referrer_raw`.
 
 ### The iOS Smart App Banner
 
@@ -1176,13 +1426,14 @@ reaches the app, so nothing reaches PostHog.
 - A single gym never appears in `ct`. App Analytics hides a campaign until it
   has at least 5 first-time downloads, which no one gym's page reaches, so all
   gyms share `gym-page` and `gym-page.poster`.
-- **`pt` comes from `NEXT_PUBLIC_APP_STORE_PROVIDER_ID`**, a build-time variable
-  of the web service. It must be digits only; anything else is ignored. **It is
+- **`pt` comes from `NEXT_PUBLIC_APP_STORE_PROVIDER_ID`**, a build-time variable.
+  It is a GitHub Actions variable in the Production environment, passed as a
+  build-arg by `production-deploy.yml` (not a Railway service variable). It must be digits only; anything else is ignored. **It is
   not set yet**: the provider id has to be read out of App Store Connect (it is
   the `pt` value in a campaign link generated there). Until it is set, links
   carry `ct` and `mt` with no `pt`, and App Analytics attributes nothing.
-  Setting it needs a rebuild of the web service, like every `NEXT_PUBLIC_`
-  variable.
+  Setting it needs a new web build (the next push to main), like every
+  `NEXT_PUBLIC_` variable.
 
 ## Retention
 
@@ -1214,8 +1465,13 @@ finished the period shown as final. Mark the current, unfinished period.
 | #6358 web deploy and OTA (fill in the date when it ships) | Analytics starts on by default outside the prompt regions (EU, EEA, UK, Switzerland, China, South Korea and the rest of `CONSENT_PROMPT_COUNTRIES`), so PostHog person and event counts from those other countries jump on this date. Do not compare those counts across it. Install attribution (`Install Attributed`, Apple Ads campaign fields, `install_*` person properties) keeps needing an explicit Allow, so its counts do not jump; the share of people who carry them falls instead |
 | community-monthly-stats first run (fill in the date when it ships) | `Community Monthly Summary` and `Community Monthly Rank` start. The first Monday run sends the 12 months before it as well, so those months appear on one day; read them by their own `month`, not by when they arrived |
 | 2026-10-19 (crew browse UI, #4281) | `Set Active Climb` gains `trigger = 'put_on_wall'` when a climber commits a pinned preview on purpose: the Put on the wall (or Set active) button, or the lightbulb relaying it. It is a real pick: filters on `trigger != 'climb_saved'` count it unchanged. Crew commits are the ones with `participantCount >= 2` |
+| 2.7.0 store binary (fill in the date when it ships) | The #5654 first-connect confirmation ("Connected to {{board}}") reaches every enrolled account's first connect, in both arms. 2.7.0 is the first binary that enrols, and until this release the confirmation also needed **Light the board when I tap a climb** on, which 2.7 turns off by default: TestFlight or QA-forced readings from earlier 2.7 builds undercount it. It has no event of its own (a one-time dialog, under the gesture rule), so read its reach as the enrolled accounts (`arm_connect_step` set) whose first `Bluetooth Connection Success` comes from 2.7.0 or later. Its body now says what lights next (every tap, Put on board's 45 s window, until stopped on a MoonBoard, or one climb), so a confirmation effect read across builds compares different copy |
+| 2.7 preview-first (OTA promoted 2026-11-02 per the changelog refresh `968f583766`; confirm with `vp run ota:rollout -- status`) | A tap on a climb opens a preview instead of lighting it, so `Set Active Climb` with `trigger = 'put_on_wall'` counts the Put on board presses (and the MiniPlayer bulb's Put on board) that start each drive. The climbs picked while its timed drive runs (45 s by default) or a MoonBoard drive runs keep a null or navigation `trigger`. Before 2.7 most picks carried a null `trigger`. Counts of climbs picked that keep null and `put_on_wall` stay comparable; a `put_on_wall`-only count jumps and must not be read as growth. Split by app version |
+| MoonBoard drives like every board (#7218 OTA, fill in the date when it ships) | A MoonBoard's Put on board takes Stop driving after (45 s by default) instead of its own Until I stop, and in a crew drives only with In a session too on, as Always drive the wall does there. `Drive Mode Started` / `Drive Mode Ended` with `boardType = 'moonboard'` and `startedBy = 'tap'` shift from open-ended (`windowSec` null) to timed drives, and crew MoonBoard drives drop where In a session too is off. `Setting Changed` stops sending key `moonboardPutOnBoardKeepsLighting`. Split MoonBoard drive lengths at this date |
 | Next / Previous telemetry OTA (fill in the date when it ships) | `Set Active Climb` starts firing on every Next and Previous, with `trigger` `next`, `previous` or `rest_timer`. Its volume jumps by about one event per step. A count of climbs picked must keep only `trigger` null or `put_on_wall`; a filter on `trigger != 'climb_saved'` alone counts the steps too from this date |
 | #4415 web deploy (fill in the date when it ships) | `Board QR Scanned` starts on `/b/{slug}/{angle}/list`: kiosk and board-poster scans had no count before it. `Gym QR Scanned` starts waiting for consent to settle; before this it fired too early and was dropped, so its earlier counts are near zero for that reason, not for lack of scans. Store buttons on a Spraywall page start sending `placement: 'spray-wall'`, and a `/b` list page reached by a scan adds the medium to the link id (`spray-wall.board`, `climb-list.kiosk`) |
+| Dead-swipe fix OTA (fill in the date when it ships) | A swipe in the player no longer waits for good on a next climb whose board never paints: it goes 700 ms after the page is mounted, or at once onto a board that failed. Such swipes add `heldArtState` and `heldMs` to `Queue Navigation`; earlier events have neither, and before this date those swipes did not step at all, so `Queue Navigation` swipe counts per player session rise slightly from here |
+| Then-signposts queue sheet OTA (fill in the date when it ships) | `Queue Sheet Opened` gains `from` (`preview` or `current`) and `upNextBucket` (`0`, `1-3`, `4-10`, `11+`). Earlier events have neither; read the share of `from = 'preview'` opens with Up next filled only from this date |
 | #6940 OTA (fill in the date when it ships) | Mobile starts firing `Queue Navigation` (Next and Previous in the player and the MiniPlayer, with `method`, `surface` and `outcome`) and `Queue Sheet Opened`. www's `Queue Navigation` stopped with W-16; read mobile's on `surface`, which www never sent |
 
 None of these repairs past data. Annotate them; do not backfill.

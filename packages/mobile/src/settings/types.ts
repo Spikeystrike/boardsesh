@@ -5,6 +5,7 @@ import type { PlayerButtonsPosition } from '../lib/player-buttons';
 import type { ClimbListLayoutPreference } from '../components/climb-list-thumbnail-metrics';
 import type { SupportCardRecord } from '../lib/support-asks';
 import type { UserBoard } from '@boardsesh/shared-schema';
+import type { KeepLightingChoice } from '../lib/keep-lighting';
 
 /** What `offlineSprayWallArchiveV1` keeps per archived wall. */
 export type RememberedSprayWallArchive = {
@@ -101,8 +102,6 @@ export type AppSettings = {
    */
   offlineMode: boolean;
   autoConnectBle: boolean;
-  autoDisconnectBle: boolean;
-  autoDisconnectTimeoutSeconds: number;
   /**
    * MoonBoard "V2" BLE feature: also light each active hold's firmware-defined
    * neighbour LED (typically the hold above), dimmer, alongside its role
@@ -117,10 +116,51 @@ export type AppSettings = {
    * (issue #6234). Display only; no effect on other boards or on the LEDs.
    */
   moonboardGridLabels: boolean;
-  /** Light the connected board when swiping to the next/previous climb in the play view. */
-  lightOnSwipe: boolean;
-  /** Light the connected board when tapping a climb to select it from a climbs list. */
-  lightOnClimbTap: boolean;
+  /**
+   * Always drive the wall: this phone drives the wall whenever it holds the board. While this phone's own
+   * Bluetooth link holds the board (never a relay, never a wall with no
+   * lights), it drives with no end (`DriveModeWatcher`, `startedBy: 'always'`),
+   * so every climb picked lights, as after a swipe on the wall button. In a
+   * crew only with In a session too on, on every board, MoonBoards included.
+   * A tap on You are driving the wall stops it until the link drops or the
+   * next Put on board; the switch itself never flips. Stop driving after doesn't apply
+   * while it is on. Replaced the two switches Light the board when I tap a
+   * climb and Light the board as I swipe (`settings/migrations.ts`). Off by
+   * default.
+   */
+  alwaysDrive: boolean;
+  /**
+   * Stop driving after (2.7): how long a drive Put on board starts keeps
+   * lighting. Right away (`off`, one climb, no drive), a 30 s, 45 s, 1, 2 or
+   * 5 minute drive that each lit climb restarts, or Until I stop (an
+   * open-ended drive). Every board, MoonBoards included. The key keeps its
+   * first name so stored choices carry over. Read through
+   * `sanitiseKeepLighting`. Until 2026-11 a MoonBoard had its own choice
+   * (`moonboardPutOnBoardKeepsLighting`, Until I stop by default); that key
+   * stays on disk, read by nothing, so an older bundle still finds it.
+   */
+  putOnBoardKeepsLighting: KeepLightingChoice;
+  /**
+   * "In a session too": Put on board drives in a crew session as well, when
+   * this phone has the crew's board. Off, picks in a session stay previews.
+   * Every board, MoonBoards included.
+   */
+  putOnBoardDrivesInSession: boolean;
+  /**
+   * "Disconnect Bluetooth when driving ends": when a drive ends because the
+   * climber stopped it (the button, Turn off all lights), its time ran out, or
+   * a crewmate's put-up ended it, this phone lets go of the board without
+   * forgetting it, so the next Put on board reconnects. Replaced
+   * auto-disconnect in 2.7 (`settings/migrations.ts`). Off by default.
+   */
+  disconnectWhenDrivingEnds: boolean;
+  /**
+   * One-shot: auto-disconnect's choices (the retired `autoDisconnectBle` and
+   * `autoDisconnectTimeoutSeconds` keys) were carried into Stop driving after
+   * and `disconnectWhenDrivingEnds`. Written once by `migrateAutoDisconnect`;
+   * nothing else reads the old keys.
+   */
+  autoDisconnectMigrated: boolean;
   /**
    * A row tap on a playlist, a For You list or a setter's page loads that list
    * into the queue in place of what was there (the behaviour before F4, #6667).
@@ -277,6 +317,8 @@ export type AppSettings = {
    * buttons preference store reads or writes this record.
    */
   playerButtonsV3: (SectionLayoutRecord & { readonly boardControl?: string }) | null;
+  /** Player buttons including Play next. V3/V2 are imported once and retained for rollback. */
+  playerButtonsV4: (SectionLayoutRecord & { readonly boardControl?: string }) | null;
   /**
    * The MiniPlayer's buttons (#6940): their order and switches, `null` while they
    * match the defaults. Read and written ONLY through `miniPlayerButtonsStore`

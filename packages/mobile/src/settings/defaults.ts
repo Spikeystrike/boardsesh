@@ -1,3 +1,4 @@
+import { DEFAULT_KEEP_LIGHTING } from '../lib/keep-lighting';
 import type { AppSettings } from './types';
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -14,12 +15,13 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoOfflineBoards: false,
   offlineMode: false,
   autoConnectBle: true,
-  autoDisconnectBle: false,
-  autoDisconnectTimeoutSeconds: 30,
   moonboardLightAdjacentHolds: false,
   moonboardGridLabels: true,
-  lightOnSwipe: true,
-  lightOnClimbTap: true,
+  alwaysDrive: false,
+  putOnBoardKeepsLighting: DEFAULT_KEEP_LIGHTING,
+  putOnBoardDrivesInSession: true,
+  disconnectWhenDrivingEnds: false,
+  autoDisconnectMigrated: false,
   playlistTapLoadsQueue: false,
   gradeRowShown: false,
   restTimerTargetSeconds: null,
@@ -48,6 +50,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   climbListLayout: 'two',
   playerButtonsV2: null,
   playerButtonsV3: null,
+  playerButtonsV4: null,
   miniPlayerButtonsV1: null,
   playerPreviousNext: false,
   playerButtonsPosition: 'below',

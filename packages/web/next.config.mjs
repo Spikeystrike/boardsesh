@@ -345,6 +345,8 @@ const nextConfig = {
   // Transpile internal monorepo packages from TypeScript source
   // This eliminates the need to pre-build packages before running the web app
   transpilePackages: [
+    '@boardsesh/auth-protocol',
+    '@boardsesh/text-redaction',
     '@boardsesh/board-constants',
     '@boardsesh/aurora-sync',
     '@boardsesh/shared-schema',
@@ -370,6 +372,7 @@ const nextConfig = {
     '@boardsesh/logbook',
     '@boardsesh/email',
     '@boardsesh/workout-summary',
+    '@boardsesh/connected-apps',
   ],
   // `postgres` (postgres.js, used by @boardsesh/db via drizzle-orm/postgres-js)
   // must stay OUT of the server bundle. Sentry's postgresJsIntegration patches
@@ -480,6 +483,76 @@ const nextConfig = {
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
         ],
       },
+      // Matching config headers can override a route handler's response. Keep
+      // credential URLs after the site-wide default, including locale rewrites.
+      ...[
+        '/api/auth/signin/:path*',
+        '/api/auth/callback/:path*',
+        '/:locale/api/auth/signin/:path*',
+        '/:locale/api/auth/callback/:path*',
+      ].map((source) => ({
+        source,
+        headers: [
+          { key: 'Referrer-Policy', value: 'no-referrer' },
+          { key: 'Cache-Control', value: 'private, no-store, max-age=0, must-revalidate' },
+          { key: 'CDN-Cache-Control', value: 'no-store' },
+          { key: 'Vercel-CDN-Cache-Control', value: 'no-store' },
+          { key: 'X-Robots-Tag', value: 'noindex, follow' },
+        ],
+      })),
+      ...['/api/auth/verify-email', '/:locale/api/auth/verify-email'].map((source) => ({
+        source,
+        headers: [{ key: 'Referrer-Policy', value: 'no-referrer' }],
+      })),
+      ...[
+        '/auth/reset-password',
+        '/:locale/auth/reset-password',
+        '/api/auth/forgot-password',
+        '/:locale/api/auth/forgot-password',
+        '/api/auth/reset-password',
+        '/:locale/api/auth/reset-password',
+      ].map((source) => ({
+        source,
+        headers: [
+          { key: 'Referrer-Policy', value: 'no-referrer' },
+          { key: 'Cache-Control', value: 'private, no-store, max-age=0, must-revalidate' },
+          { key: 'CDN-Cache-Control', value: 'no-store' },
+          { key: 'Vercel-CDN-Cache-Control', value: 'no-store' },
+          { key: 'X-Robots-Tag', value: 'noindex, follow' },
+        ],
+      })),
+      // The developer console (#6981, F15). It shows a client secret once after
+      // create or rotate, and its Delete and New secret buttons end climbers'
+      // connections, so it never renders inside another site's frame and its
+      // HTML is never cached.
+      ...['/developers/apps', '/:locale/developers/apps'].map((source) => ({
+        source,
+        headers: [
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+          { key: 'Referrer-Policy', value: 'no-referrer' },
+          { key: 'Cache-Control', value: 'private, no-store, max-age=0, must-revalidate' },
+          { key: 'CDN-Cache-Control', value: 'no-store' },
+          { key: 'Vercel-CDN-Cache-Control', value: 'no-store' },
+          { key: 'X-Robots-Tag', value: 'noindex, follow' },
+        ],
+      })),
+      // A partner app's sign-in and consent (#6981). The query is the app's
+      // signed request, so it never leaves in a Referer, never sits in a cache,
+      // and the page never renders inside another site's frame, where a
+      // clickjacker could line Allow up under a click.
+      ...['/oauth/:path*', '/:locale/oauth/:path*'].map((source) => ({
+        source,
+        headers: [
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+          { key: 'Referrer-Policy', value: 'no-referrer' },
+          { key: 'Cache-Control', value: 'private, no-store, max-age=0, must-revalidate' },
+          { key: 'CDN-Cache-Control', value: 'no-store' },
+          { key: 'Vercel-CDN-Cache-Control', value: 'no-store' },
+          { key: 'X-Robots-Tag', value: 'noindex, follow' },
+        ],
+      })),
     ];
   },
   async rewrites() {

@@ -341,6 +341,46 @@ openssl s_client -starttls postgres -connect pgdr.boardsesh.com:17963 \
 this endpoint: an untrusted chain reports `Verify return code: 18` and exits 0,
 and a hostname mismatch exits 0 too. With the flag both exit 1.
 
+## api.boardsesh.com, the partner API host
+
+This name is reserved for the partner API (#6981) and is not live. `API_HOSTNAME` in
+`infra/cloudflare/config.ts` names it, but it is deliberately absent from `dnsRecords`, so `cf:apply` neither creates
+nor requires it. `deploy-cloudflare` applies the config on every merge that touches it, which rules out both record
+shapes for now:
+
+- A `proxied-only` entry makes the apply throw while the record is missing, and a failed `deploy-cloudflare` holds
+  back the web deploy.
+- A `full` entry needs the CNAME target Railway prints when the custom domain is registered, and would create the
+  record on merge.
+
+The backend already guards the name. For `Host: api.boardsesh.com` it answers `GET /health` and returns 404 for every
+other request, and it refuses WebSocket upgrades (`packages/backend/src/handlers/api-host.ts`). The partner OAuth routes
+(`handlers/partner-auth.ts`) and the `/v1` API (`handlers/public-api/router.ts`) are the only additions, served ahead of
+that filter, and only when `PARTNER_OAUTH_MODE` is not `off`. See
+[Routes and the mode switch](./integration-platform.md#routes-and-the-mode-switch).
+
+To turn it on, as the owner:
+
+1. Add `api.boardsesh.com` as a custom domain on the backend service in Railway. Railway prints the CNAME target.
+2. Create the TXT record `_railway-verify.api.boardsesh.com` in the Cloudflare dashboard, because `cf:apply` does not
+   manage TXT records. Its value appears only in Railway's domain panel. Wait for the domain to show `verified: true`
+   before merging the CNAME change in the next two steps. Without it Railway's edge answers `Application not found`
+   for the host. See "Railway custom-domain verification" in `docs/production-deploy.md`.
+3. Add a `management: 'full'`, `type: 'CNAME'`, `ttl: 1`, `proxied: true` entry for `API_HOSTNAME` to `dnsRecords`,
+   with that target as `content`, and no `settings` block (same as `www` below). Update the test in
+   `scripts/cloudflare-apply.test.ts` that pins the record as absent.
+4. Merge. `deploy-cloudflare` creates the record.
+
+To roll back, remove the entry and delete the CNAME in the dashboard: the tool never deletes DNS records. Keep the TXT
+record.
+
+Verify:
+
+```bash
+curl -si https://api.boardsesh.com/health | head -1      # expect 200
+curl -si https://api.boardsesh.com/graphql | head -1     # expect 404
+```
+
 ## www.boardsesh.com DNS, and the origin flip
 
 `www.boardsesh.com` is a proxied CNAME to the Railway `boardsesh-web` service
@@ -800,8 +840,11 @@ The limits, on purpose:
 - Exempt paths: `/health`, `/health/db`, `/api/health` (CI polls them with bare
   curl), `/robots.txt` (so an unlisted bot can read the Disallow lines; named
   crawlers still get the block rule there), `/.well-known/` (deep-link
-  association files) and the two API surfaces `/api/v1/` and `/v1/partner/`,
-  whose intended clients are scripts and partner servers.
+  association files and OAuth metadata), the API surfaces `/api/v1/`, `/v1/`
+  and `/api/auth/oauth2/`, whose intended clients are scripts and partner
+  servers, and `/oauth/`, `/developers` and everything under it, and
+  `/auth/login`, each in every locale form (`/es/oauth/` and so on), which a
+  partner's coding agent or browser test opens to connect an app.
 - Allowed on top of the search engines and unfurlers, because each carries
   `bot` and would otherwise be caught: the Snapchat unfurler, AppleNewsBot,
   DuckDuckGo's favicon fetcher and DuckAssistBot, Kagibot, AdsBot-Google,

@@ -1,11 +1,13 @@
-import { getServerSession } from 'next-auth/next';
+import { CredentialAuthorityUnavailable } from '@/app/lib/auth/credential-admission.server';
+import { unavailableCredentialResponse } from '@/app/lib/auth/credential-admission-response.server';
+import { getAdmittedServerSession } from '@/app/lib/auth/admitted-session.server';
 import { type NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/app/lib/db/db';
 import * as schema from '@/app/lib/db/schema';
 import { hash } from 'bcryptjs';
+import { PASSWORD_HASH_COST } from '@boardsesh/auth-protocol/password-hash';
 import { eq, and, isNull } from 'drizzle-orm';
 import { z } from 'zod';
-import { authOptions } from '@/app/lib/auth/auth-options';
 import { checkRateLimit, getClientIp } from '@/app/lib/auth/rate-limiter';
 
 const setPasswordSchema = z
@@ -23,7 +25,7 @@ const setPasswordSchema = z
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getAdmittedServerSession();
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -82,7 +84,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Hash password and insert
-    const passwordHash = await hash(password, 12);
+    const passwordHash = await hash(password, PASSWORD_HASH_COST);
 
     try {
       await db.transaction(async (tx) => {
@@ -111,6 +113,7 @@ export async function POST(request: NextRequest) {
       message: 'Password set successfully. You can now log in with your email and password.',
     });
   } catch (error) {
+    if (error instanceof CredentialAuthorityUnavailable) return unavailableCredentialResponse();
     console.error('Set password error:', error);
     return NextResponse.json({ error: 'An error occurred while setting the password' }, { status: 500 });
   }

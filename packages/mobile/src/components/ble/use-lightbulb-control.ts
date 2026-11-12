@@ -8,12 +8,14 @@ import {
 } from '../../lib/analytics-board-connect';
 import {
   derivePlayDrawerLightbulbPressAction,
+  type BoardConnection,
   type PlayDrawerLightbulbPressAction,
 } from '../play-drawer/lightbulb-control';
 import { useBoardConnectionState } from './use-board-connection-state';
 import { useCrewHolderUnconfirmed } from './use-crew-holder-unconfirmed';
 import { useClimbBoardConnect } from '../../lib/boards/climb-board-connect-context';
 import type { ClimbBoardModel } from '../../lib/boards/gym-board-for-climb';
+import { drivesWithoutBluetooth } from '../../lib/boards/board-lighting';
 import type { UserBoard } from '@boardsesh/shared-schema';
 
 /** Which bulb was tapped, for Board Connect Tapped. */
@@ -130,14 +132,22 @@ export type LightbulbControl = {
   /**
    * Long-press: opens the BLE controls sheet when this device holds the link.
    * No-op when disconnected (short press connects) or when no `onOpenControls`
-   * was supplied. Gated on `localConnected` (BLE only), so a virtual hold never
-   * offers a Re-light / Turn off / Disconnect sheet for a wall with no lights.
+   * was supplied. Also available while this phone drives a spray wall over LAN.
    */
   onLongPress: () => void;
-  /** The active board is flagged as having no LED light kit. */
+  /**
+   * The active board is driven without Bluetooth: no LED light kit, or lit by a
+   * wall device (`drivesWithoutBluetooth`).
+   */
   ledless: boolean;
   /** This device holds the wall with no Bluetooth link. */
   wallHeldLocally: boolean;
+  /**
+   * Who holds the board as the in-app surfaces see it
+   * (`BoardConnectionState.inAppBoardConnection`), for a bulb that asks
+   * whether this phone drives the wall (`phoneDrivesTheWall`).
+   */
+  inAppBoardConnection: BoardConnection;
 };
 
 /**
@@ -162,6 +172,7 @@ export function useLightbulbControl(options: UseLightbulbControlOptions): Lightb
     pending,
     ledless,
     wallHeldLocally,
+    inAppBoardConnection,
     holderIsAuthoritative: holderConfirmed,
   } = useBoardConnectionState();
   // A crewmate's board that presence hasn't confirmed yet reads as theirs: a
@@ -182,6 +193,7 @@ export function useLightbulbControl(options: UseLightbulbControlOptions): Lightb
         isBluetoothConnected: bluetooth?.isConnected ?? false,
         isBluetoothLoading: bluetooth?.loading ?? false,
         ledless,
+        wallDevice: bluetooth?.wallDevice ?? false,
         wallHeld: wallHeldLocally,
         holderIsAuthoritative,
         canRelay,
@@ -197,16 +209,18 @@ export function useLightbulbControl(options: UseLightbulbControlOptions): Lightb
   const connectAfterMove = useCallback(
     (board: UserBoard, surfaceOverride?: ConnectSurface): Promise<boolean> => {
       if (!bluetooth) return Promise.resolve(false);
-      // A wall with no light kit has no radio, so there is nothing to scan
-      // for. Stop at the move: on the new board the bulb re-derives to taking
-      // the wall, the same tap a ledless board offers everywhere else. Taking
-      // it here would bind the wall still in these props, the board just left.
-      if (board.hasLeds === false) return Promise.resolve(false);
+      // A wall with no light kit, or one a wall device lights from the board
+      // feed, has no radio to scan for. Stop at the move: on the new board the
+      // bulb re-derives to taking the wall, the same tap a ledless board offers
+      // everywhere else. Taking it here would bind the wall still in these
+      // props, the board just left.
+      if (drivesWithoutBluetooth(board)) return Promise.resolve(false);
       trackBoardConnectTapped({
         surface: surfaceOverride ?? surface,
         placement,
         boardName: board.boardType,
         reconnect: bluetooth.hasRememberedDeviceForBoard(board),
+        boardUuid: board.uuid,
       });
       return bluetooth.connectAfterBoardSwitch(board);
     },
@@ -297,9 +311,9 @@ export function useLightbulbControl(options: UseLightbulbControlOptions): Lightb
     // Long-press is a power-user shortcut into the controls sheet; only meaningful
     // while THIS device holds the link (the sheet self-guards too). Disconnected,
     // long-press does nothing — short press connects.
-    if (!localConnected) return;
+    if (!localConnected && !(bluetooth?.boardName === 'spray' && bluetooth.canDriveWall)) return;
     onOpenControls?.({ surface, placement });
-  }, [localConnected, onOpenControls, surface, placement]);
+  }, [localConnected, bluetooth, onOpenControls, surface, placement]);
 
   return {
     bluetooth,
@@ -314,5 +328,6 @@ export function useLightbulbControl(options: UseLightbulbControlOptions): Lightb
     wallHeldLocally,
     pressAction,
     holderIsAuthoritative,
+    inAppBoardConnection,
   };
 }

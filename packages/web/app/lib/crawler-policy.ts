@@ -147,6 +147,12 @@ export const CRAWLER_ALLOW_TOKENS = [
   // the Arduino HTTPClient default UA, `ESP32HTTPClient`, which carries the
   // `httpclient` signature. Flashed devices cannot be patched from here.
   'esp32httpclient',
+  // LZRvision, a laser projector that lights Boardsesh climbs on a spray wall
+  // (docs/wall-devices.md). Its Python client opens the ws /graphql socket, and
+  // the upgrade is a GET, so the `python` signature refused it before the
+  // backend saw its controller key: `Python/3.12 websockets/13.1` got a 403
+  // from Cloudflare on 2026-11-03, where the same handshake with no UA got 101.
+  'lzrvision-projector',
   // A person asked an assistant to open this page. These are fetches on a
   // human's behalf, not crawls, and the origin has let them through since the
   // AI-crawler block (see middleware.test.ts). ChatGPT-User carries
@@ -196,6 +202,17 @@ export const AUTOMATION_SIGNATURE_TOKENS = [
 ] as const;
 
 /**
+ * The locale segments www serves pages under. Spelled out so this file keeps no
+ * imports, because the Cloudflare apply script loads it directly. A test pins
+ * the list to SUPPORTED_LOCALES.
+ */
+export const LOCALE_PATH_SEGMENTS = ['es', 'fr', 'de', 'it'] as const;
+
+function withLocaleForms(paths: readonly string[]): string[] {
+  return paths.flatMap((path) => [path, ...LOCALE_PATH_SEGMENTS.map((localeSegment) => `/${localeSegment}${path}`)]);
+}
+
+/**
  * Paths the default-deny never touches, whatever the UA says.
  *
  * - Health endpoints are polled by our own CI with bare curl
@@ -208,12 +225,31 @@ export const AUTOMATION_SIGNATURE_TOKENS = [
  * - `/.well-known/` holds the app-site-association files the OS fetches. The
  *   fetchers are allow-listed too, but a renamed Apple or Google agent must not
  *   be able to break deep links.
- * - `/api/v1/` (www public read API) and `/v1/partner/` (ws partner API) are
- *   programmatic surfaces: a script or a partner server calling them is the
- *   intended client, and will often send python-requests or Go-http-client.
+ * - `/api/v1/` (www public read API), `/v1/` (partner API) and
+ *   `/api/auth/oauth2/` (OAuth authorize, token and revoke) are programmatic
+ *   surfaces: a script or a partner server calling them is the intended client,
+ *   and will often send python-requests or Go-http-client.
+ * - `/oauth/`, `/developers` (the overview page and everything under it) and
+ *   `/auth/login` are the pages a partner's coding agent or browser test opens
+ *   to connect an app. Those arrive as curl, python-requests or `HeadlessChrome`.
+ *   The default-deny exists for crawl cost, and a sign-in or consent page is not
+ *   where that cost is. www serves these pages under each locale prefix too, so
+ *   they are exempt in every locale form.
  */
-export const AUTOMATION_DEFAULT_DENY_EXEMPT_PATHS = ['/health', '/health/db', '/api/health', '/robots.txt'] as const;
-export const AUTOMATION_DEFAULT_DENY_EXEMPT_PATH_PREFIXES = ['/.well-known/', '/api/v1/', '/v1/partner/'] as const;
+export const AUTOMATION_DEFAULT_DENY_EXEMPT_PATHS: readonly string[] = [
+  '/health',
+  '/health/db',
+  '/api/health',
+  '/robots.txt',
+  ...withLocaleForms(['/developers']),
+];
+export const AUTOMATION_DEFAULT_DENY_EXEMPT_PATH_PREFIXES: readonly string[] = [
+  '/.well-known/',
+  '/api/v1/',
+  '/v1/',
+  '/api/auth/oauth2/',
+  ...withLocaleForms(['/oauth/', '/developers/', '/auth/login']),
+];
 
 function includesAny(normalizedUserAgent: string, tokens: readonly string[]): boolean {
   return tokens.some((token) => normalizedUserAgent.includes(token));
@@ -221,7 +257,7 @@ function includesAny(normalizedUserAgent: string, tokens: readonly string[]): bo
 
 function isDefaultDenyExemptPath(pathname: string): boolean {
   return (
-    (AUTOMATION_DEFAULT_DENY_EXEMPT_PATHS as readonly string[]).includes(pathname) ||
+    AUTOMATION_DEFAULT_DENY_EXEMPT_PATHS.includes(pathname) ||
     AUTOMATION_DEFAULT_DENY_EXEMPT_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))
   );
 }

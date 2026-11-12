@@ -5,6 +5,7 @@ import { BoardDriverAvatar } from '../board-presence/BoardDriverAvatar';
 import { SIZES } from '../drawer-action-bar/DrawerActionBar';
 import type { WallControlModel } from './wall-control';
 import { useWallControlText } from './wall-control-text';
+import { useWindowValueText, WallWindowRing } from './WallWindowRing';
 
 type WallControlBulbProps = {
   model: WallControlModel;
@@ -25,9 +26,15 @@ type WallControlBulbProps = {
  * corner. It draws a `WallControlModel` and nothing else; the face comes from
  * `model.holderFace`, never from board presence, so it goes the moment the
  * link does. Taps and holds go to `useWallControl`, which buzzes and logs.
+ * Its tap is the wall button's (`tapAction`): during any drive it stops
+ * driving and keeps the link, and its hint says so (owner, 2026-11-03).
+ * During Put on board's timed drive an amber arc drains round it and its value
+ * says the time left (spec B3). The halo goes for that drive, as on the
+ * MiniPlayer's bulbs and the Live Activity, so the arc meets the row itself.
  */
 function WallControlBulbComponent({ model, showFace = true, onPress, onLongPress }: WallControlBulbProps) {
   const text = useWallControlText(model);
+  const windowValue = useWindowValueText(model.lightWindow);
   const hold = model.longPress === 'sheet';
   const face = showFace ? model.holderFace : null;
   return (
@@ -35,12 +42,12 @@ function WallControlBulbComponent({ model, showFace = true, onPress, onLongPress
       <BleLightbulbButton
         isConnected={model.look === 'lit' || model.look === 'driving'}
         ready={model.look === 'ready'}
+        halo={!model.lightWindow}
         accessibilitySelected={model.selected}
-        accessibilityValueText={text.bulbValue}
-        accessibilityTapHint={text.bulbAccessibilityHint}
+        accessibilityValueText={windowValue ?? text.bulbValue}
+        accessibilityTapHint={text.accessibilityHint}
         isScanning={model.pending}
         writing={model.writing}
-        autoDisconnectWarning={model.autoDisconnectWarning}
         onPress={onPress}
         onLongPress={hold ? onLongPress : undefined}
         longPressHaptic={false}
@@ -50,6 +57,7 @@ function WallControlBulbComponent({ model, showFace = true, onPress, onLongPress
         size={SIZES.lg.icon}
         containerSize={SIZES.lg.dim}
       />
+      {model.lightWindow ? <WallWindowRing size={SIZES.lg.dim} /> : null}
       {face ? (
         <View
           style={styles.face}

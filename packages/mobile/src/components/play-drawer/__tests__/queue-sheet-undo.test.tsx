@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
 vi.mock('../../use-ios-sheet-background-style', () => ({ useIosSheetBackgroundStyle: () => undefined }));
+// The walk's board reads the active board and its gym; board-blind here, and
+// one object, as the real hook's memo hands out.
+const boardBlindWalk = vi.hoisted(() => ({}));
+vi.mock('../../../providers/queue/use-queue-walk-board', () => ({ useQueueWalkBoard: () => boardBlindWalk }));
 vi.mock('../../AccessibleTextInput', async () => {
   const { TextInput } = await import('react-native');
   return { AccessibleTextInput: TextInput };
@@ -34,12 +38,40 @@ const live = vi.hoisted(() => ({
   playlistSource: null as PlaylistSuggestionSource | null,
 }));
 
+// VoiceOver / TalkBack as the real useScreenReaderEnabled hook reads it: the
+// first query, then `screenReaderChanged` events. `timeToTakeActionMs` is
+// Android's accessibility setting, answered the way Android does: the larger of
+// it and the timeout the app asks about.
+const screenReader = vi.hoisted(() => ({
+  enabled: false,
+  os: 'ios',
+  listeners: new Set<(enabled: boolean) => void>(),
+  timeToTakeActionMs: 0,
+  recommendedTimeoutQueries: 0,
+}));
+
 type ViewProps = { children?: ReactNode; testID?: string; onPress?: () => void; accessibilityLabel?: string };
 vi.mock('react-native', () => ({
   View: ({ children }: ViewProps) => createElement('div', null, children),
   Pressable: ({ children, onPress, accessibilityLabel }: ViewProps) =>
     createElement('button', { onClick: onPress, 'data-label': accessibilityLabel }, children),
-  Platform: { OS: 'ios', select: (options: Record<string, unknown>) => options.ios },
+  AccessibilityInfo: {
+    isScreenReaderEnabled: () => Promise.resolve(screenReader.enabled),
+    addEventListener: (_event: string, listener: (enabled: boolean) => void) => {
+      screenReader.listeners.add(listener);
+      return { remove: () => screenReader.listeners.delete(listener) };
+    },
+    getRecommendedTimeoutMillis: (originalTimeout: number) => {
+      screenReader.recommendedTimeoutQueries += 1;
+      return Promise.resolve(Math.max(originalTimeout, screenReader.timeToTakeActionMs));
+    },
+  },
+  Platform: {
+    get OS() {
+      return screenReader.os;
+    },
+    select: (options: Record<string, unknown>) => options[screenReader.os],
+  },
   StyleSheet: {
     flatten: (style: unknown) => Object.assign({}, ...[style].flat(10).filter(Boolean)),
     create: (styles: Record<string, unknown>) => styles,
@@ -82,21 +114,25 @@ vi.mock('../../../theme/tokens', () => ({
 }));
 vi.mock('../../Text', () => ({ Text: ({ children }: ViewProps) => createElement('span', null, children) }));
 
-// Header: Clear + an edit toggle. List: one select button per row.
+// Header: the edit mode's Clear, the ⋯ menu's Clear queue and an edit toggle.
+// List: one select button per row.
 vi.mock('../QueueSheetHeader', () => ({
   QueueSheetHeader: ({
     onClearAll,
     onToggleEditMode,
     queueCount,
+    viewOnlyMode,
   }: {
-    onClearAll: () => void;
+    onClearAll: (source: 'edit' | 'menu') => void;
     onToggleEditMode: () => void;
     queueCount: number;
+    viewOnlyMode: boolean;
   }) =>
     createElement(
       'div',
-      { 'data-testid': 'header', 'data-count': String(queueCount) },
-      createElement('button', { 'data-testid': 'clear', onClick: onClearAll }),
+      { 'data-testid': 'header', 'data-count': String(queueCount), 'data-view-only': String(viewOnlyMode) },
+      createElement('button', { 'data-testid': 'clear', onClick: () => onClearAll('edit') }),
+      createElement('button', { 'data-testid': 'menu-clear', onClick: () => onClearAll('menu') }),
       createElement('button', { 'data-testid': 'edit', onClick: onToggleEditMode }),
     ),
 }));
@@ -130,10 +166,27 @@ vi.mock('../QueueList', () => ({
     ),
 }));
 vi.mock('../../UndoSnackbar', () => ({
-  UndoSnackbar: ({ message, onUndo, onDismiss }: { message: string; onUndo: () => void; onDismiss: () => void }) =>
+  UndoSnackbar: ({
+    message,
+    onUndo,
+    onDismiss,
+    duration,
+    focusUndoOnShow,
+  }: {
+    message: string;
+    onUndo: () => void;
+    onDismiss: () => void;
+    duration: number;
+    focusUndoOnShow?: boolean;
+  }) =>
     createElement(
       'div',
-      { 'data-testid': 'undo-snackbar', 'data-message': message },
+      {
+        'data-testid': 'undo-snackbar',
+        'data-message': message,
+        'data-duration': String(duration),
+        'data-focus-undo': String(focusUndoOnShow === true),
+      },
       createElement('button', { 'data-testid': 'undo', onClick: onUndo }),
       createElement('button', { 'data-testid': 'undo-dismiss', onClick: onDismiss }),
     ),
@@ -196,6 +249,11 @@ function renderSheet() {
 }
 
 beforeEach(() => {
+  screenReader.enabled = false;
+  screenReader.os = 'ios';
+  screenReader.listeners.clear();
+  screenReader.timeToTakeActionMs = 0;
+  screenReader.recommendedTimeoutQueries = 0;
   const queue = ['a', 'b', 'c'].map(item);
   live.current = { queue, currentClimbQueueItem: queue[1] };
   live.sessionId = 'session-1';
@@ -272,6 +330,64 @@ describe('QueueSheet undo', () => {
     ];
     expect(uuidsOf(restoredQueue)).toEqual(['a', 'b', 'c']);
     expect(restoredCurrent?.uuid).toBe('b');
+  });
+
+  it.each([
+    ['clear', 'edit'],
+    ['menu-clear', 'menu'],
+  ] as const)('clears from %s through the one clear, with its Undo (source %s)', (control, source) => {
+    const { getByTestId } = renderSheet();
+    fireEvent.click(getByTestId(control));
+    expect(actions.clearQueue).toHaveBeenCalledTimes(1);
+    expect(actions.clearQueue).toHaveBeenCalledWith({ source });
+    expect(getByTestId('undo-snackbar').getAttribute('data-message')).toBe('mobile.queueSheet.cleared');
+
+    fireEvent.click(getByTestId('undo'));
+    expect(actions.restoreQueueItems).toHaveBeenCalledTimes(1);
+    const [restoredQueue, restoredCurrent] = actions.setQueue.mock.calls[0] as [
+      ClimbQueueItem[],
+      ClimbQueueItem | null,
+    ];
+    expect(uuidsOf(restoredQueue)).toEqual(['a', 'b', 'c']);
+    expect(restoredCurrent?.uuid).toBe('b');
+  });
+
+  it('tells the header the queue is empty, which hides the pencil and the ⋯ alike', () => {
+    live.current = { queue: [], currentClimbQueueItem: null };
+    const { getByTestId } = renderSheet();
+    expect(getByTestId('header').getAttribute('data-view-only')).toBe('true');
+  });
+
+  // Crew: the ⋯ adds a second door to the same clear, never a wider one. Both
+  // controls make the identical provider calls in the shared session, and the
+  // Undo restores in that session's scope.
+  it('makes the same crew calls from the ⋯ menu as from the edit mode', () => {
+    const callsFor = (control: 'clear' | 'menu-clear') => {
+      const queue = ['a', 'b', 'c'].map(item);
+      live.current = { queue, currentClimbQueueItem: queue[1] };
+      for (const mock of Object.values(actions)) mock.mockClear();
+      const view = renderSheet();
+      fireEvent.click(view.getByTestId(control));
+      live.current = { queue: [item('peer')], currentClimbQueueItem: null };
+      fireEvent.click(view.getByTestId('undo'));
+      const calls = {
+        clear: actions.clearQueue.mock.calls.length,
+        removes: actions.removeQueueItems.mock.calls.length + actions.removeFromQueue.mock.calls.length,
+        restoreScope: actions.restoreQueueItems.mock.calls.map((call) => call[2]),
+        restored: actions.setQueue.mock.calls.map(([restoredQueue]) => uuidsOf(restoredQueue as ClimbQueueItem[])),
+      };
+      view.unmount();
+      return calls;
+    };
+    const fromEdit = callsFor('clear');
+    const fromMenu = callsFor('menu-clear');
+    expect(fromMenu).toEqual(fromEdit);
+    expect(fromMenu).toEqual({
+      clear: 1,
+      removes: 0,
+      restoreScope: ['session-1:kilter:account-1'],
+      restored: [['a', 'b', 'c', 'peer']],
+    });
   });
 
   it("keeps a crew member's add made while the Undo was on screen", () => {
@@ -361,5 +477,128 @@ describe('QueueSheet undo', () => {
     expect(restoredQueue).toHaveLength(500);
     expect(restoredQueue.at(-1)?.uuid).toBe('peer');
     expect(restoredQueue.some((queueItem) => queueItem.uuid === 'q-499')).toBe(false);
+  });
+});
+
+// Owner decision 2026-11-02: a screen-reader climber who removes by accident
+// gets ten times the 8 s, and lands on Undo, because the ⋯ / Remove bar / row
+// they were on is gone. Sighted climbers keep 8 s.
+describe('QueueSheet undo with a screen reader', () => {
+  // Every queue removal that offers an Undo: edit-mode Clear, ⋯ → Clear queue,
+  // the bulk Remove bar, and one row's Remove.
+  const removals: [string, (view: ReturnType<typeof render>) => void][] = [
+    ['edit-mode Clear', (view) => fireEvent.click(view.getByTestId('clear'))],
+    ['⋯ Clear queue', (view) => fireEvent.click(view.getByTestId('menu-clear'))],
+    [
+      'bulk Remove',
+      (view) => {
+        fireEvent.click(view.getByTestId('edit'));
+        fireEvent.click(view.getByTestId('select-a'));
+        const removeButton = view.container.querySelector('[data-label="queueDrawer.removeItems:1"]');
+        if (!removeButton) throw new Error('bulk remove button missing');
+        fireEvent.click(removeButton);
+      },
+    ],
+    ['row Remove', (view) => fireEvent.click(view.getByTestId('remove-a'))],
+  ];
+
+  // Let the first isScreenReaderEnabled() read land, then Android's
+  // getRecommendedTimeoutMillis() answer that it triggers.
+  async function settle() {
+    await act(async () => {});
+    await act(async () => {});
+  }
+
+  async function renderSettledSheet() {
+    const view = renderSheet();
+    await settle();
+    return view;
+  }
+
+  function setScreenReader(enabled: boolean) {
+    act(() => {
+      for (const listener of screenReader.listeners) listener(enabled);
+    });
+  }
+
+  it.each(removals)('holds the Undo after %s for 8 s and leaves focus alone without one', async (_name, remove) => {
+    const view = await renderSettledSheet();
+    remove(view);
+    const snackbar = view.getByTestId('undo-snackbar');
+    expect(snackbar.getAttribute('data-duration')).toBe('8000');
+    expect(snackbar.getAttribute('data-focus-undo')).toBe('false');
+  });
+
+  it.each(removals)('holds the Undo after %s for 80 s and moves focus onto it with one', async (_name, remove) => {
+    screenReader.enabled = true;
+    const view = await renderSettledSheet();
+    remove(view);
+    const snackbar = view.getByTestId('undo-snackbar');
+    expect(snackbar.getAttribute('data-duration')).toBe('80000');
+    expect(snackbar.getAttribute('data-focus-undo')).toBe('true');
+  });
+
+  it('follows the screen reader switching on and off while the Undo is up', async () => {
+    const view = await renderSettledSheet();
+    fireEvent.click(view.getByTestId('menu-clear'));
+    expect(view.getByTestId('undo-snackbar').getAttribute('data-duration')).toBe('8000');
+
+    setScreenReader(true);
+    expect(view.getByTestId('undo-snackbar').getAttribute('data-duration')).toBe('80000');
+    expect(view.getByTestId('undo-snackbar').getAttribute('data-focus-undo')).toBe('true');
+
+    setScreenReader(false);
+    expect(view.getByTestId('undo-snackbar').getAttribute('data-duration')).toBe('8000');
+    expect(view.getByTestId('undo-snackbar').getAttribute('data-focus-undo')).toBe('false');
+  });
+
+  it('stretches to the climber\'s longer Android "Time to take action" with TalkBack on', async () => {
+    screenReader.os = 'android';
+    screenReader.enabled = true;
+    screenReader.timeToTakeActionMs = 120000;
+    const view = await renderSettledSheet();
+    fireEvent.click(view.getByTestId('menu-clear'));
+    expect(view.getByTestId('undo-snackbar').getAttribute('data-duration')).toBe('120000');
+  });
+
+  it('keeps 80 s on Android when "Time to take action" is shorter', async () => {
+    screenReader.os = 'android';
+    screenReader.enabled = true;
+    screenReader.timeToTakeActionMs = 30000;
+    const view = await renderSettledSheet();
+    fireEvent.click(view.getByTestId('menu-clear'));
+    expect(view.getByTestId('undo-snackbar').getAttribute('data-duration')).toBe('80000');
+  });
+
+  it('keeps the sighted 8 s on Android without TalkBack, whatever "Time to take action" says', async () => {
+    screenReader.os = 'android';
+    screenReader.timeToTakeActionMs = 120000;
+    const view = await renderSettledSheet();
+    fireEvent.click(view.getByTestId('menu-clear'));
+    expect(view.getByTestId('undo-snackbar').getAttribute('data-duration')).toBe('8000');
+    expect(screenReader.recommendedTimeoutQueries).toBe(0);
+  });
+
+  it('asks Android again each time TalkBack turns on, since the setting sends no event', async () => {
+    screenReader.os = 'android';
+    screenReader.enabled = true;
+    screenReader.timeToTakeActionMs = 60000;
+    const view = await renderSettledSheet();
+    setScreenReader(false);
+    screenReader.timeToTakeActionMs = 120000;
+    setScreenReader(true);
+    await settle();
+    fireEvent.click(view.getByTestId('menu-clear'));
+    expect(view.getByTestId('undo-snackbar').getAttribute('data-duration')).toBe('120000');
+    expect(screenReader.recommendedTimeoutQueries).toBe(2);
+  });
+
+  it('keeps the sighted 8 s in the browser app, where react-native-web always reports a screen reader', async () => {
+    screenReader.os = 'web';
+    screenReader.enabled = true;
+    const view = await renderSettledSheet();
+    fireEvent.click(view.getByTestId('menu-clear'));
+    expect(view.getByTestId('undo-snackbar').getAttribute('data-duration')).toBe('8000');
+    expect(view.getByTestId('undo-snackbar').getAttribute('data-focus-undo')).toBe('false');
   });
 });

@@ -18,7 +18,6 @@ const spies = vi.hoisted(() => ({
   localConnected: true,
   pressAction: 'disconnect' as string,
   currentClimb: null as null | { uuid: string; name: string; difficulty: string; mirrored?: boolean },
-  byline: 'V7 · 1.4k sends' as string | null,
   announce: vi.fn(),
   reduceMotion: false,
   nativeGlass: true,
@@ -30,6 +29,33 @@ const spies = vi.hoisted(() => ({
   glowMirrored: false,
   layoutWidth: 210,
   layoutHeight: 38,
+  panConsumed: false,
+  sends: '1.4k sends' as string | null,
+  swipeOptions: null as null | { occurrenceKey: string; onDismiss?: (occurrenceKey: string) => void },
+  swipeWrapped: false,
+}));
+
+// The pan itself has its own suite (use-wall-capsule-dismiss.test.tsx); here it
+// records what the capsule hands it and whether a touch has panned.
+vi.mock('../use-wall-capsule-dismiss', () => ({
+  useWallCapsuleDismiss: (options: { occurrenceKey: string; onDismiss?: (occurrenceKey: string) => void }) => {
+    spies.swipeOptions = options;
+    return {
+      gesture: {},
+      animatedStyle: {},
+      onLayout: () => {},
+      consumePanned: () => spies.panConsumed,
+      dismiss: () => options.onDismiss?.(options.occurrenceKey),
+    };
+  },
+}));
+vi.mock('../use-climb-byline', () => ({ useClimbStatsDetail: () => spies.sends }));
+// A pass-through, so the capsule stays the rendered root the layout tests read.
+vi.mock('../WallCapsuleSwipe', () => ({
+  WallCapsuleSwipe: ({ children }: { children?: ReactNode }) => {
+    spies.swipeWrapped = true;
+    return children;
+  },
 }));
 
 vi.mock('../use-climb-wall-glow', () => ({
@@ -194,7 +220,6 @@ vi.mock('../../../hooks/use-display-grade', () => ({
 vi.mock('../../../lib/graphql/hooks', () => ({
   useProfile: () => ({ data: { avatarUrl: 'https://example.com/me.png', displayName: 'Marco', email: null } }),
 }));
-vi.mock('../use-climb-byline', () => ({ useClimbByline: () => spies.byline }));
 vi.mock('../../Avatar', () => ({
   Avatar: ({ uri, name, size }: { uri?: string | null; name?: string | null; size?: number }) =>
     createElement('img', { 'data-avatar': 'true', 'data-uri': uri, 'data-name': name, 'data-size': size }),
@@ -232,16 +257,22 @@ vi.mock('../../LargeContentViewer', () => ({
   LargeContentViewer: ({
     children,
     style,
+    title,
+    systemImage,
     onActivate,
   }: {
     children?: ReactNode;
     style?: unknown;
+    title?: string;
+    systemImage?: string;
     onActivate?: () => void;
   }) =>
     createElement(
       'div',
       {
         'data-label-viewer': 'true',
+        'data-viewer-title': title,
+        'data-viewer-image': systemImage,
         'data-style': JSON.stringify(Object.assign({}, ...[style].flat(10).filter(Boolean))),
         // Stands in for the finger lifting while the viewer is up.
         onDoubleClick: onActivate,
@@ -255,16 +286,20 @@ vi.mock('../../PressableSurface', () => ({
     onPress,
     onLongPress,
     accessibilityActions,
+    onAccessibilityAction,
     feedback,
     accessibilityRole,
     accessibilityLabel,
     accessibilityHint,
+    hitSlop,
     style,
   }: {
     children?: ReactNode;
     onPress?: () => void;
     onLongPress?: () => void;
     accessibilityActions?: { name: string; label: string }[];
+    onAccessibilityAction?: (event: { nativeEvent: { actionName: string } }) => void;
+    hitSlop?: unknown;
     feedback?: string;
     accessibilityRole?: string;
     accessibilityLabel?: string;
@@ -282,9 +317,12 @@ vi.mock('../../PressableSurface', () => ({
         'data-hint': accessibilityHint,
         'data-actions': accessibilityActions ? JSON.stringify(accessibilityActions) : undefined,
         'data-style': JSON.stringify(Object.assign({}, ...[style].flat(10).filter(Boolean))),
+        'data-hit-slop': hitSlop ? JSON.stringify(hitSlop) : undefined,
         onClick: onPress,
         // Stands in for a long-press in jsdom.
         onContextMenu: onLongPress,
+        // Stands in for a screen-reader action: the key names it.
+        onKeyDown: (event: { key: string }) => onAccessibilityAction?.({ nativeEvent: { actionName: event.key } }),
       },
       children,
     ),
@@ -338,6 +376,7 @@ const TEST_GLOW: WallGlowInput = {
 
 describe('BoardHeldCapsule', () => {
   beforeEach(() => {
+    spies.sends = '1.4k sends';
     spies.openControls.mockClear();
     spies.lightbulbPress.mockClear();
     spies.lightbulbLongPress.mockClear();
@@ -346,7 +385,6 @@ describe('BoardHeldCapsule', () => {
     spies.localConnected = true;
     spies.pressAction = 'disconnect';
     spies.currentClimb = null;
-    spies.byline = 'V7 · 1.4k sends';
     spies.colorScheme = 'dark';
     spies.glowInput = null;
     spies.glowEnabled = null;
@@ -385,6 +423,8 @@ describe('BoardHeldCapsule', () => {
     });
 
     it('on a board with no lights, pins in the brand tone and never claims lit LEDs', () => {
+      // A hold with no link: the only way a board with no lights is held.
+      spies.localConnected = false;
       const { container } = render(<BoardHeldCapsule ledless />);
       expect(container.textContent).toContain('ble.barControl.wallHeldLabel');
       expect(container.querySelector('[data-icon="lightbulb.fill"]')).toBeNull();
@@ -395,18 +435,25 @@ describe('BoardHeldCapsule', () => {
     });
   });
 
+  describe("on a wall-device board over this phone's live link", () => {
+    it('reads as any LED board: You have the board, no pin', () => {
+      spies.localConnected = true;
+      const { container } = render(<BoardHeldCapsule ledless />);
+      expect(container.textContent).toContain('ble.barControl.youHaveBoard');
+      expect(container.querySelector('[data-icon="pin.fill"]')).toBeNull();
+    });
+  });
+
   describe('with a current climb', () => {
     beforeEach(() => {
       spies.currentClimb = { uuid: 'climb-1', name: 'Kish Mud Prison', difficulty: 'V7' };
     });
 
-    it('shows your face, then the climb over its grade · sends byline', () => {
+    it('shows your climb over its grade and sends, with no face: it would be your own (#7281)', () => {
       const { container } = render(<BoardHeldCapsule ledless={false} />);
-      const avatar = container.querySelector('[data-avatar]');
-      expect(avatar?.getAttribute('data-uri')).toBe('https://example.com/me.png');
-      expect(avatar?.getAttribute('data-name')).toBe('Marco');
+      expect(container.querySelector('[data-avatar]')).toBeNull();
       const lines = [...container.querySelectorAll('[data-text]')].map((node) => node.textContent);
-      expect(lines).toEqual(['Kish Mud Prison', 'V7 · 1.4k sends']);
+      expect(lines).toEqual(['Kish Mud Prison', 'V7', ' · 1.4k sends']);
       expect(container.querySelector('[data-icon="lightbulb.fill"]')).toBeNull();
       // Still the amber "LEDs on" tone.
       expect(container.querySelector('[data-glass-surface]')?.getAttribute('data-glass-tint')).toBe(
@@ -414,11 +461,11 @@ describe('BoardHeldCapsule', () => {
       );
     });
 
-    it('drops the byline line when there is nothing to say', () => {
-      spies.byline = null;
+    it('shows the grade alone for a climb with no sends or rating', () => {
+      spies.sends = null;
       const { container } = render(<BoardHeldCapsule ledless={false} />);
       const lines = [...container.querySelectorAll('[data-text]')].map((node) => node.textContent);
-      expect(lines).toEqual(['Kish Mud Prison']);
+      expect(lines).toEqual(['Kish Mud Prison', 'V7']);
     });
 
     it('names the climb and the hold in one spoken label', () => {
@@ -431,6 +478,8 @@ describe('BoardHeldCapsule', () => {
     });
 
     it('says "You have the wall" on a board with no lights', () => {
+      // A hold with no link: the only way a board with no lights is held.
+      spies.localConnected = false;
       const { container } = render(<BoardHeldCapsule ledless />);
       const button = container.querySelector('[data-pressable="true"]') as HTMLElement;
       expect(button.getAttribute('data-label')).toBe(
@@ -497,6 +546,8 @@ describe('BoardHeldCapsule', () => {
 
     it('keeps the LED-less climb in its existing brand surface without starting glow reads', () => {
       spies.glowInput = TEST_GLOW;
+      // A hold with no link: the only way a board with no lights is held.
+      spies.localConnected = false;
       const { container } = render(<BoardHeldCapsule ledless />);
       fireEvent.doubleClick(container.firstElementChild!);
       expect(spies.glowEnabled).toBe(false);
@@ -536,7 +587,6 @@ describe('BoardHeldCapsule', () => {
             }}
             ledless={false}
             toneColor={WARNING}
-            compact={false}
             onPress={spies.lightbulbPress}
             onLongPress={spies.lightbulbLongPress}
             accessibilityActions={undefined}
@@ -630,6 +680,80 @@ describe('BoardHeldCapsule', () => {
       expect(button.getAttribute('data-actions')).toBeNull();
       fireEvent.contextMenu(button);
       expect(spies.lightbulbLongPress).not.toHaveBeenCalled();
+    });
+  });
+
+  // While it draws the climb on the wall, the held capsule carries that climb's Hide.
+  describe('Hide, while it draws the climb on the wall', () => {
+    beforeEach(() => {
+      spies.currentClimb = { uuid: 'climb-1', name: 'Kish Mud Prison', difficulty: 'V7' };
+      spies.panConsumed = false;
+      spies.swipeOptions = null;
+      spies.swipeWrapped = false;
+    });
+
+    it('has no ×: a left swipe hides this lighting (#7281)', () => {
+      const onDismiss = vi.fn();
+      const { container } = render(
+        <BoardHeldCapsule ledless={false} dismiss={{ occurrenceKey: 'board-1:climb-1', onDismiss }} />,
+      );
+      expect(container.querySelector('[data-label="mobile.boardPresence.stripDismiss"]')).toBeNull();
+      expect(container.querySelector('[data-icon="close"]')).toBeNull();
+      expect(spies.swipeWrapped).toBe(true);
+      expect(spies.swipeOptions).toMatchObject({ occurrenceKey: 'board-1:climb-1', onDismiss });
+    });
+
+    it('never lets go of the board, or opens its controls, on a touch that swiped', () => {
+      spies.panConsumed = true;
+      const { container } = render(
+        <BoardHeldCapsule ledless={false} dismiss={{ occurrenceKey: 'board-1:climb-1', onDismiss: vi.fn() }} />,
+      );
+      const capsule = container.querySelector('[data-pressable="true"]') as HTMLElement;
+      fireEvent.click(capsule);
+      fireEvent.contextMenu(capsule);
+      expect(spies.lightbulbPress).not.toHaveBeenCalled();
+      expect(spies.lightbulbLongPress).not.toHaveBeenCalled();
+      // The next plain tap still lets go.
+      spies.panConsumed = false;
+      fireEvent.click(capsule);
+      expect(spies.lightbulbPress).toHaveBeenCalledOnce();
+    });
+
+    it('is not swipeable and has no Hide action for a bare hold', () => {
+      const { container } = render(<BoardHeldCapsule ledless={false} />);
+      // The wrapper stays mounted so Hide arriving never remounts the capsule; its pan is off.
+      expect(spies.swipeWrapped).toBe(true);
+      expect(spies.swipeOptions?.onDismiss).toBeUndefined();
+      const capsule = container.querySelector('[data-pressable="true"]') as HTMLElement;
+      expect(capsule.getAttribute('data-actions')).not.toContain('dismiss');
+    });
+
+    it('offers Hide beside Board controls to screen readers', () => {
+      const onDismiss = vi.fn();
+      const { container } = render(
+        <BoardHeldCapsule ledless={false} dismiss={{ occurrenceKey: 'board-1:climb-1', onDismiss }} />,
+      );
+      const capsule = container.querySelector('[data-pressable="true"]') as HTMLElement;
+      expect(JSON.parse(capsule.getAttribute('data-actions') ?? 'null')).toEqual([
+        { name: 'longpress', label: 'ble.holdForControls' },
+        { name: 'dismiss', label: 'mobile.boardPresence.stripDismiss' },
+      ]);
+      fireEvent.keyDown(capsule, { key: 'dismiss' });
+      expect(onDismiss).toHaveBeenCalledExactlyOnceWith('board-1:climb-1');
+      fireEvent.keyDown(capsule, { key: 'longpress' });
+      expect(spies.lightbulbLongPress).toHaveBeenCalledOnce();
+      expect(spies.lightbulbPress).not.toHaveBeenCalled();
+    });
+
+    it('keeps Hide alone when there is no radio link to open controls for', () => {
+      spies.localConnected = false;
+      const { container } = render(
+        <BoardHeldCapsule ledless dismiss={{ occurrenceKey: 'board-1:climb-1', onDismiss: vi.fn() }} />,
+      );
+      const capsule = container.querySelector('[data-pressable="true"]') as HTMLElement;
+      expect(JSON.parse(capsule.getAttribute('data-actions') ?? 'null')).toEqual([
+        { name: 'dismiss', label: 'mobile.boardPresence.stripDismiss' },
+      ]);
     });
   });
 });

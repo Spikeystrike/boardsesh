@@ -51,6 +51,15 @@ vi.mock('../../AppMenu', () => ({
     );
   },
 }));
+vi.mock('@tanstack/react-query', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@tanstack/react-query')>();
+  const client = new original.QueryClient();
+  return { ...original, useQueryClient: () => client };
+});
+vi.mock('../../../lib/graphql/offline-request', () => ({ offlineAwareRequest: vi.fn() }));
+vi.mock('../../../lib/privacy/privacy-cache', () => ({ getCredentialGeneration: () => 0 }));
+vi.mock('../../../lib/error-reporting', () => ({ reportHandledError: vi.fn() }));
+vi.mock('../../play-drawer/use-climb-change-lights', () => ({ isDrivingWall: () => false }));
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: Record<string, unknown>) => (options ? `${key} ${JSON.stringify(options)}` : key),
@@ -79,6 +88,7 @@ vi.mock('../../../providers/queue-provider', () => ({
     getQueueSnapshot: () => ({ queue: [], currentClimbQueueItem: null, sessionId: null }),
   }),
   useQueueSessionId: () => ({ sessionId: null }),
+  useIsSharedSession: () => false,
   useActiveClimbUuid: () => 'climb-1',
 }));
 vi.mock('../../../lib/climb-to-queue-item', () => ({ climbToQueueItem: (climb: unknown) => ({ uuid: 'qi', climb }) }));
@@ -263,7 +273,15 @@ describe('MiniPlayerActionsMenu', () => {
 
   it('leaves out what the bar could never show here: no heart or queue signed out, no Mirror on Kilter', () => {
     const hidden = miniPlayerMenuHiddenButtons(['next'], (buttonId) => buttonId !== 'mirror');
-    expect(hidden).toEqual({ tick: false, favorite: true, share: true, queue: true, mirror: false, angle: true });
+    expect(hidden).toEqual({
+      playNext: true,
+      tick: false,
+      favorite: true,
+      share: true,
+      queue: true,
+      mirror: false,
+      angle: true,
+    });
     const signedOut = renderMenu({
       isAuthenticated: false,
       isAvailable: (buttonId) => buttonId !== 'favorite' && buttonId !== 'queue',

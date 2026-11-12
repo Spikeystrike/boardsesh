@@ -20,6 +20,7 @@ type AdminBoard {
   angle: Int!
   isAngleAdjustable: Boolean!
   hasLeds: Boolean!
+  litByWallDevice: Boolean!
   "Owner-only, including in the admin registry."
   serialNumber: String
   "Owner-only, including in the admin registry."
@@ -1951,6 +1952,8 @@ type AscentFeedItem {
   isBenchmark: Boolean!
   "Whether matching is disallowed on this climb"
   isNoMatch: Boolean!
+  "Structured climb characteristics (e.g. 'no_match', 'method_footless'). Decode with @boardsesh/shared-schema helpers (isNoMatch / getMoonBoardMethod)."
+  characteristics: [String!]
   "Comment"
   comment: String!
   "When climbed (ISO 8601)"
@@ -2006,6 +2009,8 @@ type GroupedAscentFeedItem {
   isBenchmark: Boolean!
   "Whether matching is disallowed on this climb"
   isNoMatch: Boolean!
+  "Structured climb characteristics (e.g. 'no_match', 'method_footless'). Decode with @boardsesh/shared-schema helpers (isNoMatch / getMoonBoardMethod)."
+  characteristics: [String!]
   "Date of the attempts (YYYY-MM-DD)"
   date: String!
   "Number of flash sends"
@@ -2094,6 +2099,8 @@ input AscentFeedInput {
   minQuality: Int
   "Only include climbs by these setters (exact setter usernames)"
   setterUsernames: [String!]
+  "Leave out ascents of climbs the community has hidden. For surfaces that headline one ascent; the logbook itself keeps them."
+  excludeHiddenClimbs: Boolean
   "Primary sort field"
   sortBy: String
   "Primary sort order: desc (default) or asc"
@@ -2497,6 +2504,8 @@ type SessionFeedTickHighlight {
   isMirror: Boolean!
   isBenchmark: Boolean!
   isNoMatch: Boolean!
+  "Structured climb characteristics (e.g. 'no_match', 'method_footless'). Decode with @boardsesh/shared-schema helpers (isNoMatch / getMoonBoardMethod)."
+  characteristics: [String!]
   comment: String
   frames: String
   setterUsername: String
@@ -2576,6 +2585,8 @@ type SessionDetailTick {
   isMirror: Boolean!
   isBenchmark: Boolean!
   isNoMatch: Boolean!
+  "Structured climb characteristics (e.g. 'no_match', 'method_footless'). Decode with @boardsesh/shared-schema helpers (isNoMatch / getMoonBoardMethod)."
+  characteristics: [String!]
   comment: String
   frames: String
   setterUsername: String
@@ -2710,6 +2721,8 @@ type Playlist {
   isFollowedByMe: Boolean!
   "Whether the current user has pinned this playlist (false when unauthenticated)"
   isPinnedByMe: Boolean!
+  "Grade spread of the playlist's climbs. Null when none of its climbs has a grade yet."
+  gradeSummary: PlaylistGradeSummary
 }
 
 """
@@ -3509,6 +3522,12 @@ type UserBoard {
   isAngleAdjustable: Boolean!
   "Whether this wall has an LED light kit"
   hasLeds: Boolean!
+  """
+  Whether an internet-connected wall device (a laser projector, an LED
+  controller) lights this wall from the board feed. Climbers take the wall
+  with no Bluetooth link.
+  """
+  litByWallDevice: Boolean!
   "When created"
   createdAt: String!
   "Human-readable layout name"
@@ -3669,6 +3688,8 @@ input CreateBoardInput {
   isAngleAdjustable: Boolean
   "Whether this wall has an LED light kit (default true)"
   hasLeds: Boolean
+  "Whether a wall device lights this wall from the board feed (default false)"
+  litByWallDevice: Boolean
   "Controller box serial number"
   serialNumber: String
   "Paired Rogue Fitness timer's advertised BLE name"
@@ -3715,6 +3736,8 @@ input UpdateBoardInput {
   isAngleAdjustable: Boolean
   "New LED light kit flag"
   hasLeds: Boolean
+  "New wall device flag"
+  litByWallDevice: Boolean
   "New layout ID (authorized editors only; existing ticks are preserved untouched)"
   layoutId: Int
   "New size ID (authorized editors only; existing ticks are preserved untouched)"
@@ -5126,6 +5149,13 @@ type GroupedNotification {
   """
   climbCompatibleSizeIds: [Int!]
   """
+  Structured climb characteristics (e.g. 'no_match', 'method_footless').
+  Decode with @boardsesh/shared-schema helpers (isNoMatch / getMoonBoardMethod).
+  Drives the Woods matching/feet rules line and the no-match glyph elsewhere
+  when a notification opens the play drawer directly, without a climb refetch.
+  """
+  climbCharacteristics: [String!]
+  """
   The comment thread this notification belongs to, when it has one. For a
   comment or a vote on a comment that is the commented-on entity (a tick, a
   session, a playlist climb) rather than the comment itself, so a client can
@@ -5628,6 +5658,8 @@ type SetterProfile {
   linkedUserDisplayName: String
   "Linked user's avatar URL"
   linkedUserAvatarUrl: String
+  "Sends across this setter's listable climbs, summing each climb's best angle so a climber who sent it at two angles counts once. Includes imported Aurora ascents."
+  totalAscents: Int!
 }
 
 """
@@ -7212,6 +7244,52 @@ input UpdateSprayWallInput {
   trainingConsent: Boolean
 }
 
+"""
+The LED setup of one spray wall: which controller drives it, whether it is on,
+and the hole, LED and cable layout that maps holds to physical LEDs.
+
+Lives on the board, so every climber at the wall can light it from their own
+phone. The phone talks to the controller directly over the local network; the
+server only stores the setup and never contacts the address.
+"""
+type SprayWallLedSetup {
+  boardUuid: ID!
+  "The driver for this controller. `wled` is the only one today."
+  controllerType: String!
+  "A local-network base address, or empty until the owner confirms one."
+  controllerUrl: String!
+  enabled: Boolean!
+  "A saved T-nut layout. Null until the setup screen has saved one."
+  layout: JSON
+  "When this setup last changed, ISO 8601."
+  updatedAt: String!
+}
+
+"""
+A wall's LED setup as this viewer may use it. Null at the query, not here, when
+the viewer cannot read the wall: the same answer `sprayWall(uuid)` gives.
+"""
+type SprayWallLedSetupView {
+  "Whether this viewer may save changes: the wall's owner, on a wall still in use."
+  viewerCanEdit: Boolean!
+  "Null when nobody has saved a setup for this wall yet."
+  setup: SprayWallLedSetup
+}
+
+"""
+Save part of a wall's LED setup. A field left out (or null) keeps its stored
+value, so the settings and the layout save from separate code paths without
+overwriting each other.
+"""
+input SaveSprayWallLedSetupInput {
+  boardUuid: ID!
+  controllerType: String
+  "Local-network addresses only: the server refuses anything else."
+  controllerUrl: String
+  enabled: Boolean
+  layout: JSON
+}
+
 input SetSprayWallRenderSettingsInput {
   uuid: ID!
   """
@@ -8104,6 +8182,13 @@ type Query {
   # ============================================
 
   """
+  Immutable identity admitted from this request's presented credential.
+  Returns UNAUTHENTICATED when the credential cannot authorize the request.
+  Authority failures return SERVICE_UNAVAILABLE instead of an identity.
+  """
+  authenticatedUserId: ID!
+
+  """
   Get the currently authenticated user's profile.
   Returns null if not authenticated.
   """
@@ -8305,6 +8390,13 @@ type Query {
   myControllers: [ControllerInfo!]!
   "Read a gym's device configuration using a registered gym owner/admin's controller API key."
   controllerGymManifest(gymRef: String!): ControllerGymManifest!
+  """
+  The boards the controller API key's owner owns (home boards and spray walls,
+  deleted and archived ones left out), so a wall device can let its owner pick
+  one. Requires a WebSocket connected with `connectionParams.controllerApiKey`;
+  without one it fails UNAUTHENTICATED, signed in or not.
+  """
+  controllerBoards: [ControllerBoard!]!
 
   # ============================================
   # Social / Follow Queries
@@ -8793,6 +8885,14 @@ type Query {
   as is a wall with nothing published yet.
   """
   sprayWallRenderData(uuid: ID!, version: Int): SprayWallRenderData
+
+  """
+  A spray wall's LED setup, for lighting it from this phone. Anyone who can read
+  the wall gets it, with the same rules as `sprayWall`; null when the wall does
+  not exist, is deleted, or this viewer may not see it. `setup` is null when the
+  wall has no saved setup yet.
+  """
+  sprayWallLedSetup(boardUuid: ID!): SprayWallLedSetupView
 
   """
   The generated wall looks of one version (`wall-crop`, `hold-cutouts`) and
@@ -9904,6 +10004,13 @@ type Mutation {
   setSprayWallRenderSettings(input: SetSprayWallRenderSettingsInput!): SprayWall!
 
   """
+  Save part of a spray wall's LED setup. Owner only: this value reaches every
+  climber's phone at the wall. Refuses an address that is not on a local network
+  and a layout outside the shared caps.
+  """
+  saveSprayWallLedSetup(input: SaveSprayWallLedSetupInput!): SprayWallLedSetup!
+
+  """
   Attach a photo to the wall as a new DRAFT version, and compute its
   photo→canonical homography from the anchors by 4-point DLT.
 
@@ -10927,6 +11034,29 @@ type ControllerGymBoard {
   preview: ControllerPreviewDescriptor!
 }
 
+"""
+One board owned by the account a controller API key belongs to, for a wall
+device's setup screen (`controllerBoards`). Read-only identity and config.
+"""
+type ControllerBoard {
+  "Numeric board-presence channel id (userBoards.id). Feeds boardNowPlaying(boardId)."
+  boardId: Int!
+  "The board's uuid. A spray wall's uuid is also its sprayWall(uuid) key."
+  uuid: ID!
+  "What the owner calls the board"
+  name: String!
+  "kilter, tension, moonboard, spray, ..."
+  boardType: String!
+  layoutId: Int!
+  sizeId: Int!
+  "Comma-separated hold set ids"
+  setIds: String!
+  "Board angle in degrees"
+  angle: Int!
+  "False for a board with no lights (every spray wall)"
+  hasLeds: Boolean!
+}
+
 type ControllerGymManifest {
   version: Int!
   gymUuid: ID!
@@ -11906,4 +12036,163 @@ extend type Mutation {
   snapshotActiveUsers(day: String): ActiveUsersSnapshotResult!
   "HTTP cron credentials only. Deletes user_activity_days rows older than 60 days."
   purgeExpiredUserActivity: UserActivityPurgeResult!
+}
+
+"""
+Where an app's OAuth redirect lands. WEB apps use https:// redirect URIs only;
+NATIVE apps may also use http://127.0.0.1 or http://[::1] and private-use
+schemes such as com.example.app:/oauth/boardsesh. See docs/partner-api.md.
+"""
+enum OAuthClientApplicationType {
+  WEB
+  NATIVE
+}
+
+"""
+How an app authenticates at the token endpoint. NONE is a public app (no
+secret, PKCE protects the code); the other two are confidential apps that send
+a client secret by HTTP Basic or in the form body.
+"""
+enum OAuthClientAuthMethod {
+  NONE
+  CLIENT_SECRET_BASIC
+  CLIENT_SECRET_POST
+}
+
+"An app a developer registered for the Boardsesh API. Never carries its secret."
+type OAuthClient {
+  clientId: ID!
+  "Shown on the consent screen."
+  name: String!
+  "Who makes the app: the consent screen's Made by line. Null only for an app registered before publishers were recorded."
+  publisherName: String
+  homepageUrl: String
+  privacyPolicyUrl: String!
+  applicationType: OAuthClientApplicationType!
+  tokenEndpointAuthMethod: OAuthClientAuthMethod!
+  "Matched as exact strings, except the port of a loopback redirect."
+  redirectUris: [String!]!
+  "ISO 8601."
+  createdAt: String!
+  "ISO 8601 when Boardsesh suspended the app, otherwise null. A suspended app gets no tokens."
+  suspendedAt: String
+  "Why the app was suspended, written for the developer."
+  suspensionReason: String
+  "Most climbers connected at once."
+  maxActiveConnections: Int!
+  "Most new climber connections per day."
+  maxNewConnectionsPerDay: Int!
+  "Climbers connected now. Deleting the app disconnects every one of them."
+  activeConnections: Int!
+}
+
+"An app with a secret that is shown this once and can never be read again."
+type OAuthClientCredentials {
+  client: OAuthClient!
+  "Null for a public app."
+  clientSecret: String
+}
+
+input CreateOAuthClientInput {
+  "3 to 50 characters. Names of Boardsesh, Aurora and board brands are refused."
+  name: String!
+  "The person or company that makes the app. Same rules as name."
+  publisherName: String!
+  "https:// only."
+  homepageUrl: String
+  "https:// only."
+  privacyPolicyUrl: String!
+  applicationType: OAuthClientApplicationType!
+  tokenEndpointAuthMethod: OAuthClientAuthMethod!
+  "1 to 10."
+  redirectUris: [String!]!
+  "The developer terms version the developer accepted. Must equal the current version, or registration is refused."
+  acceptedTermsVersion: String!
+}
+
+"Fields left out keep their value. A null homepageUrl removes it; publisherName can change but never be removed. The app type and auth method never change."
+input UpdateOAuthClientInput {
+  clientId: ID!
+  name: String
+  publisherName: String
+  homepageUrl: String
+  privacyPolicyUrl: String
+  redirectUris: [String!]
+}
+
+extend type Query {
+  """
+  The signed-in developer's apps. Developer apps answer NOT_FOUND while partner
+  OAuth is off, and only allowlisted developers may use them.
+  """
+  myOAuthClients: [OAuthClient!]!
+}
+
+extend type Mutation {
+  "Register an app. Returns its client ID and, for a confidential app, a secret shown once."
+  createOAuthClient(input: CreateOAuthClientInput!): OAuthClientCredentials!
+  "Edit the signed-in developer's app."
+  updateOAuthClient(input: UpdateOAuthClientInput!): OAuthClient!
+  "Replace a confidential app's secret. The old secret stops working at once."
+  rotateOAuthClientSecret(clientId: ID!): OAuthClientCredentials!
+  "Delete the signed-in developer's app and end every climber connection to it. False when there was no such app."
+  deleteOAuthClient(clientId: ID!): Boolean!
+}
+
+"An app the signed-in climber connected to their account (docs/integration-platform.md, Connected apps)."
+type ConnectedApp {
+  "Pass to disconnectApp."
+  connectionId: ID!
+  "The app's registered name. Null when it has none."
+  name: String
+  """
+  Who makes the app, as its developer registered it. Null until apps carry a
+  publisher name, and never the developer account's own name.
+  """
+  publisherName: String
+  """
+  What the climber allowed, as OAuth scope strings (profile:read, logbook:read,
+  offline_access, or one added later). Clients word them in the climber's language.
+  """
+  scopes: [String!]!
+  "ISO 8601. When the app first used its access, or first used it again after a reconnect."
+  connectedAt: String!
+  "ISO 8601. The app's latest call to the API, to within an hour. Null until it makes one."
+  lastUsedAt: String
+  "True while Boardsesh has suspended the app. It reads nothing until it is restored."
+  suspended: Boolean!
+}
+
+type ConnectedApps {
+  "Live connections, the most recently connected first."
+  apps: [ConnectedApp!]!
+  """
+  False while partner apps are switched off (PARTNER_OAUTH_MODE off): no app can
+  connect, though connections made before still list here and can be disconnected.
+  A hold is a short pause and counts as on.
+  """
+  partnerAppsEnabled: Boolean!
+}
+
+extend type Query {
+  "The signed-in climber's connected apps, in every PARTNER_OAUTH_MODE."
+  myConnectedApps: ConnectedApps!
+  """
+  Whether partner apps are switched on (any PARTNER_OAUTH_MODE but off), the same
+  value as ConnectedApps.partnerAppsEnabled. Screens that only need to know whether
+  to mention connected apps read this. It changes only with a deploy.
+  """
+  partnerAppsEnabled: Boolean!
+}
+
+extend type Mutation {
+  """
+  End the signed-in climber's connection to an app, with the same effect as the
+  app calling DELETE /v1/connection: every token and the remembered consent go,
+  and connecting again needs a fresh approval. Works in every PARTNER_OAUTH_MODE,
+  so a climber can always end a connection. True once the connection is ended,
+  also when it already was. NOT_FOUND when the id is not one of the climber's
+  connections.
+  """
+  disconnectApp(connectionId: ID!): Boolean!
 }

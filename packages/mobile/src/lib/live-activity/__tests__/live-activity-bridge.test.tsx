@@ -4,6 +4,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClimbQueueItem } from '@boardsesh/queue';
 import type { WidgetMirrorEvent } from '../../../../modules/live-activity/src/index';
 import { LiveActivityBridge } from '../live-activity-bridge';
+import { resetLastPickForTests, setLastPick } from '../../last-pick-store';
+import {
+  enterDriveMode,
+  getDriveMode,
+  getLastDriveModeExitReason,
+  markDriveLive,
+  resetDriveModeForTests,
+} from '../../../components/play-drawer/drive-mode-store';
 
 type QueueNavigateEvent = {
   action: 'next' | 'previous';
@@ -12,7 +20,7 @@ type QueueNavigateEvent = {
 };
 
 type BoardControlEvent = {
-  action: 'reconnect' | 'reassert';
+  action: 'reconnect' | 'reassert' | 'stopDriving';
   correlationId: string;
 };
 
@@ -59,6 +67,7 @@ const bt = vi.hoisted(() => ({
   reassertWall: vi.fn(),
   reconnectSerialForCurrentBoard: 'serial-123' as string | null,
   reconnectDeviceIdForCurrentBoard: null as string | null,
+  nativeBoardForgets: 0,
 }));
 
 const boardState = vi.hoisted(() => ({
@@ -155,6 +164,9 @@ vi.mock('../use-live-activity', () => ({
   useLiveActivity: (args: unknown) => widget.useLiveActivity(args),
 }));
 
+// The keep-lighting leaf has its own tests; keep it out of the bridge's.
+vi.mock('../live-activity-lighting', () => ({ LiveActivityLightingSync: () => null }));
+
 vi.mock('../live-activity-plugin', () => ({
   // The rest timer leaf has its own tests; keep it quiet here.
   sessionPresenceSupportsRestTimer: false,
@@ -213,8 +225,31 @@ describe('LiveActivityBridge widget navigation (always-live)', () => {
     bt.reconnectSerialForCurrentBoard = 'serial-123';
     bt.reconnectDeviceIdForCurrentBoard = null;
     bt.loading = false;
+    bt.nativeBoardForgets = 0;
     bleProbe.nativeBleSupportsBoard.mockReturnValue(true);
     renderSettings.mode = 'aura';
+  });
+
+  // Owner decision A: the MiniPlayer shows the climber's last pick, but the
+  // Lock Screen / Live Activity keeps showing the wall's climb (the queue's current).
+  it('keeps the Lock Screen on the queue’s current while the bar shows a last pick', () => {
+    setLastPick({
+      item: threeItemQueue[2],
+      suggestionSource: null,
+      commitOptions: undefined,
+      mirrored: false,
+      currentAtPick: threeItemQueue[0].uuid,
+      wallAtPick: null,
+      pickedAt: 0,
+    });
+    try {
+      renderBridge();
+      expect(widget.useLiveActivity).toHaveBeenLastCalledWith(
+        expect.objectContaining({ currentClimbQueueItem: threeItemQueue[0] }),
+      );
+    } finally {
+      resetLastPickForTests();
+    }
   });
 
   it('passes connectedByMe + enables widget navigation when this device holds the board', () => {
@@ -339,6 +374,19 @@ describe('LiveActivityBridge widget navigation (always-live)', () => {
     expect(widget.useLiveActivity).toHaveBeenLastCalledWith(
       expect.objectContaining({ bulbOpensApp: false, boardConnecting: false }),
     );
+  });
+
+  // The iOS card reads native's pairing only when it redraws: each native
+  // forget of the board the app kept must reach useLiveActivity as a change.
+  it('hands iOS the count of native forgets so the card redraws, and Android none', () => {
+    platform.android = false;
+    bt.nativeBoardForgets = 2;
+    renderBridge();
+    expect(widget.useLiveActivity).toHaveBeenLastCalledWith(expect.objectContaining({ nativePairingRevision: 2 }));
+
+    platform.android = true;
+    renderBridge();
+    expect(widget.useLiveActivity).toHaveBeenLastCalledWith(expect.objectContaining({ nativePairingRevision: 0 }));
   });
 
   it('navigates to the absolute index the widget reports (not a relative step)', () => {
@@ -481,6 +529,11 @@ describe('LiveActivityBridge lightbulb (boardControl)', () => {
           relightLabel: 'mobile.session.notification.relight',
           reconnectLabel: 'mobile.session.notification.reconnect',
           onWallTemplate: 'mobile.session.notification.onWall',
+          // The header's line while driving the wall (2.7), timed or
+          // open-ended. Left out, Android falls back to English.
+          lightDrivingLabel: 'mobile.session.notification.drivingTheWall',
+          // The lit bulb while driving: a tap stops driving.
+          stopDrivingLabel: 'mobile.session.notification.stopDriving',
         }),
       }),
     );
@@ -559,7 +612,54 @@ describe('LiveActivityBridge lightbulb (boardControl)', () => {
 
     expect(bt.armUndoWallChangeToast).not.toHaveBeenCalled();
     expect(bt.reassertWall).toHaveBeenCalledTimes(1);
+    // No connect of its own behind it, so nothing carries to a later link.
+    expect(bt.reassertWall).toHaveBeenCalledWith();
     expect(bt.connect).not.toHaveBeenCalled();
+  });
+
+  describe('stopDriving (the lit bulb while this phone drives)', () => {
+    beforeEach(() => resetDriveModeForTests());
+
+    function liveDrive(windowMs: number | null, now = Date.now()) {
+      enterDriveMode({
+        startedBy: 'tap',
+        sessionId: 'session-1',
+        boardId: 7,
+        windowMs,
+        windowSetting: windowMs === null ? null : 'putOnBoardKeepsLighting',
+        now,
+      });
+      markDriveLive({ now });
+    }
+
+    it('stops a live drive as the frosted button does, without re-lighting', () => {
+      liveDrive(45_000);
+      renderBridge();
+      act(() => {
+        widget.boardControlListener?.({ action: 'stopDriving', correlationId: 'bulb-stop' });
+      });
+      expect(getDriveMode()).toBeNull();
+      expect(getLastDriveModeExitReason()).toBe('stopped');
+      expect(bt.reassertWall).not.toHaveBeenCalled();
+      expect(bt.connect).not.toHaveBeenCalled();
+    });
+
+    it('re-lights when the drive was already over: nothing drives, or the time ran out on the wall clock', () => {
+      renderBridge();
+      act(() => {
+        widget.boardControlListener?.({ action: 'stopDriving', correlationId: 'bulb-none' });
+      });
+      expect(bt.reassertWall).toHaveBeenCalledTimes(1);
+      expect(getLastDriveModeExitReason()).toBeNull();
+
+      // Android paused JS timers: the drive's end passed, the watcher never fired.
+      liveDrive(45_000, Date.now() - 60_000);
+      act(() => {
+        widget.boardControlListener?.({ action: 'stopDriving', correlationId: 'bulb-over' });
+      });
+      expect(bt.reassertWall).toHaveBeenCalledTimes(2);
+      expect(getLastDriveModeExitReason()).toBeNull();
+    });
   });
 
   it('is a no-op (no throw) when no board is selected', () => {

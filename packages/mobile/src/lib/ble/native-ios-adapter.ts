@@ -17,6 +17,7 @@ import type {
   BleConnection,
   BleConnectDiagnostics,
   BleDisconnectInfo,
+  BleDisconnectOptions,
   BleWriteDiagnostics,
   BoardScanFamily,
   DevicePickerFn,
@@ -423,7 +424,15 @@ export class NativeIosBleAdapter implements BluetoothAdapter {
     });
   }
 
-  async disconnect(): Promise<void> {
+  /**
+   * `keepBoard` frees the board but keeps the native pairing (a hang-up, or
+   * Disconnect Bluetooth when driving ends), so the Live Activity bulb and the
+   * next Put on board reconnect to it; a plain disconnect forgets it. A
+   * hang-up's pairing is forgotten once JS's 10 minutes run out
+   * (`forgetNativeKeptBoard`). A binary without `disconnectKeepingBoard`
+   * forgets it either way, as before.
+   */
+  async disconnect(options: BleDisconnectOptions = {}): Promise<void> {
     this.preparationGeneration += 1;
     this.preparationToken = null;
     this.preparationState = 'none';
@@ -439,6 +448,10 @@ export class NativeIosBleAdapter implements BluetoothAdapter {
     if (!this.connectedDeviceId) return;
     const native = this.requireNative();
     this.connectedDeviceId = null;
+    if (options.keepBoard && typeof native.disconnectKeepingBoard === 'function') {
+      await native.disconnectKeepingBoard();
+      return;
+    }
     await native.disconnect();
   }
 

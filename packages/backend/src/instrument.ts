@@ -67,10 +67,12 @@ Sentry.init({
   enableLogs: true,
   // Off, like the web service (#2644). Sentry runs under legitimate interest
   // whatever a climber's analytics consent, so it must not collect personal
-  // data by default: no IP address, no IP headers, no request bodies. The
-  // backend never attaches a user identity to Sentry events.
-  // See docs/analytics-consent.md.
+  // data by default: no IP address and no IP headers. The backend never
+  // attaches a user identity to Sentry events. See docs/analytics-consent.md.
   sendDefaultPii: false,
+  // `sendDefaultPii` does not cover request bodies. Sign-in and token routes
+  // carry passwords and refresh tokens there, so keep bodies out of every event.
+  integrations: [Sentry.requestDataIntegration({ include: { data: false } })],
   // Platform-neutral — no RAILWAY_*-style branching. See resolveSentryEnvironment.
   environment: resolveSentryEnvironment(),
   serverName: 'boardsesh-backend',
@@ -102,8 +104,11 @@ if (replicaId) {
   Sentry.setTag('railway_replica_id', replicaId);
 }
 
-// Sentry's default integrations install onUncaughtExceptionIntegration and
-// onUnhandledRejectionIntegration, which capture *and* preserve Node's
-// "exit on unhandled" behavior. Don't add manual process.on() handlers here:
-// they'd shadow Sentry's, and a bare captureException without exit leaves
-// the process in an undefined state (per Node docs).
+// Sentry's default integrations install two process handlers when it is enabled.
+// onUncaughtExceptionIntegration captures the error and exits, as Node would.
+// onUnhandledRejectionIntegration runs in its default `warn` mode: it captures
+// the rejection, logs it and continues, where Node alone would exit. With Sentry
+// disabled neither is installed, so an unhandled rejection exits the process.
+// Don't add manual process.on() handlers here: they'd shadow Sentry's, and a
+// bare captureException without exit leaves the process in an undefined state
+// (per Node docs).

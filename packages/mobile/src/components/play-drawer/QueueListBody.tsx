@@ -1,26 +1,43 @@
 import { PressableSurface } from '../PressableSurface';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { Platform, View, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { upNextStart, type Climb, type ClimbQueueItem, type PlaylistSuggestionSource } from '@boardsesh/queue';
 import { QueueSheetHeader } from './QueueSheetHeader';
 import { QueueList } from './QueueList';
 import { Text } from '../Text';
 import type { QueueItemRowBoard } from '../QueueItemRow';
-import { usePlaylistSuggestionSource, useQueueActions, useQueueSessionId } from '../../providers/queue-provider';
+import {
+  usePlaylistSuggestionSource,
+  useQueueActions,
+  useQueueSessionId,
+  type QueueClearSource,
+} from '../../providers/queue-provider';
 import { useTheme } from '../../providers/theme-provider';
 import { hapticWarning } from '../../lib/haptics';
 import type { QueueContentSnapshot } from '../../lib/queue-undo';
 import { getCredentialGeneration } from '../../lib/privacy/privacy-cache';
+import { useQueueWalkBoard } from '../../providers/queue/use-queue-walk-board';
 import { UndoSnackbar } from '../UndoSnackbar';
 import { brandColors } from '../../theme/colors';
 import { iosSystemColors } from '../../theme/ios-colors';
 import { spacing } from '../../theme/tokens';
 import { useWindowBottomInset } from '../../hooks/use-window-bottom-inset';
+import { useScreenReaderEnabled } from '../../hooks/use-screen-reader-enabled';
+import { useRecommendedTimeout } from '../../hooks/use-recommended-timeout';
+import type { ClimbActionsTarget } from '../../providers/drawer-host-provider';
 
 // Long enough to notice and reach for the button; the removal is already live
 // for the crew, so it isn't held open forever.
 const QUEUE_UNDO_DURATION = 8000;
+// With VoiceOver or TalkBack on: ten times as long, the ratio WCAG 2.2.1
+// (Timing Adjustable) uses for extending a time limit. That borrows the number
+// only; it is not 2.2.1 conformance, since nobody else can adjust the 8 s.
+// Swiping to the snackbar, hearing it and double-tapping takes far longer than
+// a glance. Still bounded: the iPad side panel never closes, and an hour-old
+// offer would restore a queue the crew has moved past. Android raises it to the
+// climber's "Time to take action" when that is longer.
+const QUEUE_UNDO_SCREEN_READER_DURATION = QUEUE_UNDO_DURATION * 10;
 
 /** What one Undo would put back: the queue as it was, and what was taken out. */
 type PendingQueueUndo = {
@@ -46,8 +63,8 @@ type QueueListBodyProps = {
   /** The header's fold-away chevron. The side panel has nothing to close. */
   onClose?: () => void;
   onClimbPress: (item: ClimbQueueItem) => void;
-  /** Long press a queue row → open the climb reaction menu. */
-  onOpenActions?: (item: ClimbQueueItem) => void;
+  /** Resolve the row's native menu target. */
+  onOpenActions?: (item: ClimbQueueItem) => ClimbActionsTarget | null | undefined;
   onSuggestionPress: (climb: Climb, source: PlaylistSuggestionSource) => void;
   onTickHistory: (item: ClimbQueueItem) => void;
   onDraggingChange?: (dragging: boolean) => void;
@@ -59,7 +76,7 @@ export type QueueListBodyHandle = {
 };
 
 /**
- * The queue as the climber edits it: the header (History, Edit, Clear), the
+ * The queue as the climber edits it: the header (History, Edit, ⋯, Clear), the
  * list, the Undo after a removal and the bulk Remove bar. QueueSheet presents it
  * in a sheet; the landscape iPad player shows it in its Up next panel. Returns
  * siblings, so the host decides the container (the sheet's own content view, or
@@ -100,6 +117,13 @@ export const QueueListBody = forwardRef<QueueListBodyHandle, QueueListBodyProps>
   } = useQueueActions();
   const playlistSuggestionSource = usePlaylistSuggestionSource();
   const { undoScope } = useQueueSessionId();
+  // react-native-web resolves `isScreenReaderEnabled` true for everyone (a
+  // browser can't tell), so the browser app keeps the sighted timing.
+  const screenReaderEnabled = useScreenReaderEnabled() && Platform.OS !== 'web';
+  const screenReaderUndoDuration = useRecommendedTimeout(QUEUE_UNDO_SCREEN_READER_DURATION, screenReaderEnabled);
+  // The board the swipe walk is filtered against, so the sheet's Then from
+  // rows agree with where a swipe lands.
+  const walkBoard = useQueueWalkBoard();
 
   const [isEditMode, setIsEditMode] = useState(false);
   const [showHistory, setShowHistory] = useState(true);
@@ -114,8 +138,6 @@ export const QueueListBody = forwardRef<QueueListBodyHandle, QueueListBodyProps>
   useEffect(() => {
     setPendingUndo((pending) => (pending && pending.scope !== undoScope ? null : pending));
   }, [undoScope]);
-
-  const currentItemUuid = currentClimbQueueItem?.uuid ?? null;
 
   useImperativeHandle(
     ref,
@@ -177,16 +199,22 @@ export const QueueListBody = forwardRef<QueueListBodyHandle, QueueListBodyProps>
     [playlistSuggestionSource, undoScope],
   );
 
-  const handleClearAll = useCallback(() => {
-    const before = getQueueSnapshot();
-    hapticWarning();
-    clearQueue();
-    setIsEditMode(false);
-    setSelectedItems(new Set());
-    if (before.queue.length > 0) {
-      offerUndo('cleared', before, new Set(before.queue.map((item) => item.uuid)));
-    }
-  }, [clearQueue, getQueueSnapshot, offerUndo]);
+  // The edit mode's Clear and the header's ⋯ → Clear queue both land here, so
+  // they clear the same way, for the same people, with the same Undo. `source`
+  // only tells analytics which one it was.
+  const handleClearAll = useCallback(
+    (source: QueueClearSource) => {
+      const before = getQueueSnapshot();
+      hapticWarning();
+      clearQueue({ source });
+      setIsEditMode(false);
+      setSelectedItems(new Set());
+      if (before.queue.length > 0) {
+        offerUndo('cleared', before, new Set(before.queue.map((item) => item.uuid)));
+      }
+    },
+    [clearQueue, getQueueSnapshot, offerUndo],
+  );
 
   const handleBulkRemove = useCallback(() => {
     const before = getQueueSnapshot();
@@ -257,7 +285,7 @@ export const QueueListBody = forwardRef<QueueListBodyHandle, QueueListBodyProps>
 
       <QueueList
         queue={queue}
-        currentItemUuid={currentItemUuid}
+        currentItem={currentClimbQueueItem}
         historyCount={historyCount ?? null}
         board={board}
         isEditMode={isEditMode}
@@ -265,6 +293,7 @@ export const QueueListBody = forwardRef<QueueListBodyHandle, QueueListBodyProps>
         showFullHistory={showFullHistory}
         selectedItems={selectedItems}
         playlistSuggestionSource={playlistSuggestionSource}
+        walkBoard={walkBoard}
         active={active}
         autoScrollOnMount={active}
         onToggleSelect={handleToggleSelect}
@@ -292,7 +321,10 @@ export const QueueListBody = forwardRef<QueueListBodyHandle, QueueListBodyProps>
           undoAccessibilityLabel={t('mobile.queueSheet.undoAria')}
           onUndo={handleUndo}
           onDismiss={handleUndoDismiss}
-          duration={QUEUE_UNDO_DURATION}
+          duration={screenReaderEnabled ? screenReaderUndoDuration : QUEUE_UNDO_DURATION}
+          // Every queue removal unmounts the control the climber was on: the ⋯
+          // and Edit once the queue is empty, the Remove bar, the removed row.
+          focusUndoOnShow={screenReaderEnabled}
           bottom={bottomInset + spacing[3]}
         />
       ) : null}

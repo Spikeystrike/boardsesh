@@ -30,11 +30,13 @@ import enBoards from '@boardsesh/i18n/locales/en-US/boards.json';
 import enClimbs from '@boardsesh/i18n/locales/en-US/climbs.json';
 import enConsent from '@boardsesh/i18n/locales/en-US/consent.json';
 import enCommon from '@boardsesh/i18n/locales/en-US/common.json';
+import enDevelopers from '@boardsesh/i18n/locales/en-US/developers.json';
 import enFeed from '@boardsesh/i18n/locales/en-US/feed.json';
 import enGyms from '@boardsesh/i18n/locales/en-US/gyms.json';
 import enKiosk from '@boardsesh/i18n/locales/en-US/kiosk.json';
 import enMarketing from '@boardsesh/i18n/locales/en-US/marketing.json';
 import enNotifications from '@boardsesh/i18n/locales/en-US/notifications.json';
+import enOauth from '@boardsesh/i18n/locales/en-US/oauth.json';
 import enPlaylists from '@boardsesh/i18n/locales/en-US/playlists.json';
 import enProfile from '@boardsesh/i18n/locales/en-US/profile.json';
 import enSession from '@boardsesh/i18n/locales/en-US/session.json';
@@ -49,11 +51,13 @@ const CATALOGS: Record<string, unknown> = {
   climbs: enClimbs,
   common: enCommon,
   consent: enConsent,
+  developers: enDevelopers,
   feed: enFeed,
   gyms: enGyms,
   kiosk: enKiosk,
   marketing: enMarketing,
   notifications: enNotifications,
+  oauth: enOauth,
   playlists: enPlaylists,
   profile: enProfile,
   session: enSession,

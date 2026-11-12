@@ -22,6 +22,8 @@ const navigation = vi.hoisted(() => ({
   onPrevious: vi.fn(),
   onNext: vi.fn(),
   playerOpen: false,
+  previousWalk: null as { kind: 'list'; name: string } | { kind: 'upNext' } | null,
+  nextWalk: null as { kind: 'list'; name: string } | { kind: 'upNext' } | null,
 }));
 const effects = vi.hoisted(() => ({ track: vi.fn(), hapticSelection: vi.fn(), showToast: vi.fn() }));
 const queue = vi.hoisted(() => ({
@@ -37,7 +39,8 @@ vi.mock('react-native', () => ({
 }));
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: { angle?: number }) => (options?.angle != null ? `${key}:${options.angle}` : key),
+    t: (key: string, options?: { angle?: number; name?: string }) =>
+      options?.angle != null ? `${key}:${options.angle}` : options?.name != null ? `${key}:${options.name}` : key,
   }),
 }));
 vi.mock('../../PressableSurface', () => ({
@@ -131,6 +134,7 @@ vi.mock('../use-mini-player-navigation', () => ({
 }));
 
 import { MiniPlayerLeadingButtons } from '../MiniPlayerButtons';
+import { getLastPick, resetLastPickForTests, setLastPick } from '../../../lib/last-pick-store';
 
 const climb = {
   uuid: 'climb-a',
@@ -189,6 +193,8 @@ beforeEach(() => {
   navigation.canPrevious = true;
   navigation.canNext = false;
   navigation.playerOpen = false;
+  navigation.previousWalk = null;
+  navigation.nextWalk = null;
   queue.sessionId = null;
   queue.currentClimbQueueItem = { uuid: 'item-a', climb };
 });
@@ -287,7 +293,37 @@ describe('MiniPlayerLeadingButtons', () => {
     fireEvent.click(getByLabelText('mobile.queueSnackbar.openAria'));
     expect(host.openQueueSheet).toHaveBeenCalledOnce();
     expect(effects.track).toHaveBeenCalledOnce();
-    expect(effects.track).toHaveBeenCalledWith('Queue Sheet Opened', { surface: 'mini_player', boardType: 'kilter' });
+    expect(effects.track).toHaveBeenCalledWith('Queue Sheet Opened', {
+      surface: 'mini_player',
+      boardType: 'kilter',
+      from: 'current',
+      upNextBucket: '0',
+    });
+  });
+
+  it('Queue says the bar showed a preview while the last pick stands (Then-signposts)', () => {
+    resetLastPickForTests();
+    queue.currentClimbQueueItem = { uuid: 'item-current', climb: { uuid: 'climb-current' } };
+    setLastPick({
+      item: { uuid: 'item-a', climb },
+      suggestionSource: null,
+      commitOptions: undefined,
+      mirrored: false,
+      currentAtPick: 'item-current',
+      wallAtPick: null,
+      pickedAt: 0,
+    });
+    try {
+      const { getByLabelText } = renderButtons(['queue']);
+      fireEvent.click(getByLabelText('mobile.queueSnackbar.openAria'));
+      expect(effects.track).toHaveBeenCalledWith(
+        'Queue Sheet Opened',
+        expect.objectContaining({ surface: 'mini_player', from: 'preview' }),
+      );
+    } finally {
+      resetLastPickForTests();
+      queue.currentClimbQueueItem = null;
+    }
   });
 
   it("Share runs the player's share action for this climb and board, tagged as the MiniPlayer's", () => {
@@ -335,6 +371,19 @@ describe('MiniPlayerLeadingButtons', () => {
       expect(next.disabled).toBe(true);
     });
 
+    // Owner answer 2 on the then-signposts: a screen reader hears which list
+    // each button walks. Spoken only: the glyphs and slots stay as they are.
+    it('tell a screen reader which list they walk', () => {
+      navigation.canNext = true;
+      navigation.previousWalk = { kind: 'upNext' };
+      navigation.nextWalk = { kind: 'list', name: 'Search results' };
+      const { getByLabelText } = renderButtons(['previous', 'next']);
+      fireEvent.click(getByLabelText('playView.track.nextIn:Search results'));
+      expect(navigation.onNext).toHaveBeenCalledOnce();
+      fireEvent.click(getByLabelText('playView.track.previousInQueue'));
+      expect(navigation.onPrevious).toHaveBeenCalledOnce();
+    });
+
     it('page the list only while Next shows and the player is closed', () => {
       expect(renderButtons(['next']).container.querySelector('[data-track-pager]')).not.toBeNull();
       expect(renderButtons(['previous']).container.querySelector('[data-track-pager]')).toBeNull();
@@ -379,6 +428,32 @@ describe('MiniPlayerLeadingButtons', () => {
       fireEvent.click(rendered.getByLabelText('playView.actionBar.unmirrorAria'));
       expect(queue.mirrorCurrentClimb).toHaveBeenCalledWith(false, 'item-a');
       expect(effects.track).toHaveBeenCalledWith('Mirror Climb', expect.objectContaining({ shared: true }));
+    });
+
+    // Owner decision A: on the climber's last pick (a preview, not the queue's
+    // current) Mirror flips the pick's own flip, the one the player puts back
+    // when it reopens the pick; a preview's mirror never writes the queue.
+    it('flips the last pick’s own mirror, never the queue', () => {
+      resetLastPickForTests();
+      queue.currentClimbQueueItem = { uuid: 'item-current', climb: { uuid: 'climb-current' } };
+      setLastPick({
+        item: { uuid: 'item-a', climb },
+        suggestionSource: null,
+        commitOptions: undefined,
+        mirrored: false,
+        currentAtPick: 'item-current',
+        wallAtPick: null,
+        pickedAt: 0,
+      });
+      try {
+        const rendered = renderButtons(['mirror'], { climbBoard: tension });
+        fireEvent.click(rendered.getByLabelText('playView.actionBar.mirrorAria'));
+        expect(getLastPick()?.mirrored).toBe(true);
+        expect(queue.mirrorCurrentClimb).not.toHaveBeenCalled();
+        expect(effects.track).toHaveBeenCalledWith('Mirror Climb', expect.objectContaining({ isMirrored: true }));
+      } finally {
+        resetLastPickForTests();
+      }
     });
 
     it('rejects a retained occurrence when another copy of the same climb is current', () => {

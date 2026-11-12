@@ -3,10 +3,17 @@ import * as Sentry from '@sentry/nextjs';
 import { getDb } from '@/app/lib/db/db';
 import * as schema from '@/app/lib/db/schema';
 import { hash } from 'bcryptjs';
+import { PASSWORD_HASH_COST } from '@boardsesh/auth-protocol/password-hash';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { sendVerificationEmail } from '@boardsesh/email';
 import { checkRateLimit, getClientIp } from '@/app/lib/auth/rate-limiter';
+import { AuthBackendUnavailableError, webPasswordMode } from '@/app/lib/auth/password-command-client.server';
+import {
+  passwordCommandUnavailableResponse,
+  registerWithPasswordCommand,
+} from '@/app/lib/auth/register-password-command.server';
+import { stagedPasswordClientKey } from '@/app/lib/auth/trusted-client-ip.server';
 
 const emailVerificationEnabled = process.env.EMAIL_VERIFICATION_ENABLED === 'true';
 
@@ -21,8 +28,9 @@ const registerSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting - 10 requests per minute per IP for registration
-    const clientIp = getClientIp(request);
+    // Rate limiting - 10 requests per minute per IP for registration. The staged
+    // budget is shared by every caller, so its key must not be forgeable.
+    const clientIp = stagedPasswordClientKey(request) ?? getClientIp(request);
     const rateLimitResult = checkRateLimit(`register:${clientIp}`, 10, 60_000);
 
     if (rateLimitResult.limited) {
@@ -36,6 +44,8 @@ export async function POST(request: NextRequest) {
         },
       );
     }
+
+    if (webPasswordMode() === 'backend-staging') return registerWithPasswordCommand(request);
 
     const body = await request.json();
 
@@ -65,7 +75,7 @@ export async function POST(request: NextRequest) {
 
     // Create new user
     const userId = crypto.randomUUID();
-    const passwordHash = await hash(password, 12);
+    const passwordHash = await hash(password, PASSWORD_HASH_COST);
     const verificationToken = emailVerificationEnabled ? crypto.randomUUID() : null;
     const tokenExpires = emailVerificationEnabled ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null; // 24 hours
 
@@ -149,6 +159,7 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     );
   } catch (error) {
+    if (error instanceof AuthBackendUnavailableError) return passwordCommandUnavailableResponse();
     console.error('Registration error:', error);
     return NextResponse.json({ error: 'An error occurred during registration' }, { status: 500 });
   }

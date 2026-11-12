@@ -1,5 +1,6 @@
 import { useNativeRootHeader } from '../../hooks/use-native-root-header';
 import { ScrollEdgeListReset, type ScrollEdgeBackdrop } from '../../hooks/use-scroll-edge-backdrop';
+import { useHideOnScroll } from '../../hooks/use-hide-on-scroll';
 import { useCallback, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
@@ -69,10 +70,13 @@ function describeProfileClimb(climb: Climb): BoardListRow {
  */
 export function ProfileClimbsTab({ userId, topInset = 0, scrollEdge }: ProfileClimbsTabProps) {
   const nativeRootHeader = useNativeRootHeader();
+  // On the Profile tab the Android nav bar hides as this list scrolls down; each
+  // sub-tab is its own scroll source, so switching sub-tabs never reads as a jump.
+  const handleScroll = useHideOnScroll(scrollEdge?.listProps.onScroll);
   const { t } = useTranslation('you');
   const { t: tSession } = useTranslation('session');
   const { systemColors } = useTheme();
-  const { openClimbActions } = useDrawerHost();
+  const { getClimbActions } = useDrawerHost();
   const bottomChrome = useBottomChromeMetrics();
   const paddingBottom = bottomChrome.scrollBottomPadding + spacing[4];
 
@@ -107,14 +111,14 @@ export function ProfileClimbsTab({ userId, topInset = 0, scrollEdge }: ProfileCl
     loadMore: loadMoreClimbs,
   });
 
-  // Long press → reaction menu. Resolves the same per-climb board config handlePress
+  // Long press → climb menu. Resolves the same per-climb board config handlePress
   // uses (the userClimbs payload carries no size/sets).
   const handleOpenActions = useCallback(
     (climb: Climb) => {
       if (!climb.boardType) return;
       const config = renderBoardToPlaylistConfig(climb.boardType, climb.layoutId, climb.renderBoard);
       if (!config) return;
-      openClimbActions(climb, {
+      return getClimbActions(climb, {
         boardName: config.boardName,
         layoutId: config.layoutId,
         sizeId: config.sizeId,
@@ -122,7 +126,7 @@ export function ProfileClimbsTab({ userId, topInset = 0, scrollEdge }: ProfileCl
         angle: climb.angle,
       });
     },
-    [openClimbActions],
+    [getClimbActions],
   );
 
   const handleEndReached = useCallback(() => {
@@ -169,6 +173,7 @@ export function ProfileClimbsTab({ userId, topInset = 0, scrollEdge }: ProfileCl
           renderItem={renderItem}
           keyExtractor={keyExtractor}
           {...scrollEdge?.listProps}
+          onScroll={handleScroll}
           contentInsetAdjustmentBehavior={nativeRootHeader ? 'automatic' : 'never'}
           contentContainerStyle={{ paddingTop: topInset, paddingBottom }}
           scrollIndicatorInsets={{ top: topInset }}

@@ -160,6 +160,7 @@
       "nameLabel": "Nome del controller (facoltativo)",
       "namePlaceholder": "es. Pannello del salotto",
       "boardLabel": "Tipo di pannello",
+      "boardSpray": "Spraywall",
       "layoutLabel": "Layout",
       "sizeLabel": "Dimensione",
       "setsLabel": "Set di prese",
@@ -454,7 +455,12 @@
     "noDevicesFound": "Nessun pannello trovato nelle vicinanze",
     "differentBoardType": "Questi sembrano pannelli diversi dalla tua configurazione {{board}}.",
     "troubleshootTitle": "Non vedi il tuo pannello?",
-    "troubleshootTips": "Controlla che sia acceso e attivo. Solo un telefono alla volta può connettersi a un pannello, quindi disconnetti gli altri dispositivi. Avvicinati, oppure disattiva e riattiva il Bluetooth.",
+    "scanTipPower": "Controlla che il pannello sia acceso e attivo.",
+    "scanTipCloser": "Avvicinati al pannello.",
+    "scanTipBluetooth": "Disattiva e riattiva il Bluetooth.",
+    "scanTipOtherPhone": "Solo un telefono alla volta può connettersi. Se un altro è connesso, disconnettilo prima da lì.",
+    "scanTipOtherPhoneMoonBoard": "Se un altro telefono è connesso, disconnettilo prima da lì. Un vecchio controller MoonBoard potrebbe dover essere spento e riacceso prima che il telefono successivo possa connettersi.",
+    "browseForNow": "Intanto sfoglia",
     "locationHintTitle": "Android ha bisogno della posizione per vedere i pannelli",
     "locationHintBody": "Su Android 12 e successivi, i risultati della scansione Bluetooth restano nascosti finché la posizione non è consentita. Boardsesh non usa la tua posizione per trovare i pannelli, e un prossimo aggiornamento eliminerà questo requisito per sempre.",
     "locationHintGrant": "Consenti posizione",
@@ -466,34 +472,38 @@
     "cancel": "Annulla",
     "connectBoard": "Connetti pannello",
     "relightBoard": "Illumina di nuovo il pannello",
-    "sectionTitle": "Bluetooth",
-    "autoDisconnect": {
-      "description": "Disconnetti dal pannello quando nessun blocco viene mostrato per il tempo selezionato.",
-      "enabledLabel": "Disconnessione automatica",
-      "enabledDescription": "Lascia connettere gli altri climber allo scadere del timer.",
-      "timeoutLabel": "Disconnetti dopo",
-      "toggleTitle": "Disconnessione automatica",
-      "toggleSubtitle": "Disconnetti dopo {{timeout}} di inattività",
-      "timeoutOptions": {
-        "10": "10 secondi",
-        "15": "15 secondi",
-        "30": "30 secondi",
-        "45": "45 secondi",
-        "60": "1 minuto",
-        "120": "2 minuti",
-        "300": "5 minuti",
-        "600": "10 minuti"
-      }
-    },
     "lighting": {
       "title": "Illuminazione del pannello",
-      "description": "Scegli cosa illumina in automatico il pannello connesso.",
-      "onSwipeLabel": "Illumina il pannello mentre scorro",
-      "onSwipeDescription": "Solo quando un blocco è in parete. Un'anteprima non illumina mai il pannello mentre scorri.",
-      "onTapLabel": "Illumina il pannello quando tocco un blocco",
-      "onTapDescription": "Un tocco in qualsiasi lista mette il blocco in parete. Se è disattivato, il tocco apre un'anteprima.",
+      "keep": {
+        "label": "Smetti di guidare dopo",
+        "off": "Subito",
+        "options": {
+          "30": "30 secondi",
+          "45": "45 secondi",
+          "60": "1 minuto",
+          "120": "2 minuti",
+          "300": "5 minuti"
+        },
+        "untilStopped": "Finché non mi fermo",
+        "inSessionLabel": "Anche in una session",
+        "inSessionAccessibilityLabel": "Illumina il pannello e Guida sempre il pannello valgono anche in una session",
+        "inSessionDescription": "Quando il tuo telefono ha il pannello della crew. Se è disattivato, i blocchi che scegli in una session restano in anteprima.",
+        "inSessionOffReason": "Scegli qualcosa di diverso da Subito in Smetti di guidare dopo per usarlo.",
+        "alwaysDriveReason": "Guida sempre il pannello è attivo, quindi questa opzione non si applica.",
+        "footer": "Illumina il pannello illumina il blocco in parete e guidi tu il pannello: si illumina anche ogni blocco che scegli, e ognuno fa ripartire il timer. Quando il tempo finisce, il prossimo blocco che scegli si apre in anteprima.",
+        "footerUntilStopped": "Illumina il pannello illumina il blocco in parete e guidi tu il pannello: si illumina anche ogni blocco che scegli, finché non tocchi Guidi tu il pannello.",
+        "footerOff": "Illumina il pannello illumina in parete il blocco che hai aperto. Il prossimo blocco che scegli si apre in anteprima."
+      },
+      "drivingEnds": {
+        "label": "Disconnetti il Bluetooth quando smetti di guidare",
+        "description": "Quando la tua guida finisce, il telefono libera il pannello così il prossimo climber può connettersi: quando ti fermi o spegni tutte le luci, quando il tempo finisce o quando qualcuno della crew illumina un blocco mentre la tua guida ha un limite di tempo. Illumina il pannello si riconnette."
+      },
+      "drivingHelp": "Come funziona la guida del pannello",
+      "alwaysDriveLabel": "Guida sempre il pannello",
+      "alwaysDriveDescription": "Ogni blocco che scegli si illumina in parete finché questo telefono ha il pannello. In una session serve Anche in una session.",
+      "alwaysDriveFooter": "Tocca Guidi tu il pannello per smettere. Poi i blocchi che scegli si aprono in anteprima finché non ti disconnetti o tocchi Illumina il pannello.",
       "playlistTapLoadsQueueLabel": "Toccare una playlist la carica nella mia coda",
-      "playlistTapLoadsQueueDescription": "Un tocco in una playlist, in una lista Per te o nella pagina di un tracciatore sostituisce la tua coda con quella lista. Con Illumina il pannello quando tocco un blocco disattivato, usa Avvia per caricarla."
+      "playlistTapLoadsQueueDescription": "Un tocco in una playlist, in una lista Per te o nella pagina di un tracciatore carica quella lista. Se guidi tu il pannello, la lista sostituisce la tua coda e il blocco toccato si illumina in parete. Altrimenti, la lista dal blocco toccato finisce in Prossimi e quel blocco si apre in anteprima, mentre il pannello tiene il suo blocco finché non scegli Illumina il pannello. In una session la lista non entra mai nella coda condivisa."
     },
     "holdForControls": "Tieni premuto per i controlli del pannello",
     "boardControls": "Controlli del pannello",
@@ -501,6 +511,7 @@
     "connectionFailedTitle": "Impossibile connettersi",
     "permissionRequired": "Serve il permesso Bluetooth",
     "errorPermissionDenied": "Consenti i permessi Bluetooth per connettere un pannello.",
+    "tryAgain": "Riprova",
     "blockedTitle": "Il Bluetooth è bloccato per Boardsesh",
     "blockedBody": "Consenti il Bluetooth per Boardsesh nelle Impostazioni per illuminare i blocchi sul tuo pannello.",
     "blockedBodyNearbyDevices": "Consenti Dispositivi nelle vicinanze per Boardsesh nelle Impostazioni per illuminare i blocchi sul tuo pannello.",
@@ -528,10 +539,13 @@
       "wallHeldWithClimb": "Hai il pannello: {{name}}, {{grade}}",
       "wallHeldHint": "Libera il pannello",
       "wallOpenLabel": "Il pannello è libero",
-      "wallOpenHint": "Prende la parete"
+      "wallOpenHint": "Prende la parete",
+      "drivingValue": "Guidi tu il pannello",
+      "stopDrivingLabel": "Smetti di guidare",
+      "stopDrivingHint": "I prossimi blocchi che scegli si aprono in anteprima"
     },
     "relayToWall": "Metti il tuo blocco in parete",
-    "peerDrivingBoard": "Qualcun altro sta controllando il pannello"
+    "peerDrivingBoard": "Qualcun altro ha il pannello"
   },
   "integrations": {
     "title": "App collegate",
@@ -563,6 +577,40 @@
     },
     "garmin": {
       "title": "Garmin"
+    },
+    "partnerApps": {
+      "title": "App con accesso",
+      "empty": "Ancora nessuna app collegata. Le app che colleghi al tuo account Boardsesh compaiono qui.",
+      "footer": "Un’app scollegata non legge più niente di nuovo. Quello che ha già copiato resta nell’app.",
+      "gone": "Questa app non è più collegata.",
+      "loadFailed": "Impossibile caricare questa app. Controlla la connessione e riprova.",
+      "retry": "Riprova",
+      "scopesHeading": "Cosa può vedere {{app}}",
+      "unnamedApp": "App senza nome",
+      "publisher": "Di {{publisher}}",
+      "connected": "Collegata il {{date}}",
+      "lastUsed": "Ultimo uso {{time}}",
+      "lastUsedRecently": "Usata nell’ultima ora",
+      "notUsedYet": "Non ancora usata",
+      "suspended": "Boardsesh ha messo in pausa questa app. Per ora non può leggere niente.",
+      "suspendedShort": "Messa in pausa da Boardsesh",
+      "scopes": {
+        "logbookRead": "Vede ogni salita del tuo diario, su ogni pannello",
+        "logbookOnlyMe": "Comprese le salite che tieni su «Solo io»",
+        "logbookUnlisted": "Compresi i blocchi non in elenco e le bozze tracciati da altri che hai registrato",
+        "logbookSpraywall": "I blocchi della Spraywall «Privata» o «Solo con link» di un’altra persona arrivano senza nome",
+        "profileRead": "Vede il tuo nome visualizzato e la foto profilo",
+        "offlineAccess": "Mantiene questo accesso finché non la scolleghi",
+        "other": "Altro accesso: {{scope}}"
+      },
+      "disconnect": "Scollega",
+      "disconnectA11y": "Scollega {{app}}",
+      "disconnectConfirmTitle": "Scollegare {{app}}?",
+      "disconnectConfirmBody": "{{app}} smette subito di vedere il tuo account. Quello che ha già copiato resta nell’app. Per usarla di nuovo, collegala dall’app.",
+      "disconnected": "{{app}} scollegata",
+      "disconnectFailed": "Impossibile scollegare {{app}}. Riprova.",
+      "cancel": "Annulla",
+      "close": "Chiudi"
     }
   },
   "watchPairing": {

@@ -37,7 +37,8 @@ import {
   ratingFromTag,
 } from '../../lib/filter-chip-menus';
 import { buildSortLabel } from '../../lib/filter-labels';
-import { visibleCollectionValues } from '../../lib/collection-filter';
+import { offersBenchmarksFilter, visibleCollectionValues } from '../../lib/collection-filter';
+import { benchmarkFilterLabel } from '../../lib/benchmark-term';
 import type { FilterChipKind } from '../../lib/pinnable-chips';
 import type { Capsule, CapsuleOption } from '../filter-capsules/CapsuleRow.types';
 import {
@@ -95,6 +96,7 @@ export function buildClimbCapsules(
     onChangeCollection,
     canFilterPersonalCollections,
     isSprayWall,
+    boardName,
     sortBy,
     sortActive,
     onChangeSort,
@@ -105,6 +107,8 @@ export function buildClimbCapsules(
     defaultClimbType = 'boulders',
     betaActive,
     onToggleBeta,
+    benchmarksActive,
+    onToggleBenchmarks,
     sortControl,
     boardFit,
   } = props;
@@ -212,8 +216,7 @@ export function buildClimbCapsules(
           },
         };
 
-      // Collection ▾: Any / Benchmarks / My drafts / Liked (personal collections
-      // auth-gated, benchmarks hidden on a spray wall unless already active).
+      // Collection ▾: Any / My drafts / Liked (personal collections auth-gated).
       case 'collection':
         return {
           kind: 'menu',
@@ -223,9 +226,10 @@ export function buildClimbCapsules(
               ? t('mobile.filter.collection.label')
               : collectionChipLabel(collection, t, isSprayWall),
           active: collection !== 'any',
-          options: visibleCollectionValues({ canFilterPersonalCollections, isSprayWall, current: collection }).map(
-            (value) => ({ value, label: collectionChipLabel(value, t, isSprayWall) }),
-          ),
+          options: visibleCollectionValues({ canFilterPersonalCollections, isSprayWall }).map((value) => ({
+            value,
+            label: collectionChipLabel(value, t, isSprayWall),
+          })),
           selected: collection,
           onSelect: (value) => {
             if (isCollectionFilter(value)) onChangeCollection(value);
@@ -271,6 +275,18 @@ export function buildClimbCapsules(
           ],
         };
       }
+
+      // Benchmarks only, named Verified on Kilter: a plain on/off toggle. A spray
+      // wall has none, so the chip shows there only while it is on.
+      case 'benchmarks':
+        if (!offersBenchmarksFilter(isSprayWall, benchmarksActive)) return null;
+        return {
+          kind: 'toggle',
+          key: 'benchmarks',
+          label: benchmarkFilterLabel(boardName, t),
+          active: benchmarksActive,
+          onPress: onToggleBenchmarks,
+        };
 
       // Beta videos: a plain on/off toggle.
       case 'beta':

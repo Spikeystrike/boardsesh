@@ -140,7 +140,7 @@ describe('resolveWallPillState', () => {
     ],
     // Rung 5 — no stakes, so the leading slot stays empty exactly as today.
     ['plain solo: nothing lit, no session, no link', {}, null],
-    ['connected but not committing (lightOnSwipe off, still on the head)', { wallDriven: true }, null],
+    ['connected but not committing (not driving, still on the head)', { wallDriven: true }, null],
     ['committing with nothing at stake', { navigationCommits: true }, null],
     // The regression: the Start button opens a session solo, so "a session
     // exists" used to light the pill on a phone with nothing connected at all.
@@ -350,7 +350,7 @@ describe('resolveCommitBarModel', () => {
   });
 
   // The commit affordance keys on the pinned preview, NOT the browse latch: a
-  // long-press "Preview" with `lightOnSwipe` on has committing swipes (no
+  // long-press "Preview" while driving has committing swipes (no
   // browsing chrome), but the pinned climb must keep its activation button —
   // the old banner's "Set active" contract. The pill for that same state is
   // asserted `live`/null in the resolveWallPillState tables above.
@@ -634,14 +634,26 @@ describe('resolveBrowseCaption', () => {
     wallClimbName: 'Crimp Ladder',
     inCrew: false,
     wallDriven: true,
+    holdsLink: true,
+    wallPresenceTrusted: true,
   };
+  /** No link here, no wall driven anywhere. */
+  const unlinked: Partial<BrowseCaptionInput> = { holdsLink: false, wallDriven: false };
   const cases: Array<[string, Partial<BrowseCaptionInput>, BrowseCaption]> = [
-    // Confusion 1: Light on tap off opened a preview, and nothing said it was not lit.
+    // Confusion 1: a tap outside a drive opened a preview, and nothing said it was not lit.
     ['solo preview while a board is connected', {}, { kind: 'preview' }],
     ['solo preview, board connected, wall dark', { wallClimbUuid: null }, { kind: 'preview' }],
-    ['solo preview, nothing connected but a climb is lit', { wallDriven: false }, { kind: 'preview' }],
-    // No board and nothing lit: "not lit" is about something the climber hasn't got.
-    ['solo preview with no board and nothing lit', { wallDriven: false, wallClimbUuid: null }, null],
+    // B1: the commonest 2.7 state, a linked phone with a dark wall, even before
+    // the lightbulb reads the wall as driven.
+    ['solo preview, this phone linked, wall dark', { wallClimbUuid: null, wallDriven: false }, { kind: 'preview' }],
+    ['solo preview, a crewmate drives the wall', { holdsLink: false, wallClimbUuid: null }, { kind: 'preview' }],
+    ['solo preview, no link, a climb lit under an hour ago', unlinked, { kind: 'preview' }],
+    // No link and no climb lit within the hour: nothing could light it.
+    ['solo preview, no link, presence over an hour old', { ...unlinked, wallPresenceTrusted: false }, null],
+    ['solo preview with no board and nothing lit', { ...unlinked, wallClimbUuid: null }, null],
+    // Lit, in the 45 s window or driving: the climb on screen is the lit one,
+    // and the wall button says so.
+    ['solo, the climb on screen is lit while driving', { climbUuid: WALL_CLIMB, wallClimbUuid: WALL_CLIMB }, null],
     // Confusion 4: in a crew, say the look is private and what the room has up.
     ['crew preview, the room has a climb lit', { inCrew: true }, { kind: 'crew', wallClimbName: 'Crimp Ladder' }],
     ['crew preview, wall dark', { inCrew: true, wallClimbUuid: null }, { kind: 'crew', wallClimbName: null }],

@@ -4,6 +4,9 @@ Status: accepted direction, implementation gated on the proofs below. This is a
 design and backlog, not a deployed authentication system. Updated 2026-10-27 in
 [PR #6974](https://github.com/boardsesh/boardsesh/pull/6974).
 
+For implementation PRs, decisions, measured QA and outstanding activation gates,
+start with the [implementation review guide](./better-auth-review-guide.md).
+
 The target is self-hosted **Better Auth with its OAuth Provider plugin**, running
 inside `packages/backend`, with PostgreSQL and Drizzle schemas/migrations owned by
 `packages/db`. Next.js remains a presentation client for account and consent
@@ -14,6 +17,15 @@ and [partner-api.md](./partner-api.md) owns its public protocol. This document
 owns first-party identity, credentials, compatibility, and the migration. The
 [mobile auth flow](./mobile-auth-flow.md) and [OAuth setup guide](./oauth-setup.md)
 describe the current system until implementation changes them.
+
+Implementation evidence, decisions and the current no-go gate are recorded in
+[the implementation ledger](./better-auth-implementation.md). The isolated
+[OAuth prototype](./better-auth-prototype.md) and
+[writer/installed-client inventory](./better-auth-writer-inventory.md) are
+supporting evidence, alongside the [HTTPS browser](./better-auth-browser-proof.md),
+[process replacement](./better-auth-process-proof.md) and
+[pre-cutover refresh](./better-auth-legacy-refresh-proof.md) proofs. They do not
+imply a production authority switch.
 
 ## Decisions and completion criteria
 
@@ -97,6 +109,10 @@ lowercase the complete address. Do not strip plus suffixes, remove dots, or infe
 provider aliases. Use the same rule for registration, credentials login,
 forgot/reset password, verification/resend, email changes, and any allowed email
 linking. Provider subjects remain the primary key for an existing social link.
+That function is `normalizeAccountEmail` in `@boardsesh/auth-protocol/account-email`,
+shared by web and backend. Until the unique index exists, lookups use the same
+module's `resolveAccountEmail`: rows storing the typed text exactly win, then the
+one row storing it in other capitals; several such rows name nobody.
 
 The invariant is **one normalized email identity per account address**, enforced
 by PostgreSQL, not a pre-insert application check. The spike must choose either a
@@ -220,6 +236,188 @@ Never retire keys on a guessed 90-day timer while active old clients are still
 renewing credentials. New compatible JWTs may preserve their public claim shape
 while being issued and revoked by the new authority; prove the key transition
 against every backend instance and supported client.
+
+### Credential stamps (BA-04 PR 1)
+
+Every credential issued from BA-04 PR 1 on records what a later reader needs to
+end it. Every reader decides them from BA-04 PR 2 on ("Credential cutoffs" below).
+
+| Credential | Stamps | Renewal |
+| --- | --- | --- |
+| Native JWT | `gen`, `ngen` (the `auth_subject_cutoffs` generation and native generation, 0 with no row); `auth_time` for a password, registration or provider sign-in only | Via refresh |
+| Native refresh row | `subject_generation`, `native_generation`, `authenticated_at`, `session_id` | A child copies all four, so a rotation never makes a sign-in newer |
+| Pre-stamp refresh row (all NULL) | none | Its child is stamped generation 0 and 0, keeps an unknown `authenticated_at`, and gets a new `session_id` its descendants keep |
+| Web JWE | `gen` beside the existing `auth_time` | A rotation keeps `gen`; a cookie from before the claim is stamped 0 |
+
+A transfer token or watch code hands over a login made elsewhere, so what it
+mints has no `auth_time`. `native_generation` exists so an app sign-out can end
+the app's and watch's credentials and leave the website signed in, so the web
+JWE carries no `ngen`.
+Stamping 0 where a generation is unknown is safe because generations only rise:
+a low stamp can end a credential sooner, never let it outlive a reset.
+
+The native issuer reads the generations in a statement that starts after it holds
+`users FOR KEY SHARE`. The locking statement's own snapshot is taken before it
+waits, so it misses a reset that held `users FOR UPDATE` and committed during
+that wait.
+
+### Credential cutoffs (BA-04 PR 2)
+
+One pure function, `decideCredential` (`packages/backend/src/auth/credential-cutoffs.ts`),
+decides every first-party credential from its stamps and the climber's state.
+Every reader calls it: the HTTP and GraphQL validators (`middleware/auth.ts`,
+`handlers/auth-admission.ts`), the WebSocket handshake, subscribe check and
+one-second sweep (`websocket/setup.ts`), and the native refresh issuer. The web
+(`credential-admission.server.ts`) sends the exact cookie to the backend's
+`authenticatedUserId`, so it gets the same answer.
+
+| Credential | Used while | Authentication age |
+| --- | --- | --- |
+| Web JWE without `gen` (before PR 1) | generation is 0, `authSessionId` not denied | `auth_time` if present, else unknown |
+| Web JWE with `gen` | `gen` equals generation, `authSessionId` not denied; native generation is never compared (decision 10) | `auth_time` if present, else unknown |
+| Native JWT without `gen`/`ngen` | generation and native generation are both 0 | unknown |
+| Native JWT with `gen`, `ngen` | both equal the current generations | `auth_time` if present, else unknown |
+| Refresh row with NULL stamps | not revoked, both generations 0 | unknown |
+| Refresh row with stamps | not revoked, both stamps equal the current generations | `authenticated_at` if present, else unknown |
+| Any, account deleted or missing | never | n/a |
+
+- A missing stamp stands for 0. A stamp present but not a whole number of at
+  least 0 is refused. A stamp must equal the generation: higher is refused too.
+- Age is read only from `auth_time` or `authenticated_at`, never from whether
+  `gen` is there: a transfer token or watch code mints `gen` without `auth_time`.
+  Nothing requires fresh authentication yet; BA-04 PR 9 adds that check.
+- A refresh whose parent no longer matches is answered 401 and mints nothing.
+  A child copies its parent's stamps, so without this the app would get a token
+  pair every reader refuses and loop refresh, 401, refresh. The app signs out.
+- No query is added. The admission read already joined `auth_subject_cutoffs`
+  for `deleted_at`; it now also returns `generation` and `native_generation`
+  from the same statement. Plan, buffers and timing are unchanged
+  (docs/db-connectivity.md, "Admission reads have their own pool").
+- The decision also takes denied web logins (`authSessionId`). No table holds
+  them until BA-04 PR 6 and nothing writes one until web sign-out does (PR 9),
+  so the read returns none today.
+
+**A refused credential is answered, never served as signed out.** GraphQL HTTP
+and the WebSocket handshake take an optional credential. One that is expired,
+not signed by us or unreadable still runs as anonymous, so public reads keep
+working. One we signed that `decideCredential` refuses (deleted or missing
+account, a cutoff, a malformed stamp) does not:
+
+| Transport | Answer |
+| --- | --- |
+| GraphQL HTTP | 401, body `{"errors":[{"message":"Authentication is required","extensions":{"code":"UNAUTHENTICATED"}}]}` |
+| WebSocket handshake | closed 4401 before any ACK |
+
+Served as anonymous, a phone that reconnects after a reset kept showing a
+signed-in climber whose every action failed with "Authentication required",
+until its proactive refresh up to about 6 days later. On a 401 or 4401 every
+shipped app (2.0 onwards) refreshes once; the refresh answers 401 for the same
+credential, and the app signs out. The Garmin watch does the same and returns to
+pairing. The web reader (`credential-admission.server.ts`) reads this 401 as a
+denial, and the 200 a backend from before this answered for the same cookie.
+Under `observe` only a deleted account is refused, so only it gets 401 or 4401.
+
+**Unavailable is never denied.** A read that fails or misses its deadline answers
+503 on HTTP, refuses a new socket with 1013, and never closes an open socket from
+the sweep, even when the generation has in fact moved; the socket closes 4401 on
+the first sweep that can read it. A socket that starts a subscription during an
+outage is still closed with 1013 so the client reconnects (unchanged since #7350).
+
+**`AUTH_CUTOFF_ENFORCEMENT`** (backend, default `enforce`):
+
+| Value | Effect |
+| --- | --- |
+| unset, empty, `enforce` | Every denial above is refused |
+| `observe` | A credential refused only by a cutoff (generation, native generation, denied login, malformed stamp) is used anyway and logged as `observed`: the behaviour of the build before PR 2. A deleted account is still refused |
+
+The backend refuses to start with `observe` while any staged writer mode is on
+(`CURRENT_STORE_WEB_AUTH_MODE`, `CURRENT_STORE_WEB_OAUTH_MODE`,
+`CURRENT_STORE_NATIVE_REGISTRATION_MODE`, `CURRENT_STORE_NATIVE_OAUTH_MODE`,
+`CURRENT_STORE_SYSTEM_BOARD_OWNER_MODE`, `CURRENT_STORE_ACCOUNT_DELETION_MODE`,
+`CURRENT_STORE_BATCH_SYSTEM_USERS_MODE`), or with any other value. Each staged
+command also refuses its authority under `observe`, so a reset never bumps a
+generation that no reader enforces.
+
+**Logs.** `[auth-cutoff] credential refused by a cutoff` with `reader`
+(`request`, `socket-sweep`, `refresh`), `outcome` (`denied` or `observed`) and
+`reason`, once per kind per 10 s with a count line after. No user ID, token or
+claim. Deletions are not logged here. The web logs
+`auth_generation_read_unavailable` and sends it to Sentry as a warning when its
+sign-in read of the generation fails; that sign-in is stamped 0 and, for a
+climber whose generation has moved, answered 401 before any cookie is sent.
+
+With no cutoff rows, which is production until a staged writer mode is on, every
+generation is 0 and every existing credential matches, so nobody is denied. Once
+any cutoff row exists, this build is the rollback floor
+(docs/production-deploy.md, "Credential cutoff rollback floor").
+
+### Per-user locks (BA-04 PR 3)
+
+Until this PR every staged command took `FOR UPDATE` on the one current
+`auth_email_projection` row, so one slow transaction, or a burst of sign-ins
+naming an account being deleted, stalled every staged command for everyone.
+That row lock is gone. Commands now meet only on the climber they touch:
+
+| Step | Lock | Who |
+| --- | --- | --- |
+| 1 | `pg_advisory_xact_lock_shared(6975, 2)`, then the manifest read without a row lock | every staged command; shared, so commands never wait for each other |
+| 2 | the address's creation lock, before its reservation row is read (and a provider subject's lock before its link) | registration, provider sign-in, system identities |
+| 3 | the climber's `users` row: `FOR UPDATE` to write, `FOR KEY SHARE` to sign in | everything; a reservation owner is read unlocked, its row locked, then the reservation locked and re-checked |
+| 4 | reservation, cutoff, credentials and accounts, purpose state and receipts, refresh rows | in that order |
+
+Only an authority switch or activation takes the gate exclusively, with a 2 s
+lock limit (`lockAuthorityGateExclusively`). Account deletion takes the gate at
+its first statement and keeps its wall-before-user order; its bookkeeping takes
+the reservation after the user row, the same order every command uses, so a
+command waiting on a deleting account holds nothing the deletion needs. Only the
+gate wait and the bookkeeping run under the 5 s statement and 4 s lock limits;
+content and the cascade keep the connection's own (45 s on the backend).
+
+A sign-in, forgot-password or resend-verification gives up on a held climber
+row after 250 ms and answers the retryable unavailable reply (503), never a wrong
+password; reset, verify, set-password and deletion keep 4 s. A web sign-in whose
+password matched no one takes no user lock. Through one backend's own pool of
+five connections, with a deletion holding one account and 16 wrong-password
+sign-ins plus 4 forgot-passwords naming it, an unrelated web sign-in took 287 to
+326 ms and a native one 17 to 28 ms. At the earlier 4 s limit, 16 wrong-password
+sign-ins through the same pool made an unrelated web sign-in wait 16 s.
+
+**What changes for a live sign-in.** No `CURRENT_STORE_*` mode is on in
+production, so the only live code touched is native issuance:
+
+- Password sign-in gives up on a held user row after 250 ms instead of 4 s and
+  answers 503 "Authentication is temporarily unavailable", which the app retries.
+  The only long holder in production is a deletion of that same account.
+- Password sign-in reads the hash and generation with the bcrypt candidates (one
+  more join in the same statement), and the issuer's post-lock statement re-reads
+  them (a join on `user_credentials` in the statement that already read the
+  generation). If either moved, the answer is 401 "Invalid email or password"
+  and nothing is issued. Same statement count as before.
+- Refresh takes the user lock and reads the generations once, then decides the
+  parent on them. It used to take the lock and read them twice. Five statements
+  fewer per refresh.
+- `recordSecurityMutation` takes `users FOR UPDATE` itself, so every generation
+  writer excludes an issuer holding `users FOR KEY SHARE`.
+
+Measured on the local test Postgres, the same handlers over HTTP, legacy modes,
+before and after, three alternating rounds (median per round):
+
+| Path | Before | After |
+| --- | --- | --- |
+| Native password sign-in, bcrypt cost 10, 40 runs | 55.6 to 57.7 ms | 57.0 to 57.9 ms |
+| Native password sign-in, bcrypt cost 4 (database share), 300 runs | 3.04 to 3.53 ms | 3.11 to 3.21 ms |
+| Native refresh, 300 runs | 3.44 to 3.93 ms | 2.55 to 2.75 ms |
+| Statements per sign-in / per refresh, besides BEGIN and COMMIT | 7 / 11 | 7 / 6 |
+| Unrelated staged sign-in while a deletion holds another account and 16 sign-ins name it | 3,942 to 3,962 ms | 21 to 25 ms |
+
+The first row's spread is bcrypt's; the second isolates the database work.
+
+**Known gap, staged web only.** The web stamps a password sign-in's cookie with a
+generation it reads after the backend's `authenticated` reply
+(`auth-options.ts`, `signInGeneration`). A reset committing in that gap yields a
+cookie stamped with the new generation from a password checked before it. The
+reply should carry the generation the backend checked; that is a protocol change
+for a later PR and has no reach while `CURRENT_STORE_WEB_AUTH_MODE` is off.
 
 ## Native, watch, and browser compatibility
 

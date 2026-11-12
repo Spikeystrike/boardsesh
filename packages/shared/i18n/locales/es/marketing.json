@@ -3,7 +3,8 @@
     "home": {
       "title": "App de escalada compatible con Kilter, Tension y MoonBoard",
       "description": "Comparte una cola en directo con tu grupo y sigue tus encadenes en cada plafón. Compatible con Kilter, Tension, MoonBoard y más.",
-      "ogDescription": "Comparte una cola en directo con tu grupo y sigue tus encadenes en cada plafón. Compatible con Kilter, Tension, MoonBoard y más."
+      "ogDescription": "Enciende bloques, registra tus encadenes y escala con tu grupo. Compatible con Kilter, Tension, MoonBoard y más.",
+      "ogTitle": "Boardsesh: una app para tus plafones"
     },
     "about": {
       "title": "Creada por escaladores, abierta a todo el mundo",
@@ -47,11 +48,11 @@
     },
     "helpBoardAndBluetooth": {
       "title": "Conecta con tu plafón por Bluetooth",
-      "description": "Conecta Boardsesh a un controlador de Kilter, Tension o MoonBoard, arregla una conexión fallida y manéjalo desde la pantalla de bloqueo con Live Activity."
+      "description": "Conecta Boardsesh a un controlador de Kilter, Tension o MoonBoard, elige cuánto tiempo te da el mando Poner en el plafón, arregla una conexión fallida y contrólalo desde la pantalla de bloqueo con Live Activity."
     },
     "helpClimbActions": {
-      "title": "Vista previa, registro o playlist desde cualquier fila",
-      "description": "El menú de mantener pulsado en la fila de un bloque en la app Boardsesh, desde la vista previa sin encender el plafón hasta registrar un encadene o añadirlo a una playlist."
+      "title": "Toca para ver en vista previa, mantén para registrar o añadir a una playlist",
+      "description": "Cómo un toque en la fila de un bloque en la app Boardsesh abre una vista previa sin encender el plafón, y qué hace el menú de mantener pulsado: registrar un encadene o añadirlo a una playlist."
     },
     "helpBetaVideos": {
       "title": "Comparte un reel de Instagram o TikTok como beta",
@@ -167,8 +168,8 @@
       "otherWays": "¿No te sobra el dinero?"
     },
     "supportBanner": {
-      "text": "Boardsesh sigue gratis porque los escaladores echan una mano. Apoya cada mes y paga el tiempo que lleva construirlo.",
-      "cta": "Apoya cada mes",
+      "text": "Boardsesh sigue siendo gratis y sin anuncios gracias a los escaladores que echan una mano. Toda aportación ayuda, ya sea puntual o mensual.",
+      "cta": "Apóyanos",
       "close": "Cerrar"
     }
   },
@@ -220,7 +221,7 @@
     "hero": {
       "title": "Mantén Boardsesh en marcha",
       "subtitle": "Gratis, de código abierto y pagado por escaladores",
-      "ctaMonthly": "Apoya cada mes"
+      "ctaMonthly": "Apóyanos"
     },
     "promise": "Sin pantallas bloqueadas, sin segunda categoría, sin anuncios. Echar una mano paga la factura, nada más.",
     "promiseMonthly": "Sin pantallas bloqueadas, sin segunda categoría, sin anuncios. Echar una mano paga las horas que lleva construir Boardsesh, nada más.",
@@ -457,7 +458,7 @@
       },
       "climbActions": {
         "title": "Acciones de un bloque",
-        "body": "Mantén pulsado un bloque para verlo sin encender el muro, registrar un encadene o añadirlo a una playlist."
+        "body": "Toca un bloque para verlo en vista previa sin encender el muro. Mantenlo pulsado para registrar un encadene o añadirlo a una playlist."
       },
       "sessions": {
         "title": "Sesiones en directo",
@@ -473,7 +474,7 @@
       },
       "bluetooth": {
         "title": "Plafón y Bluetooth",
-        "body": "Conéctate al plafón, arregla una conexión fallida y contrólalo desde la pantalla de bloqueo con Live Activity."
+        "body": "Conéctate al plafón, elige cuánto sigue encendiendo Poner en el plafón, arregla una conexión fallida y usa la pantalla de bloqueo."
       },
       "betaVideos": {
         "title": "Vídeos de beta",
@@ -515,9 +516,9 @@
       },
       "queue": {
         "title": "Escalar la lista entera",
-        "intro": "Toca un bloque de una playlist y recorres esa playlist. Tu cola se queda como está.",
-        "p1": "Desliza para recorrer la lista en orden desde el bloque que tocaste. El botón de play de la cabecera empieza desde arriba. Poner a continuación pone la lista entera al principio de tu cola, y Poner al final, al final. Si prefieres que un toque cargue la playlist en tu cola, activa Al tocar una playlist, cargarla en mi cola en Ajustes, en Plafón.",
-        "p2": "En una sesión, tocar solo abre el bloque para ti. La cola compartida no se mueve.",
+        "intro": "Toca un bloque de una playlist y lo ves en vista previa, recorriendo esa playlist. Tu cola se queda como está.",
+        "p1": "Desliza para recorrer la lista en orden desde el bloque que tocaste. El botón de play de la cabecera hace lo mismo desde el primer bloque. Poner a continuación pone la lista entera al principio de tu cola, y Poner al final, al final. Si prefieres que un toque o el botón de play carguen la playlist en tu cola, activa Al tocar una playlist, cargarla en mi cola en Ajustes, en Plafón. El plafón conserva su bloque y ves en vista previa el que tocaste. Si estás al mando del plafón, el toque sustituye toda tu cola por la playlist y enciende el bloque.",
+        "p2": "En una sesión, tocar solo abre el bloque para ti y la cola compartida no se mueve, salvo que estés al mando del plafón: entonces el bloque que tocaste se enciende y pasa a ser el de todos.",
         "sessionsLink": "Cómo una sesión comparte una sola cola",
         "clipAlt": "La hoja ¿Iniciar playlist?",
         "clipCaption": "Con ese ajuste activado y bloques ya en cola, ¿Iniciar playlist? pregunta primero."
@@ -572,7 +573,7 @@
       },
       "queue": {
         "title": "Una cola, todos los móviles",
-        "p1": "Cualquiera en la sesión puede añadir, reordenar o quitar bloques. Tu avatar marca tus filas.",
+        "p1": "Cualquiera en la sesión puede añadir, reordenar o quitar bloques. Tu avatar marca tus filas. Toca un bloque de la cola para verlo en vista previa; solo tú lo ves hasta que tocas Poner en el plafón.",
         "p2": "Solo quien empezó la sesión puede terminarla. El resto toca Salir de la sesión."
       },
       "wall": {
@@ -583,9 +584,10 @@
       },
       "crowd": {
         "title": "Cotillear sin mover el muro",
-        "p1": "Con alguien más en tu sesión, deslizar permite explorar sin cambiar el plafón, salvo que estés al mando. Toca Poner en el plafón para encender un bloque, o En el plafón arriba para volver al bloque encendido.",
-        "p2": "Si el botón del reproductor dice Estás al mando del plafón, tócalo para dejar el mando sin desconectarte. Si escalas solo, apaga Iluminar el plafón al tocar un bloque e Iluminar el plafón al deslizar en Ajustes, luego Plafón, para explorar sin encender.",
-        "previewLink": "Vista previa de un bloque desde cualquier lista",
+        "p1": "Con alguien más en tu sesión, deslizar permite explorar sin cambiar el plafón, salvo que tu teléfono tenga el plafón y estés al mando. Toca Poner en el plafón para encender un bloque, o la flecha de arriba a la izquierda, con la cara de quien encendió el plafón, para volver al bloque encendido.",
+        "p2": "Si tu teléfono tiene el plafón y También en una sesión está activado, Poner en el plafón enciende el bloque y tú tienes el mando: los bloques que elijas después también se encienden hasta que pase el tiempo de Dejar el mando tras desde el último (al principio, 45 segundos; con Enseguida solo se enciende ese bloque). El botón dice Estás al mando del plafón con un reloj, y el esmerilado se encoge a medida que se acaba el tiempo. Tócalo para parar antes; tu teléfono sigue conectado salvo que Desconectar el Bluetooth al dejar el mando esté activado. Si alguien de tu crew pone un bloque, se acaba el mando con reloj; si deslizaste para tomar el mando, lo sigues teniendo y su bloque se enciende.",
+        "p3": "En los demás teléfonos, Poner en el plafón enciende solo ese bloque. Si no tienes el mando, tocar y deslizar abren vistas previas. Siempre al mando del plafón solo se aplica en el teléfono que tiene el plafón y, en una sesión, solo con También en una sesión activado.",
+        "previewLink": "Toca un bloque para verlo en vista previa",
         "drivingLink": "Cómo tomar y dejar el mando del plafón"
       },
       "history": {
@@ -668,7 +670,7 @@
       },
       "log": {
         "title": "Regístralo en el muro",
-        "p1": "Toca el tick grande del reproductor, o Registrar encadene en la barra de cola. Fecha y Hora salen puestas a ahora, el resto es opcional.",
+        "p1": "Toca el tick grande del reproductor, o ✓ en la barra de abajo, que muestra el último bloque que abriste. Fecha y Hora salen puestas a ahora, el resto es opcional.",
         "p2": "Intento registra una prueba que no cuajó. El otro botón pone Flash en tu primer registro a ese ángulo, y si no Encadene.",
         "shotAlt": "El botón de tick",
         "shotCaption": "El tick abre la hoja de registro.",
@@ -714,28 +716,34 @@
       "breadcrumb": "Plafón y Bluetooth",
       "hero": {
         "title": "Conecta el móvil al plafón",
-        "subtitle": "Lee el botón esmerilado del muro: Poner en el plafón enciende este bloque. Estás al mando del plafón significa que cada bloque que elijas se enciende."
+        "subtitle": "Un toque abre una vista previa. Poner en el plafón lo enciende y tomas el mando: el botón dice Estás al mando del plafón con un reloj, y cada bloque que elijas se enciende hasta que se acabe el tiempo (45 segundos por defecto). Sin reloj, dura hasta que lo toques."
       },
       "connect": {
         "title": "Conectar",
-        "p1": "En un bloque, toca el botón grande Poner en el plafón. Se conecta si hace falta y enciende el bloque de la pantalla. Si se abre Seleccionar plafón, toca el tuyo: la señal más fuerte va primero, con el número de serie en cada fila. La bombilla de la barra superior también conecta.",
+        "p1": "En un bloque, toca el botón grande Poner en el plafón. Se conecta si hace falta, enciende el bloque de la pantalla y tomas el mando: los siguientes bloques que elijas también se encienden (mira Sabe cuándo estás al mando del plafón). Si se abre Seleccionar plafón, el tuyo sale primero, y después los plafones que la app no sabe identificar, como los MoonBoard y las cajas que no muestran número de serie. ¿No ves el tuyo? Toca Buscar cualquier plafón. La bombilla de la barra superior también conecta.",
         "p2": "La primera vez, iOS pide Bluetooth. Android pide dispositivos cercanos, o Ubicación en Android 11 y anteriores.",
         "litShotAlt": "El reproductor con su botón grande del plafón",
-        "litShotCaption": "Lee el botón del muro: Estás al mando del plafón significa que el siguiente bloque que elijas también se enciende.",
+        "litShotCaption": "Lee el botón del muro: Estás al mando del plafón significa que los bloques que elijas también se encienden. Con reloj, termina solo; sin reloj, sigue hasta que lo toques.",
+        "timedClipAlt": "Un toque en Poner en el plafón inicia un mando con tiempo, un reloj y un fondo esmerilado que se reduce",
+        "timedClipCaption": "Toca Poner en el plafón para tomar el mando. El reloj y el esmerilado se reducen; cambiar de bloque los rellena. Toca otra vez el botón para dejar el mando.",
         "p3": "¿Estás en otro muro? Cambiar de plafón es la primera fila detrás de tu avatar.",
-        "p4": "¿Prefieres la bombilla? En un bloque, toca ⋯, luego Opciones de vista, Botones, y pon Control del plafón en Bombilla. Ocupa el extremo derecho de la fila superior. Los dos controles conectan y encienden bloques; mantenlos pulsados para las opciones del plafón mientras estás conectado. El botón del muro también permite deslizar para tomar el mando y tocar para dejarlo."
+        "p4": "¿Prefieres la bombilla? En un bloque, toca ⋯, luego Opciones de vista, Botones, y pon Control del plafón en Bombilla. Ocupa el extremo derecho de la fila superior. Los dos controles conectan y encienden bloques; mantenlos pulsados para las opciones del plafón mientras estás conectado. El botón del muro también permite deslizar para tomar el mando y tocar para dejarlo. La bombilla no se esmerila: si el mando tiene límite de tiempo, un anillo ámbar a su alrededor se vacía a medida que pasa el tiempo. Si tocas la bombilla mientras tienes el mando, dejas el mando, igual que con el botón del muro."
       },
       "hidden": {
         "title": "Controles del plafón",
-        "p1": "Con el plafón conectado, mantén pulsado el botón del muro para abrir Controles del plafón. En un bloque también se abren con ⋯ y luego Controles del plafón, o manteniendo pulsada la bombilla superior. Un toque corto sigue la etiqueta del botón: Estás al mando del plafón deja el mando y mantiene la conexión; Desconectar plafón desconecta.",
+        "p1": "Con el plafón conectado, mantén pulsado el botón del muro para abrir Controles del plafón. En un bloque también se abren con ⋯ y luego Controles del plafón, o manteniendo pulsada la bombilla superior. En un bloque, el menú empieza con una línea que dice dónde estás: vista previa, encendido en el muro, al mando, o cuánto falta para que termine el mando. Un toque corto en el botón del muro sigue su etiqueta: Estás al mando del plafón deja el mando y mantiene la conexión, salvo que Desconectar el Bluetooth al dejar el mando esté activado; entonces tu móvil suelta el plafón y el botón vuelve a decir Poner en el plafón. Desconectar plafón desconecta.",
+        "rowStopDriving": "Dejar el mando tras. Cambia cuánto dura el mando de Poner en el plafón, o elige Enseguida, sin salir del muro.",
         "row1": "Reiluminar plafón. Manda el bloque a los LED otra vez.",
-        "row2": "Apagar todas las luces. Tu móvil sigue conectado.",
+        "row2": "Apagar todas las luces. También deja el mando. Tu móvil sigue conectado salvo que Desconectar el Bluetooth al dejar el mando esté activado.",
         "row3": "Desconectar plafón. Úsalo cuando te has conectado al muro equivocado.",
         "row4": "Iluminar la presa de arriba. Solo MoonBoard.",
-        "p2": "Desconexión automática, Iluminar el plafón al tocar un bloque e Iluminar el plafón al deslizar están en Ajustes, luego Plafón, y en el menú de la bombilla superior. La desconexión automática libera el plafón tras 30 segundos sin uso. Para explorar sin encender, deja el mando y apaga ambos interruptores de iluminación. Mientras estás al mando, cada bloque que eliges se enciende aunque estén apagados.",
-        "p3": "Sin plafón conectado, Poner en el plafón conecta y enciende el bloque de la pantalla. Si escalas solo, también tomas el mando. En un grupo, un toque enciende solo ese bloque. La bombilla superior puede reconectar al último plafón que usaste.",
+        "p2": "El resto está en Ajustes, luego Plafón. Dejar el mando tras fija cuánto siguen encendiéndose los bloques que eliges tras el último encendido: Enseguida (Poner en el plafón enciende solo ese bloque), de 30 segundos a 5 minutos (45 segundos por defecto), o Hasta que pare. También en una sesión (activado por defecto) deja que Poner en el plafón te dé el mando con tu crew. Desconectar el Bluetooth al dejar el mando (desactivado por defecto) libera el plafón para el siguiente escalador cuando se acaba el mando. Sustituye a Desconexión automática: si la tenías activada, esta queda activada, y tu tiempo anterior, redondeado hacia arriba a la opción siguiente (5 minutos como máximo), pasa a ser tu tiempo de Dejar el mando tras.",
+        "autoLight": "Siempre al mando del plafón (desactivado por defecto) te mantiene al mando cada vez que tu teléfono tenga el plafón: cada bloque que elijas se enciende, sin reloj, así que Dejar el mando tras no se aplica. En una sesión necesita También en una sesión. Toca Estás al mando del plafón para parar; los bloques que elijas se abren en vista previa hasta que te desconectes o pulses Poner en el plafón. El menú de la bombilla superior tiene casi todos estos ajustes.",
+        "p3": "Sin plafón conectado, Poner en el plafón conecta, enciende el bloque de la pantalla y te da el mando; en grupo, solo en el teléfono que tiene el plafón y con También en una sesión activado. Tras Desconectar el Bluetooth al dejar el mando, Poner en el plafón vuelve a conectar al mismo plafón. Tras Desconectar plafón, la app olvida ese plafón y la siguiente conexión vuelve a buscar.",
         "shotAlt": "Controles de un plafón conectado",
-        "shotCaption": "Vuelve a iluminar, apaga todas las luces o desconecta. Encender cada bloque toma el mando cuando está disponible."
+        "shotCaption": "Vuelve a iluminar, apaga todas las luces o desconecta, y cambia Dejar el mando tras sin salir del muro. Encender cada bloque toma el mando cuando está disponible.",
+        "lightingShotAlt": "Ajustes de iluminación del plafón con duración del mando y controles de iluminación automática",
+        "lightingShotCaption": "Elige cuándo termina el mando, si también se aplica en una sesión y si al terminar se desconecta el Bluetooth."
       },
       "failed": {
         "title": "Cuando no conecta",
@@ -749,12 +757,12 @@
       },
       "twoBoards": {
         "title": "Dos plafones al alcance",
-        "p1": "Lee el número de serie antes de tocar. Las barras de señal no se actualizan mientras estás ahí.",
+        "p1": "Cuando conectas a un plafón que ya usaste o al de un rocódromo, sale primero, y después los plafones que la app no sabe identificar. Los que la app sabe que son otro plafón quedan ocultos hasta que tocas Buscar cualquier plafón. Lee el número de serie antes de tocar. Las barras de señal no se actualizan mientras estás ahí.",
         "p2": "Un aviso La configuración del plafón no coincide significa que el controlador es de otro montaje. Elige Cancelar, Conectar igualmente o Cambiar de plafón."
       },
       "duplicate": {
         "title": "El mismo plafón dos veces en la lista",
-        "p1": "Dos filas con números de serie distintos son dos controladores. Una fila que solo pone Kilter Board, sin serie, es una caja LED nueva de fábrica. Dos de esas en un rocódromo salen como dos filas. La que tiene más barras de señal suele ser el muro que tienes delante. Si se enciende el muro equivocado, abre Controles del plafón, toca Desconectar plafón y prueba otra vez.",
+        "p1": "Dos filas con números de serie distintos son dos controladores. Una fila que solo pone Kilter Board, sin serie, es una caja LED nueva de fábrica. Dos de esas en un rocódromo salen como dos filas, después de tu plafón. La que tiene más barras de señal suele ser el muro que tienes delante. Si se enciende el muro equivocado, abre Controles del plafón, toca Desconectar plafón y prueba otra vez.",
         "p2": "No hay lista de dispositivos olvidados. La app solo recuerda tu último plafón.",
         "p3": "Un plafón que sale dos veces en Tus plafones es otra cosa. Toca Editar junto a Tus plafones y luego Eliminar o Dejar de seguir."
       },
@@ -767,8 +775,8 @@
       "liveActivity": {
         "title": "Controla el plafón desde la pantalla de bloqueo (Live Activity)",
         "intro": "Empieza o únete a una sesión primero. Una cola en solitario no tiene.",
-        "p1": "En iPhone, una sesión pone una Live Activity en la pantalla de bloqueo y en la Dynamic Island con el bloque, su grado y tu sitio en la cola. Mientras tu móvil lleva el plafón también trae Anterior, Siguiente, una bombilla que reenciende el muro y Espejear bloque donde se pueda.",
-        "p2": "Android enseña los mismos controles en una notificación fija llamada Sesión de escalada activa.",
+        "p1": "En iPhone, una sesión pone una Live Activity en la pantalla de bloqueo y en la Dynamic Island con el bloque del plafón, su grado y tu sitio en la cola. Las vistas previas que abres en la app no la cambian. Mientras tu móvil lleva el plafón también trae Anterior, Siguiente, una bombilla que reenciende el muro y Espejear bloque donde se pueda. Anterior y Siguiente mueven la cola, encienden el bloque y empiezan o renuevan el mando igual que Poner en el plafón. Mientras tienes el mando, un anillo ámbar alrededor de la bombilla se vacía a medida que pasa el tiempo, con el tiempo que queda al lado; sin límite de tiempo, la bombilla queda sobre un disco ámbar lleno.",
+        "p2": "Android enseña los mismos controles en una notificación fija llamada Sesión de escalada activa. Mientras tienes el mando, dice Estás al mando del plafón, con una cuenta atrás si el mando tiene límite de tiempo.",
         "p3": "Bloquear la pantalla no desconecta el plafón."
       },
       "next": {
@@ -778,48 +786,53 @@
       },
       "driving": {
         "title": "Sabe cuándo estás al mando del plafón",
-        "p1": "El botón esmerilado del muro controla el plafón físico. Lee su etiqueta: Poner en el plafón conecta si hace falta y enciende el bloque de la pantalla; Estás al mando del plafón significa que cada bloque que elijas se enciende, también en grupo. Si escalas solo, tocar Poner en el plafón toma el mando; en un grupo, un toque enciende un bloque.",
-        "p2": "Para tomar el mando cuando el botón muestra ‹‹, desliza el botón del muro hacia la izquierda. Suelta cuando diga Suelta para encender cada bloque. Se conecta si hace falta, enciende el bloque de la pantalla y los que elijas después. Deslizar sobre el dibujo del plafón cambia de bloque.",
-        "p3": "Toca Estás al mando del plafón para dejar el mando y explorar sin desconectarte. La etiqueta cambia a Desconectar plafón; tocarla desconecta. También puedes tomar el mando con Encender cada bloque en ⋯, luego Controles del plafón, o en las acciones del lector de pantalla del botón.",
+        "p1": "Un toque en un bloque abre una vista previa, y el plafón mantiene su bloque. Poner en el plafón lo enciende y tomas el mando: el botón se esmerila y dice Estás al mando del plafón, y cada bloque que elijas también se enciende. Si el mando tiene límite de tiempo, sale un reloj junto a la etiqueta; cada bloque encendido lo reinicia, y el esmerilado se encoge hacia la bombilla a medida que se acaba el tiempo. Después, el siguiente bloque que elijas se abre otra vez en vista previa. Elige el tiempo en Dejar el mando tras, en Ajustes, luego Plafón: 45 segundos por defecto, Hasta que pare (sin reloj) o Enseguida para encender solo ese bloque. Desliza el botón a la izquierda, o con el plafón conectado mantenlo pulsado y elige Encender cada bloque, para tener el mando sin reloj hasta que lo toques. El esmerilado siempre significa que estás al mando.",
+        "p2": "Para tomar el mando cuando el botón muestra ‹‹, desliza el botón del muro hacia la izquierda. Suelta cuando diga Suelta para encender cada bloque. Se conecta si hace falta, enciende el bloque de la pantalla y los que elijas después. Si ya tienes el mando con reloj, el mismo deslizamiento lo mantiene hasta que pares. Deslizar sobre el dibujo del plafón cambia de bloque.",
+        "p3": "Toca Estás al mando del plafón para dejar el mando y explorar. Tu móvil sigue conectado y la etiqueta cambia a Desconectar plafón; tocarla desconecta. Con Desconectar el Bluetooth al dejar el mando activado, al parar tu móvil suelta el plafón y el botón vuelve a decir Poner en el plafón. El mando que da Poner en el plafón también termina solo cuando se acaba su reloj; el siguiente bloque que elijas se abre en vista previa. También puedes tomar el mando con Encender cada bloque en ⋯, luego Controles del plafón, o en las acciones del lector de pantalla del botón.",
+        "p4": "La primera vez que abres una vista previa en un plafón con luces, una tarjeta bajo el botón del muro explica la vista previa y el esmerilado. Su botón Ajustes de iluminación abre Ajustes, luego Plafón.",
         "clipAlt": "Deslizar el botón del muro hacia la izquierda para tomar el mando y tocarlo para dejarlo",
-        "clipCaption": "Desliza el botón a la izquierda y suelta para encender cada bloque. Toca Estás al mando del plafón para dejar el mando sin desconectarte."
+        "clipCaption": "Desliza el botón a la izquierda y suelta para encender cada bloque. Toca Estás al mando del plafón para parar; tu móvil sigue conectado salvo que Desconectar el Bluetooth al dejar el mando esté activado."
       }
     },
     "climbActions": {
       "breadcrumb": "Acciones de un bloque",
       "hero": {
         "title": "Mantén pulsado un bloque",
-        "subtitle": "Cada acción sobre un bloque está detrás de un pulsado largo en su fila."
+        "subtitle": "Toca un bloque para verlo en vista previa. Mantén pulsada su fila para todo lo demás."
       },
       "open": {
         "title": "Abre el menú",
-        "p1": "Mantén pulsada la fila de un bloque. Se levanta en una tarjeta con Registrar un encadene, Añadir a la playlist y Compartir arriba, y el resto debajo.",
-        "p2": "¿Prefieres tocar? En Ajustes, luego Bloques y grados y Lista de bloques, activa Mostrar botón de acciones rápidas para tener un ⋮ en cada fila de Bloques.",
-        "shotAlt": "La tarjeta de acciones del bloque",
-        "shotCaption": "Tres botones rápidos arriba, la lista completa debajo.",
+        "p1": "Mantén pulsada la fila de un bloque y sus acciones se abren en un menú. En iPhone, la fila se levanta sobre la lista atenuada con el menú debajo. Toca una acción, o toca fuera para cerrarlo.",
+        "p2": "¿Prefieres tocar? En Ajustes, luego Bloques y grados y Lista de bloques, activa Mostrar botón de acciones rápidas para tener un ⋮ en cada fila de Bloques. Abre el mismo menú.",
+        "shotAlt": "La fila de un bloque levantada sobre la lista, con sus acciones debajo",
+        "shotCaption": "La fila arriba, sus acciones en grupos debajo.",
         "clipAlt": "Mantener pulsada la fila de un bloque",
-        "clipCaption": "Mantén pulsada la fila y la tarjeta se levanta sola."
+        "clipCaption": "Mantén pulsada la fila y el menú se abre solo."
       },
       "preview": {
-        "title": "Mira un bloque sin encender el plafón",
-        "intro": "Vista previa es lo primero de la lista.",
-        "p1": "Vista previa abre el bloque en el reproductor sin tocar tu cola. Si la vista previa viene de una lista, los deslizamientos siguen esa lista. Una vista previa independiente puede no tener otro bloque al que deslizar.",
-        "p2": "Cuando exploras sin encender, el botón de arriba te lleva de vuelta: Mi elección a tu bloque, En el plafón al bloque encendido. La línea bajo el nombre dice Solo tú lo ves en una sesión, o Vista previa, sin encender cuando hay un plafón conectado o un bloque encendido. Toca Poner en el plafón (o Activar) cuando quieras encenderlo. Si el botón del reproductor dice Estás al mando del plafón, cambiar de bloque enciende el plafón; tócalo antes para dejar el mando.",
+        "title": "Toca un bloque para verlo en vista previa",
+        "intro": "Un toque en un bloque de cualquier lista o de tu cola lo abre en vista previa, igual que el botón de play de una playlist. El plafón mantiene su bloque.",
+        "p1": "La vista previa abre el bloque en el reproductor sin tocar tu cola ni el muro. Al deslizar recorres la lista que aparece arriba. Tu cola empieza desde tu propio bloque y luego sigue su lista. Una vista previa independiente puede no tener otro bloque al que deslizar. Mientras tienes el mando, un toque enciende el bloque. Para tener el mando siempre que tu teléfono tenga el plafón, activa Siempre al mando del plafón en Ajustes, luego Plafón.",
+        "p2": "Mientras ves una vista previa, la flecha de arriba a la izquierda la cierra y te lleva de vuelta: a tu bloque o, si muestra una cara, al bloque encendido en el plafón. La línea bajo el nombre dice Solo tú lo ves en una sesión, o Vista previa · no está en el plafón cuando tu teléfono tiene un plafón o se encendió un bloque en la última hora. Toca Poner en el plafón cuando quieras el bloque. Se enciende y tomas el mando: por defecto, los siguientes que elijas se encienden hasta 45 segundos después del último. Activar lo elige sin encenderlo. Si el botón del reproductor dice Estás al mando del plafón, cambiar de bloque enciende el plafón; tócalo antes para dejar el mando.",
+        "p3": "La barra de abajo guarda el último bloque que abriste, vista previa incluida, hasta que tu cola pase a otro. Tócala para volver con su lista. Su bombilla pone ese bloque en el plafón, y ✓ lo registra. Mientras estás al mando del plafón, toca la bombilla para dejar el mando. Abrir una vista previa nunca cambia tu cola ni el plafón. La parte de arriba de Bloques, y la pantalla de bloqueo en una sesión, siguen mostrando el bloque del plafón.",
         "sessionsLink": "Cómo una sesión mantiene el muro quieto",
         "clipAlt": "Explorar una lista en el reproductor sin encender sus bloques",
-        "clipCaption": "Explora la lista mientras el plafón mantiene su bloque. Poner en el plafón lo enciende cuando tú eliges.",
+        "clipCaption": "Explora la lista mientras el plafón mantiene su bloque. Poner en el plafón lo enciende, y los bloques que elijas después también se encienden hasta que se acabe tu tiempo.",
+        "shotAlt": "Vista previa de un bloque con el botón de volver, Vista previa · no está en el muro y Poner en el plafón sin esmerilado",
+        "shotCaption": "La vista previa se queda en tu teléfono. El botón de volver regresa al bloque del muro; Poner en el plafón enciende este.",
         "drivingLink": "Cómo tomar y dejar el mando del plafón"
       },
       "quick": {
-        "title": "Los tres botones de arriba",
+        "title": "Las acciones que más usarás",
         "tick": "Registrar un encadene abre la hoja de ascenso.",
-        "playlist": "Añadir a la playlist es una lista de casillas. Marca para añadir, desmarca para quitar.",
+        "playlist": "Añadir a la playlist abre una lista de casillas con tus playlists. Marca para añadir, desmarca para quitar.",
         "share": "Compartir pasa un enlace a la hoja de compartir de tu móvil.",
-        "p1": "La tarjeta se cierra al lanzar una acción, menos con Añadir a la playlist."
+        "p1": "El menú se cierra en cuanto eliges una acción."
       },
       "rest": {
         "title": "El resto de la lista",
         "queue": "Poner a continuación pone el bloque al principio de tu cola. Poner al final lo pone al final.",
+        "replay": "Repetir desde aquí, cuando aparece en un bloque del Historial de tu cola: abre ese bloque igual que un toque, en vista previa por defecto. Poner en el plafón lo vuelve a poner, con los bloques que venían detrás otra vez a continuación.",
         "favorite": "Alternar favorito es el corazón. Los bloques con corazón llenan Bloques favoritos.",
         "editEntry": "Editar registro, cuando vienes de tu logbook.",
         "betaVideo": "Añadir vídeo de beta, con la sesión iniciada.",
@@ -1050,9 +1063,9 @@
   },
   "privacy": {
     "title": "Política de Privacidad",
-    "lastUpdated": "Última actualización: 29 de octubre de 2026",
+    "lastUpdated": "Última actualización: 3 de noviembre de 2026",
     "intro1": "Boardsesh es una app de código abierto para controlar plafones de entrenamiento de escalada (Kilter, Tension, MoonBoard) por Bluetooth. Esta política explica qué datos recogemos, por qué y qué hacemos con ellos.",
-    "intro2ProductAnalytics": "Resumen rápido: solo recogemos lo necesario para que la app funcione. No vendemos tus datos, no mostramos anuncios y no compartimos datos con anunciantes ni con brokers de datos.",
+    "intro2ProductAnalytics": "Resumen rápido: solo recogemos lo necesario para que la app funcione. No vendemos tus datos, no hay anuncios en Boardsesh y no compartimos datos con brokers de datos. Sí anunciamos Boardsesh en Reddit e Instagram, y en nuestra web la analítica incluye medir esos anuncios con Meta y Reddit, como explicamos más abajo.",
     "collect": {
       "title": "Qué recogemos",
       "accountLabel": "Información de cuenta.",
@@ -1063,6 +1076,8 @@
       "locationBody": "Si concedes permiso de ubicación, usamos tu ubicación aproximada para ayudarte a descubrir sesiones de Modo Fiesta cercanas. No rastreamos tu ubicación en segundo plano ni guardamos historial.",
       "productAnalyticsLabel": "Analítica de producto.",
       "productAnalyticsBody": "Usamos PostHog para el uso de funciones, las visitas a páginas, el rendimiento y la grabación opcional de sesiones de la app. En la UE, el EEE, el Reino Unido, Suiza, Gibraltar, Jersey, Guernsey, la Isla de Man, China, Corea del Sur, Andorra, Mónaco, San Marino, la Ciudad del Vaticano, las Islas Feroe y Quebec, y siempre que no podamos saber dónde estás, te preguntamos primero y PostHog solo funciona si permites la analítica. En el resto del mundo la analítica está activada por defecto, por nuestro interés legítimo en mejorar Boardsesh, y puedes desactivarla cuando quieras en Ajustes o en Opciones de privacidad; si tu navegador envía una señal Global Privacy Control, la tratamos como un no. Lo decidimos a partir del país y, en Canadá, de la provincia que Cloudflare indica para tu conexión, que no guardamos. La analítica con sesión iniciada puede vincularse a tu cuenta de Boardsesh. La atribución de instalaciones necesita en todas partes tu propio permiso; el valor por defecto no la activa. Con tu permiso, la atribución de instalaciones en Android puede incluir la referencia de instalación de Play Store y datos de campañas, y en iOS usamos Apple AdServices a través de nuestro propio servidor para medir qué campañas de Apple Ads generan registros y actividad de escalada. Compartimos con PostHog identificadores de campaña validados y el estado de descarga, nunca el token de atribución. No usamos estos datos para mostrarte anuncios.",
+      "adMeasurementLabel": "Medición de anuncios en nuestra web.",
+      "adMeasurementBody": "Anunciamos Boardsesh en Reddit e Instagram. Cuando la analítica está activada en nuestra web, cargamos el píxel de Meta y el píxel de Reddit para que Meta y Reddit nos digan qué anuncios traen visitas y toques en las tiendas de apps. Reciben las páginas que visitas en boardsesh.com, tus toques en nuestros botones de tienda (qué tienda y dónde estaba el botón) y lo que sus píxeles leen de tu navegador: tu dirección IP, datos del navegador y sus propias cookies. Nunca les enviamos tu correo, tu cuenta ni otros datos de contacto. En las regiones donde preguntamos primero, hace falta un «Permitir» dado después de que nuestro aviso empezara a nombrar a Meta y Reddit. En el resto sigue la opción de analítica por defecto y se detiene si dices que no en Opciones de privacidad o si tu navegador envía la señal Global Privacy Control. Nunca funciona en la app, en pantallas de quiosco, en widgets incrustados ni en páginas de inicio de sesión.",
       "serviceStatsLabel": "Estadísticas propias del servicio.",
       "serviceStatsBody": "Registramos el día de actividad y la plataforma de las cuentas con sesión iniciada en nuestra propia base de datos, independientemente del consentimiento para analítica, por interés legítimo para entender el uso del servicio. Conservamos esos registros durante 13 meses. Solo enviamos a PostHog recuentos diarios, semanales y mensuales agregados. Las personas sin sesión iniciada no se incluyen en estos recuentos de cuentas activas."
     },
@@ -1083,11 +1098,24 @@
       "body4": "Si lo desactivas, eliminas el Spraywall o borras tu cuenta, el Spraywall sale en un plazo de 24 horas del conjunto de entrenamiento que guardamos. Una copia ya descargada para un entrenamiento puede usarse hasta 7 días más y se borra la próxima vez que descarguemos el conjunto. Los modelos que ya entrenamos conservan lo que aprendieron, pero no guardan ninguna copia de tu foto.",
       "body5": "Si alguien denuncia un Spraywall, un admin de Boardsesh puede ver su foto para revisar la denuncia, esté como esté el interruptor. Cuando eliminas un Spraywall, borramos su foto pasados 30 días. Cuando borras tu cuenta, las fotos de tus Spraywalls se borran con ella; la copia de entrenamiento sale en los plazos de arriba. Al resetear un Spraywall, el anterior se conserva con su foto como Spraywall archivado hasta que también lo elimines. Desactivar el interruptor en cualquiera de los dos vale para ambos."
     },
+    "connectedApps": {
+      "title": "Apps que conectas",
+      "intro": "Puedes conectar otra app a tu cuenta de Boardsesh, como un planificador de entrenamiento. Antes de compartir nada, Boardsesh te muestra la app, quién la hace, un enlace a su política de privacidad y lo que pide ver. No se comparte nada hasta que eliges Permitir.",
+      "whatItGets": "Según lo que permitas, la app puede ver tu nombre y tu foto de perfil, y todos los registros de tu logbook, incluidos los que tienes en «Solo yo». Cada registro incluye el bloque al que corresponde: su nombre, su grado y su layout. Eso incluye un bloque que otra persona ha creado y que sigue siendo un borrador o no listado, porque el registro forma parte de tu logbook. En el Spraywall de otra persona que no es público, la app recibe tu registro, pero no el nombre del bloque ni el del Spraywall.",
+      "afterSharing": "Cuando la app tiene tus datos, lo que haga con ellos se rige por su propia política de privacidad.",
+      "disconnect": "Puedes desconectar una app cuando quieras desde los ajustes de Boardsesh. Cualquier cambio de contraseña, incluido restablecerla o crear una por primera vez, desconecta todas las apps. A partir de ahí la app no puede leer nada nuevo. Desconectarla, o eliminar tu cuenta de Boardsesh, no borra lo que la app ya copió: pídele a la app que lo borre."
+    },
     "thirdParty": {
       "title": "Servicios de terceros",
       "posthogLabel": "PostHog.",
       "posthogBody": "PostHog procesa la analítica opcional de producto y la grabación de sesiones de la app en Estados Unidos. También enviamos eventos operativos mínimos sin identificadores de cuenta para la estabilidad del servicio, las pantallas de los rocódromos y el estado de las actualizaciones, además de recuentos agregados de usuarios activos. Consulta ",
       "posthogLink": "la política de privacidad de PostHog",
+      "adPixelsLabel": "Meta y Reddit.",
+      "adPixelsBody": "Meta Platforms y Reddit reciben datos de medición de anuncios de nuestra web mientras la analítica está activada (consulta Qué recogemos). También los usan según sus propias políticas de privacidad, lo que puede incluir tratamiento en Estados Unidos. Consulta ",
+      "metaLink": "la política de privacidad de Meta",
+      "adPixelsJoin": " y ",
+      "redditLink": "la política de privacidad de Reddit",
+      "adPixelsBodyEnd": ".",
       "auroraLabel": "API de Aurora Climbing.",
       "auroraBody": "Si vinculas tu cuenta de Aurora Climbing (usada por los plafones Kilter y Tension), sincronizamos tus datos de escalada con los servidores de Aurora para que tu logbook sea coherente entre apps. Esta sincronización solo ocurre cuando tú la inicias. Consulta ",
       "auroraLink": "Aurora Climbing",
@@ -1108,7 +1136,7 @@
     },
     "sharing": {
       "title": "Compartir de datos",
-      "body1ProductAnalytics": "No vendemos tus datos, no mostramos anuncios ni compartimos información con anunciantes o intermediarios de datos. Los proveedores descritos arriba procesan datos para alojamiento, almacenamiento, pagos, fiabilidad del servicio y analítica opcional. La sincronización con Aurora Climbing funciona cuando la activas.",
+      "body1ProductAnalytics": "No vendemos tus datos, no mostramos anuncios en Boardsesh ni compartimos información con intermediarios de datos. Los proveedores descritos arriba procesan datos para alojamiento, almacenamiento, pagos, fiabilidad del servicio y analítica opcional, que en nuestra web incluye la medición de anuncios con Meta y Reddit. La sincronización con Aurora Climbing funciona cuando la activas.",
       "body2": "Otros usuarios de Boardsesh pueden ver tu nombre de usuario, tu perfil y tus problemas registrados si participas en funciones sociales como el Modo Fiesta. Esto se ve en la app y forma parte de cómo funciona el producto.",
       "body3SprayPhotos": "No entregamos a nadie más las fotos de Spraywalls ni las presas que marcas para entrenar modelos. El único modelo que se entrena con ellas es nuestro propio detector de presas. Otras personas ven la foto de un Spraywall según su visibilidad, y los miembros de un rocódromo ven los Spraywalls vinculados a ese rocódromo, también los privados. La foto de un Spraywall público está en la web abierta."
     },
@@ -1148,6 +1176,7 @@
     "choices": {
       "title": "Cookies y opciones de privacidad",
       "storageBody": "El almacenamiento necesario incluye las cookies de inicio de sesión de NextAuth, tu idioma (boardsesh-locale), las preferencias del dispositivo y la cookie boardsesh-consent. La cookie de consentimiento dura un año y se comparte entre boardsesh.com y app.boardsesh.com. Fuera de las regiones donde preguntamos, la web la configura con la analítica por defecto en tu primera visita. Cuando la analítica está activada (porque la permitiste, o por defecto fuera de las regiones donde preguntamos), PostHog guarda identificadores y eventos (ph_* en la web y almacenamiento del SDK en la app). Rechazar o retirar el permiso elimina los identificadores de analítica y detiene la analítica opcional, las grabaciones y los eventos de atribución de instalaciones. Los diagnósticos básicos de errores y rendimiento en nuestros servidores siguen activos. Las opciones de funciones siguen usando un cliente en memoria; con sesión iniciada pueden usar tu identificador de cuenta.",
+      "adCookiesBody": "Mientras la medición de anuncios está activada, el píxel de Meta guarda _fbp (y _fbc si llegas desde un anuncio de Meta) y el píxel de Reddit guarda _rdt_uuid (y _rdt_cid si llegas desde un anuncio de Reddit), cada una hasta 90 días. Si dices que no en Opciones de privacidad, los dos píxeles se detienen al momento y estas cookies se borran.",
       "changeBody": "Usa Opciones de privacidad en el pie de la web o Analítica en Ajustes → Privacidad para cambiar tu respuesta. Guardamos tu decisión en el dispositivo y, con sesión iniciada, en tu cuenta. Donde la analítica está activada por defecto, ese valor se queda en el dispositivo y nunca se guarda en tu cuenta como consentimiento. Un rechazo en la cuenta prevalece sobre los permisos del dispositivo; un permiso en la cuenta se aplica a dispositivos que aún no han respondido. Conservamos el historial de decisiones como prueba del consentimiento hasta que eliminas la cuenta. Los eventos anónimos y efímeros del estado de las actualizaciones y de las pantallas de los rocódromos siguen activos para mantener la fiabilidad del servicio."
     }
   },

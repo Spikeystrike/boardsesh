@@ -44,6 +44,51 @@ void describe('postgres client', () => {
     });
   });
 
+  void describe('createDedicatedPool', () => {
+    void it('builds a new pool with its own size on every call', async () => {
+      const { createDedicatedPool, createPool } = await import('../postgres');
+      const firstPool = createDedicatedPool(3);
+      const secondPool = createDedicatedPool(3);
+      try {
+        assert.notEqual(firstPool, secondPool, 'each call must return its own pool');
+        assert.notEqual(firstPool, createPool(), 'a dedicated pool is never the shared one');
+        assert.equal(firstPool.options.max, 3);
+      } finally {
+        await Promise.all([firstPool.end(), secondPool.end()]);
+      }
+    });
+
+    void it('applies its own connect timeout and startup parameters', async () => {
+      const { createDedicatedPool } = await import('../postgres');
+      const pool = createDedicatedPool(2, {
+        connect_timeout: 2,
+        connection: { statement_timeout: 1000, application_name: 'dedicated-test' },
+      });
+      try {
+        assert.equal(pool.options.connect_timeout, 2);
+        assert.equal(pool.options.connection.statement_timeout, 1000);
+        assert.equal(pool.options.connection.application_name, 'dedicated-test');
+      } finally {
+        await pool.end();
+      }
+    });
+
+    void it('wins over the same startup parameter in the URL and keeps the rest', async () => {
+      const { createDedicatedPool } = await import('../postgres');
+      const previousUrl = process.env.DATABASE_URL;
+      process.env.DATABASE_URL =
+        'postgres://postgres:password@localhost:5432/main?statement_timeout=45000&lock_timeout=5';
+      const pool = createDedicatedPool(2, { connection: { statement_timeout: 1000 } });
+      try {
+        assert.equal(pool.options.connection.statement_timeout, 1000);
+        assert.equal(pool.options.connection.lock_timeout, '5');
+      } finally {
+        process.env.DATABASE_URL = previousUrl;
+        await pool.end();
+      }
+    });
+  });
+
   void describe('per-deployment pool knobs', () => {
     // Asserts on the options postgres-js actually resolved, not on the source
     // text of postgres.ts. A source grep goes green-but-meaningless the moment
@@ -114,6 +159,48 @@ void describe('postgres client', () => {
       assert.equal(options.max, 5);
     });
 
+    void it('resolves DB_POOL_MAX for pools built outside createDb, with their own fallback', async () => {
+      // The sync daemons build their own postgres.js pools through this.
+      const { resolvePoolMax } = await import('../postgres');
+      const previous = process.env.DB_POOL_MAX;
+      try {
+        delete process.env.DB_POOL_MAX;
+        assert.equal(resolvePoolMax(), 5);
+        assert.equal(resolvePoolMax(7), 7);
+        process.env.DB_POOL_MAX = '3';
+        assert.equal(resolvePoolMax(7), 3);
+        process.env.DB_POOL_MAX = '1';
+        assert.equal(resolvePoolMax(), 2);
+        process.env.DB_POOL_MAX = 'abc';
+        assert.equal(resolvePoolMax(7), 7);
+      } finally {
+        if (previous === undefined) delete process.env.DB_POOL_MAX;
+        else process.env.DB_POOL_MAX = previous;
+      }
+    });
+
+    void it('clamps DB_POOL_MAX to 100 with a warning, so a typo cannot exhaust the heap', async (context) => {
+      // postgres.js allocates one connection object per slot: 100000 took 736 MB.
+      const warn = context.mock.method(console, 'warn', () => {});
+      const options = await poolOptionsWith({ DB_POOL_MAX: '100000' });
+      assert.equal(options.max, 100);
+      assert.ok(
+        warn.mock.calls.some((call) => String(call.arguments[0]).includes('DB_POOL_MAX=100000 is above 100')),
+        'the clamp must be logged',
+      );
+      const { resolvePoolMax } = await import('../postgres');
+      const previous = process.env.DB_POOL_MAX;
+      try {
+        process.env.DB_POOL_MAX = '100';
+        assert.equal(resolvePoolMax(), 100);
+        process.env.DB_POOL_MAX = '1000000';
+        assert.equal(resolvePoolMax(), 100);
+      } finally {
+        if (previous === undefined) delete process.env.DB_POOL_MAX;
+        else process.env.DB_POOL_MAX = previous;
+      }
+    });
+
     void it('falls back to the serverless default when DB_POOL_MAX is not a number on Vercel', async () => {
       const options = await poolOptionsWith({ DB_POOL_MAX: 'abc', VERCEL: '1' });
       assert.equal(options.max, 3);
@@ -142,6 +229,129 @@ void describe('postgres client', () => {
     void it('emits statement_timeout when DB_STATEMENT_TIMEOUT_MS is set', async () => {
       const options = await poolOptionsWith({ DB_STATEMENT_TIMEOUT_MS: '8000' });
       assert.equal(options.connection.statement_timeout, 8000);
+    });
+
+    void it('emits no idle_in_transaction_session_timeout unless the process asks for one', async () => {
+      // Workers, daemons and scripts keep the server default (off).
+      const options = await poolOptionsWith({ DB_IDLE_IN_TRANSACTION_TIMEOUT_MS: undefined });
+      assert.equal(options.connection.idle_in_transaction_session_timeout, undefined);
+    });
+
+    void it('sends both session timeouts together', async () => {
+      const options = await poolOptionsWith({
+        DB_STATEMENT_TIMEOUT_MS: '45000',
+        DB_IDLE_IN_TRANSACTION_TIMEOUT_MS: '60000',
+      });
+      assert.equal(options.connection.statement_timeout, 45000);
+      assert.equal(options.connection.idle_in_transaction_session_timeout, 60000);
+    });
+
+    void it('treats DB_IDLE_IN_TRANSACTION_TIMEOUT_MS=0 as off', async () => {
+      const options = await poolOptionsWith({ DB_IDLE_IN_TRANSACTION_TIMEOUT_MS: '0' });
+      assert.equal(options.connection.idle_in_transaction_session_timeout, undefined);
+    });
+
+    void it('reads DB_STATEMENT_TIMEOUT_MS with parseInt, as it always has', async () => {
+      const options = await poolOptionsWith({ DB_STATEMENT_TIMEOUT_MS: '8000ms' });
+      assert.equal(options.connection.statement_timeout, 8000);
+    });
+
+    void it('accepts the idle timeout at both ends of its range', async () => {
+      const lowest = await poolOptionsWith({ DB_IDLE_IN_TRANSACTION_TIMEOUT_MS: '1000' });
+      assert.equal(lowest.connection.idle_in_transaction_session_timeout, 1000);
+      const highest = await poolOptionsWith({ DB_IDLE_IN_TRANSACTION_TIMEOUT_MS: '2147483647' });
+      assert.equal(highest.connection.idle_in_transaction_session_timeout, 2_147_483_647);
+    });
+
+    void it('treats an empty DB_IDLE_IN_TRANSACTION_TIMEOUT_MS as unset', async () => {
+      const options = await poolOptionsWith({ DB_IDLE_IN_TRANSACTION_TIMEOUT_MS: '' });
+      assert.equal(options.connection.idle_in_transaction_session_timeout, undefined);
+    });
+
+    for (const [value, why] of [
+      ['60', 'seconds typed as milliseconds would end nearly every transaction'],
+      ['999', 'below a second'],
+      ['99999999999', "above PostgreSQL's ceiling, so every connection would fail"],
+      ['60s', 'a unit'],
+      ['-1', 'negative'],
+    ] as const) {
+      void it(`refuses DB_IDLE_IN_TRANSACTION_TIMEOUT_MS=${value} at boot (${why})`, async () => {
+        await assert.rejects(
+          poolOptionsWith({ DB_IDLE_IN_TRANSACTION_TIMEOUT_MS: value }),
+          /DB_IDLE_IN_TRANSACTION_TIMEOUT_MS must be 0 \(off\) or whole milliseconds from 1000 to 2147483647/,
+        );
+      });
+    }
+  });
+
+  void describe('applyRequestPoolDefaults', () => {
+    async function withIdleTimeoutVariable(value: string | undefined, run: () => Promise<void>) {
+      const previous = process.env.DB_IDLE_IN_TRANSACTION_TIMEOUT_MS;
+      if (value === undefined) delete process.env.DB_IDLE_IN_TRANSACTION_TIMEOUT_MS;
+      else process.env.DB_IDLE_IN_TRANSACTION_TIMEOUT_MS = value;
+      const { closePool, closeReadPool } = await import('../postgres');
+      await closePool();
+      await closeReadPool();
+      try {
+        await run();
+      } finally {
+        await closePool();
+        await closeReadPool();
+        if (previous === undefined) delete process.env.DB_IDLE_IN_TRANSACTION_TIMEOUT_MS;
+        else process.env.DB_IDLE_IN_TRANSACTION_TIMEOUT_MS = previous;
+      }
+    }
+
+    void it('gives every pool built afterwards 60 s, and can run again once they exist', async () => {
+      await withIdleTimeoutVariable(undefined, async () => {
+        const { applyRequestPoolDefaults, createDedicatedPool, createPool } = await import('../postgres');
+        applyRequestPoolDefaults();
+        assert.equal(createPool().options.connection.idle_in_transaction_session_timeout, 60_000);
+        const dedicatedPool = createDedicatedPool(2);
+        try {
+          assert.equal(dedicatedPool.options.connection.idle_in_transaction_session_timeout, 60_000);
+        } finally {
+          await dedicatedPool.end();
+        }
+        // Next.js re-evaluates the module that calls it; the pool already matches.
+        assert.doesNotThrow(() => applyRequestPoolDefaults());
+      });
+    });
+
+    void it('keeps an explicit value, and 0 turns it off', async () => {
+      await withIdleTimeoutVariable('0', async () => {
+        const { applyRequestPoolDefaults, createPool } = await import('../postgres');
+        applyRequestPoolDefaults();
+        assert.equal(createPool().options.connection.idle_in_transaction_session_timeout, undefined);
+      });
+      await withIdleTimeoutVariable('30000', async () => {
+        const { applyRequestPoolDefaults, createPool } = await import('../postgres');
+        applyRequestPoolDefaults();
+        assert.equal(createPool().options.connection.idle_in_transaction_session_timeout, 30_000);
+      });
+    });
+
+    void it('gives an empty variable the 60 s default', async () => {
+      await withIdleTimeoutVariable('', async () => {
+        const { applyRequestPoolDefaults, createPool } = await import('../postgres');
+        applyRequestPoolDefaults();
+        assert.equal(createPool().options.connection.idle_in_transaction_session_timeout, 60_000);
+      });
+    });
+
+    void it('fails at boot on a value out of range', async () => {
+      await withIdleTimeoutVariable('60', async () => {
+        const { applyRequestPoolDefaults } = await import('../postgres');
+        assert.throws(() => applyRequestPoolDefaults(), /must be 0 \(off\) or whole milliseconds/);
+      });
+    });
+
+    void it('throws when a shared pool was built before it ran', async () => {
+      await withIdleTimeoutVariable(undefined, async () => {
+        const { applyRequestPoolDefaults, createPool } = await import('../postgres');
+        createPool();
+        assert.throws(() => applyRequestPoolDefaults(), /before anything that calls createDb/);
+      });
     });
   });
 

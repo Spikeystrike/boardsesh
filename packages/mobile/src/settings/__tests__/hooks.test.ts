@@ -42,8 +42,8 @@ describe('settings', () => {
   describe('getSetting', () => {
     it('returns default when no value is stored', () => {
       expect(getSetting('autoConnectBle')).toBe(true);
-      expect(getSetting('autoDisconnectBle')).toBe(false);
-      expect(getSetting('autoDisconnectTimeoutSeconds')).toBe(30);
+      expect(getSetting('alwaysDrive')).toBe(false);
+      expect(getSetting('disconnectWhenDrivingEnds')).toBe(false);
       expect(getSetting('theme')).toBe('system');
       expect(getSetting('qaPromptOnLaunch')).toBe(false);
       expect(getSetting('defaultBoardUuid')).toBeNull();
@@ -53,6 +53,11 @@ describe('settings', () => {
     it('returns stored value parsed from JSON', () => {
       mockStorage.set('autoConnectBle', 'false');
       expect(getSetting('autoConnectBle')).toBe(false);
+    });
+
+    it('preserves a saved Always drive the wall opt-in', () => {
+      mockStorage.set('alwaysDrive', 'true');
+      expect(getSetting('alwaysDrive')).toBe(true);
     });
 
     it('returns stored string value parsed from JSON', () => {

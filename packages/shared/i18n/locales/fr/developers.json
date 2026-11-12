@@ -1,0 +1,206 @@
+{
+  "metadata": {
+    "title": "Tes apps | Boardsesh pour les développeurs",
+    "description": "Enregistre une app qui lit le carnet Boardsesh d'un grimpeur une fois qu'il l'a approuvée."
+  },
+  "page": {
+    "eyebrow": "Boardsesh pour les développeurs",
+    "title": "Tes apps",
+    "lead": "Enregistre une app pour que les grimpeurs puissent la connecter à leur carnet Boardsesh. Rien n'est partagé tant qu'un grimpeur n'a pas approuvé ton app sur l'écran de consentement.",
+    "register": "Enregistrer une app",
+    "limits": "Jusqu'à {{apps}} apps par compte. Chaque nouvelle app peut connecter {{connections}} grimpeurs, dont {{perDay}} nouveaux par jour."
+  },
+  "states": {
+    "loading": "Chargement de tes apps…",
+    "empty": {
+      "title": "Aucune app pour l'instant",
+      "body": "Enregistre une app pour obtenir un client ID. Une app dont le serveur échange le code reçoit aussi un client secret.",
+      "action": "Enregistrer ta première app"
+    },
+    "notAvailable": {
+      "title": "L'enregistrement d'apps n'est pas encore ouvert",
+      "body": "Boardsesh n'a pas encore activé les apps partenaires. Repasse plus tard."
+    },
+    "notAllowlisted": {
+      "title": "L'enregistrement d'apps est sur invitation pour le moment",
+      "body": "Ton compte n'est pas sur la liste d'invités. Demande l'accès à l'équipe Boardsesh."
+    },
+    "paused": {
+      "title": "L'enregistrement d'apps est en pause",
+      "body": "Boardsesh a mis les apps partenaires en pause un instant. Réessaie dans une minute."
+    },
+    "failed": {
+      "title": "Tes apps ne se sont pas chargées",
+      "body": "Vérifie ta connexion et réessaie.",
+      "retry": "Réessayer"
+    }
+  },
+  "app": {
+    "publisher": "Créée par {{publisher}}",
+    "noPublisher": "Aucun éditeur indiqué. Modifie l'app pour en ajouter un ; d'ici là, l'écran de consentement n'affiche pas la ligne « Créée par ».",
+    "clientId": "Client ID",
+    "kind": {
+      "WEB": "App web",
+      "NATIVE": "App native"
+    },
+    "clientTypeTerm": "Type de client",
+    "auth": {
+      "NONE": "Publique : pas de secret, PKCE seulement",
+      "CLIENT_SECRET_BASIC": "Confidentielle : secret dans un en-tête HTTP Basic",
+      "CLIENT_SECRET_POST": "Confidentielle : secret dans le corps du formulaire"
+    },
+    "redirectUris": "Redirect URIs",
+    "homepage": "Site web",
+    "privacyPolicy": "Politique de confidentialité",
+    "linksTerm": "Liens",
+    "linksLabel": "Liens de {{app}}",
+    "connectionsTerm": "Grimpeurs",
+    "connections_one": "{{count}} grimpeur connecté sur {{max}}",
+    "connections_other": "{{count}} grimpeurs connectés sur {{max}}",
+    "newPerDay": "Jusqu'à {{count}} nouveaux grimpeurs par jour",
+    "registeredTerm": "Enregistrée",
+    "suspended": {
+      "title": "Suspendue par Boardsesh",
+      "body": "Cette app ne reçoit aucun token et ne peut être ni modifiée ni supprimée. Raison : {{reason}}",
+      "noReason": "Cette app ne reçoit aucun token et ne peut être ni modifiée ni supprimée."
+    },
+    "actions": {
+      "label": "Actions pour {{app}}",
+      "edit": "Modifier",
+      "rotate": "Nouveau secret",
+      "delete": "Supprimer"
+    }
+  },
+  "form": {
+    "createTitle": "Enregistrer une app",
+    "editTitle": "Modifier {{app}}",
+    "name": "Nom de l'app",
+    "nameHelp": "Les grimpeurs le voient sur l'écran de consentement. De 3 à 50 caractères.",
+    "publisher": "Éditeur",
+    "publisherHelp": "La personne ou l'entreprise qui crée l'app. Les grimpeurs voient « Créée par » suivi de ce nom.",
+    "homepage": "URL du site web (facultatif)",
+    "privacyPolicy": "URL de la politique de confidentialité",
+    "urlHelp": "Commence par https://. Lien affiché sur l'écran de consentement.",
+    "applicationType": "Où revient la connexion",
+    "applicationTypeWeb": "Un site web",
+    "applicationTypeWebHelp": "Redirect URIs en https:// uniquement.",
+    "applicationTypeNative": "Une app mobile, de bureau ou en ligne de commande",
+    "applicationTypeNativeHelp": "Accepte aussi http://127.0.0.1 ou http://[::1] sur n'importe quel port, et un schéma personnalisé comme com.example.app:/oauth/boardsesh.",
+    "clientType": "Où le code est échangé contre des tokens",
+    "clientTypeConfidential": "Sur mon serveur",
+    "clientTypeConfidentialHelp": "Tu reçois un client secret. Garde-le uniquement sur le serveur.",
+    "clientTypePublic": "Sur l'appareil ou dans le navigateur",
+    "clientTypePublicHelp": "Pas de secret. PKCE protège le code. À utiliser pour tout ce que tu distribues aux utilisateurs.",
+    "secretMethod": "Comment ton serveur envoie le secret",
+    "secretMethodBasic": "En-tête HTTP Basic (recommandé)",
+    "secretMethodPost": "Dans le corps du formulaire",
+    "redirectUris": "Redirect URIs",
+    "redirectUrisHelp": "Une par ligne, jusqu'à 10. Comparées à l'identique, sauf le port d'une adresse loopback.",
+    "fixed": "Fixé à l'enregistrement : {{kind}}, {{auth}}.",
+    "required": "Remplis ce champ.",
+    "cancel": "Annuler",
+    "create": "Enregistrer l'app",
+    "creating": "Enregistrement…",
+    "save": "Enregistrer les modifications",
+    "saving": "Enregistrement…",
+    "refused": "Boardsesh n'a pas enregistré cette app",
+    "readTerms": "Lis les conditions pour les développeurs (s'ouvrent dans un nouvel onglet)",
+    "acceptTerms": "J'accepte les conditions Boardsesh pour les développeurs pour cette app",
+    "acceptTermsRequired": "Accepte les conditions pour les développeurs pour enregistrer une app."
+  },
+  "secret": {
+    "createdTitle": "{{app}} est enregistrée",
+    "rotatedTitle": "Nouveau secret pour {{app}}",
+    "createdWarning": "Copie le client secret maintenant. Boardsesh ne l'affichera plus.",
+    "rotatedWarning": "L'ancien secret ne fonctionne plus. Copie le nouveau maintenant : Boardsesh ne l'affichera plus.",
+    "lostHelp": "Perdu plus tard ? Crée un nouveau secret depuis la carte de l'app. L'ancien cesse de fonctionner aussitôt.",
+    "publicNote": "C'est une app publique, donc il n'y a pas de secret. Envoie un PKCE code challenge à chaque autorisation.",
+    "clientSecret": "Client secret",
+    "copy": "Copier",
+    "copied": "Copié",
+    "copyFailed": "Copie impossible. Sélectionne le texte et copie-le toi-même.",
+    "confirmSaved": "J'ai gardé le secret",
+    "done": "Terminé"
+  },
+  "rotate": {
+    "title": "Créer un nouveau secret pour {{app}} ?",
+    "body": "Le secret actuel cesse de fonctionner dès que tu confirmes. Les demandes de token de ton serveur échouent tant que tu n'as pas déployé le nouveau.",
+    "confirm": "Créer un nouveau secret",
+    "working": "Création du nouveau secret…"
+  },
+  "delete": {
+    "title": "Supprimer {{app}} ?",
+    "connected_one": "{{count}} grimpeur est connecté. Supprimer l'app le déconnecte aussitôt, et ses tokens cessent de fonctionner.",
+    "connected_other": "{{count}} grimpeurs sont connectés. Supprimer l'app les déconnecte tous aussitôt, et leurs tokens cessent de fonctionner.",
+    "noneConnected": "Aucun grimpeur n'est connecté. Toute connexion en cours pour cette app cesse de fonctionner.",
+    "permanent": "Impossible d'annuler.",
+    "confirm": "Supprimer l'app",
+    "working": "Suppression…"
+  },
+  "toasts": {
+    "saved": "Modifications enregistrées",
+    "deleted": "{{app}} supprimée"
+  },
+  "errors": {
+    "busy": "Boardsesh est occupé. Réessaie dans quelques secondes.",
+    "rateLimited": "Trop de modifications en une minute. Patiente un instant, puis réessaie.",
+    "gone": "Cette app n'existe plus. La liste a été actualisée.",
+    "suspended": "Boardsesh a suspendu cette app, elle ne peut donc pas être modifiée.",
+    "emailNotVerified": "Vérifie ton adresse e-mail avant d'enregistrer une app.",
+    "generic": "Une erreur est survenue. Réessaie."
+  },
+  "terms": {
+    "metadata": {
+      "title": "Developer terms | Boardsesh for developers",
+      "description": "The terms an app accepts when it registers to connect to Boardsesh accounts."
+    },
+    "title": "Boardsesh developer terms",
+    "version": "Version {{version}}",
+    "draftNotice": {
+      "title": "Draft, not in force",
+      "body": "The Boardsesh team has not approved these terms yet. They may change before any app connects to a real climber’s account."
+    },
+    "intro": "These terms apply to anyone who registers an app that connects to Boardsesh accounts through the Boardsesh API. You accept them when you register an app, for yourself and for everyone who works on the app with you.",
+    "data": {
+      "title": "Climbers’ data",
+      "items": {
+        "purpose": "Use what a climber shares only for the features they connected your app for.",
+        "noSale": "Don’t sell or rent it, and don’t share it with anyone for advertising, profiling or data brokering.",
+        "setterClimbs": "A tick comes with the climb it is on, including a draft or an unlisted climb someone else set. That detail is there so the climber can see their own logbook. Don’t publish it, show it to other people or build a list of climbs from it.",
+        "delete": "Delete a climber’s Boardsesh data when they disconnect your app or ask you to, unless they ask you to keep it.",
+        "privacyPolicy": "Have a privacy policy that says what you do with Boardsesh data, and register its link with your app. Climbers see it before they approve.",
+        "security": "Keep tokens and client secrets on your server or in the device’s secure storage, never in a URL or a log. If you learn that one leaked, or that someone reached climbers’ data without permission, tell us at legal@boardsesh.com within 72 hours."
+      }
+    },
+    "api": {
+      "title": "Using the API",
+      "items": {
+        "limits": "Stay within the rate limits, and wait as long as Retry-After says.",
+        "scopes": "Ask only for the scopes you use. Don’t try to get around a scope, a limit, a suspension or a climber’s choices.",
+        "catalog": "Don’t use the API to copy Boardsesh’s climb catalogue. The public nightly snapshots are there for that.",
+        "service": "Board control, sessions and the climb catalogue are not part of the API. An app whose accounts, climbing, board control or sessions run on Boardsesh’s servers needs our written permission, which we don’t currently give."
+      }
+    },
+    "names": {
+      "title": "Names and trademarks",
+      "items": {
+        "worksWith": "Say that your app works with Boardsesh, for example “Works with Boardsesh” or “Import your Boardsesh logbook”. Don’t suggest that Boardsesh made, reviewed or endorses your app.",
+        "ownName": "Don’t use Boardsesh, or anything that looks like it, in your app’s name, publisher name or icon.",
+        "boardBrands": "Kilter, Tension, MoonBoard and other board names belong to their owners. Use them only to say which board a climb is on, and don’t suggest that a board maker endorses your app or Boardsesh."
+      }
+    },
+    "ours": {
+      "title": "What Boardsesh may do",
+      "items": {
+        "suspend": "Suspend or delete an app that breaks these terms, puts climbers at risk or overloads the service. When we suspend an app, the console shows you the reason.",
+        "changes": "Change the API under the versioning rules in the developer docs, and change these terms. The console shows the new version, and the next app you register accepts it.",
+        "asIs": "The API is provided as it is, with no promise that it is always available or free of errors."
+      }
+    },
+    "ending": {
+      "title": "Stopping",
+      "body": "You can delete your app in the console at any time, and every climber’s connection to it ends at once. Then delete the Boardsesh data you hold, unless a climber asked you to keep theirs."
+    },
+    "contact": "Questions about these terms: legal@boardsesh.com"
+  }
+}

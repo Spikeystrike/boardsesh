@@ -100,6 +100,10 @@ export const SHARED_EVENTS = {
   PlaylistQueued: 'Playlist Queued',
   ClimbRemovedFromQueue: 'Climb Removed from Queue',
   QueueReordered: 'Queue Reordered',
+  // Mobile queue sheet. Props: { layoutId, totalCount, source: 'edit' | 'menu' }.
+  // `source` says which control cleared it: the edit mode's Clear or the header's
+  // ⋯ menu. Events from before the ⋯ menu carry no `source`; all of those came
+  // from the edit mode.
   QueueCleared: 'Queue Cleared',
   // Fired on every queue advance, including the broadcast advances that used to
   // ALSO fire a separate `Wall Advance`. That pair fired back-to-back from the
@@ -113,28 +117,63 @@ export const SHARED_EVENTS = {
   // MiniPlayer's ⏮ ⏭. Props (built by `queueNavigation`,
   // queue-navigation-events.ts): { direction: 'next' | 'previous', method:
   // 'button' | 'swipe', surface: 'player' | 'mini_player', outcome: 'moved' |
-  // 'preview', sessionMode: 'party' | 'solo', lightOnSwipe, driving, boardType, layoutId
-  // (null on a spray wall) }. `preview` is a step that only looked: in a crew or
-  // with Light on swipe off the wall stays put. `driving` (#7113, false before
-  // it) says the climber was driving the wall, so the step lit it in a crew too. The rest timer's auto-advance
+  // 'preview', sessionMode: 'party' | 'solo', alwaysDrive (2026-11, Light
+  // automatically; lightOnSwipe before it), driving, boardType, layoutId
+  // (null on a spray wall) }. `preview` is a step that only looked: outside a
+  // drive the wall stays put. `driving` (#7113, false before
+  // it) says the climber was driving the wall, so the step lit it in a crew too.
+  // `heldArtState` ('ready' | 'loading' | 'failed') and `heldMs` (November 2026) ride
+  // only on a swipe that went before the next climb's board had painted, or
+  // whose release waited past 700 ms; every other step sends neither. The rest timer's auto-advance
   // and the workout runner do not fire it. www's `method` values differ, so read
   // mobile on `surface`, which www never sent.
   QueueNavigation: 'Queue Navigation',
   // Mobile-only (#7113): driving the wall ended. Props (built by
   // `driveModeEnded`, queue-navigation-events.ts): { reason: 'stopped' |
   // 'link_dropped' | 'connect_failed' | 'commit_failed' | 'arming_timed_out' | 'session_changed' |
-  // 'board_changed' | 'signed_out', durationSec, climbsLit (the swipe's own
-  // climb included), inSession, startedBy: 'swipe' (the wall button's swipe) |
-  // 'tap' (a solo press that puts a climb up, #7113 QA) | 'action' (the
-  // screen-reader action or the board sheet's row) | 'solo_carry' (a solo
-  // climber driving by Light the board as I swipe when a crew formed) }.
-  // Fired once per drive by the drive-mode store.
+  // 'board_changed' | 'signed_out' | 'window_ended' (2.7: Put on board's
+  // keep-lighting window ran out, or its setting was turned off) |
+  // 'always_off' (2026-11: Always drive the wall went off, or a crew formed where
+  // it doesn't drive; the link stays), durationSec,
+  // climbsLit (the swipe's own climb included), inSession, windowRenewals (2.7:
+  // lit climbs that renewed the keep-lighting window; 0 with no window, and
+  // absent before 2.7), windowSec (2.7: the timed drive's length, 30 | 45 | 60 | 120 | 300, or
+  // null for an open-ended drive), boardType (2.7: 'kilter', 'moonboard', ...,
+  // or null when unknown, for the MoonBoard field test), startedBy: 'swipe' (the wall button's swipe) | 'tap'
+  // (a press on Put on board that keeps lighting: from 2.7 the keep-lighting
+  // window, or an open-ended drive where the setting says Until I stop; before
+  // 2.7 a solo press that put a climb up, #7113 QA) | 'action' (the
+  // screen-reader action or the board sheet's row) | 'solo_carry' (until
+  // 2026-11: a solo climber driving by Light the board as I swipe when a crew
+  // formed) | 'always' (2026-11: Always drive the wall drives the wall while this
+  // phone's own link holds it: the link came up, the switch turned on, or a
+  // Put on board resumed it after a stop) |
+  // 'lock_screen' (2.7: a Lock Screen, Dynamic Island or Android notification
+  // Next / Previous opened the window, or a drive. iOS opens it natively once
+  // the press lit the wall and the app adopts it when it next runs: durationSec
+  // counts from that press, climbsLit only the climbs the app itself saw
+  // light. Android arms it in the app at the press, like Put on board, and an
+  // unlit press ends 'arming_timed_out'. A press after a window ran out ends
+  // that one 'window_ended' at its own end and starts its own) }. A
+  // window that a swipe or Light every climb turned open-ended keeps
+  // startedBy 'tap'. Fired once per drive by the drive-mode store.
   DriveModeEnded: 'Drive Mode Ended',
+  // Mobile-only (2.7): a drive started, before it reached the wall (arming).
+  // Props (built by `driveModeStarted`): { startedBy (as Drive Mode Ended),
+  // inSession, boardType (as Drive Mode Ended) }. Low volume: once per drive, never per climb. Every Drive Mode
+  // Started has one Drive Mode Ended.
+  DriveModeStarted: 'Drive Mode Started',
   // Mobile-only (#6940): the climber asked for the queue. Props (built by
   // `queueSheetOpened`): { surface: 'player' | 'player_menu' | 'mini_player' |
-  // 'mini_player_menu' | 'snackbar', boardType }. On a side-by-side iPad player the queue button
+  // 'mini_player_menu' | 'snackbar', boardType, from, upNextBucket }. On a side-by-side iPad player the queue button
   // shows Up next in the side panel instead of a sheet; it still fires, as
-  // `player`, because the climber asked for the same thing.
+  // `player`, because the climber asked for the same thing. Since
+  // Then-signposts (2026-11-02): `from` is 'preview' when the player (or the
+  // MiniPlayer's last pick) showed a climb that isn't the queue's current one,
+  // else 'current'; `upNextBucket` is Up next's size as '0' | '1-3' | '4-10' |
+  // '11+' (`upNextBucket`, the buckets `Queue Navigation` sends too).
+  // `from: 'preview'` with Up next filled is a climber looking for their
+  // queue; that share should fall.
   QueueSheetOpened: 'Queue Sheet Opened',
   // A held swipe track stopped steering next/prev, so swipes fall back to the
   // queue. The climber still HAS a track; it just no longer anchors the climb
@@ -246,10 +285,23 @@ export const SHARED_EVENTS = {
   // Props: { page, key, value } — `value` is the boolean or the option key, never
   // free text. Fired by `withSettingTracking` (mobile settings-analytics.ts) so
   // every settings row reports the same way; it is what ranks the Settings root.
+  // From 2.7 the lightbulb's board sheet reports its switches too, under page
+  // 'boardControls' (keys as on the Board page: alwaysDrive (2026-11, Light
+  // automatically; lightOnClimbTap and lightOnSwipe before it),
+  // putOnBoardKeepsLighting, moonboardPutOnBoardKeepsLighting (2.7 until
+  // 2026-11, when a MoonBoard took the one Stop driving after choice),
+  // disconnectWhenDrivingEnds (2.7, replacing autoDisconnectBle, which builds
+  // before it sent), moonboardLightAdjacentHolds). Leave that page out when
+  // ranking the Settings root.
   SettingChanged: 'Setting Changed',
   FavoriteToggle: 'Favorite Toggle',
   MirrorClimb: 'Mirror Climb',
   ClimbShared: 'Climb Shared',
+  // Tapped Share on a playlist or setter page. Web sends the same two names with
+  // `method` native/clipboard; mobile sends `method: 'share'`, an intent. Props:
+  // { playlistUuid, method } and { username, method }.
+  PlaylistShared: 'Playlist Shared',
+  SetterShared: 'Setter Shared',
   // A climber sent a community report on a climb. Props: { kind: 'hide' |
   // 'grade', boardType, status: 'created' | 'added' | 'already_reported' }.
   // The status split is the signal: mostly `added` means one bad climb is
@@ -386,6 +438,8 @@ export const SHARED_EVENTS = {
   // Opened and sit outside the Dismissed + Logged <= Opened invariant above.
   // Mobile adds `boardType` (#6027): one of the nine board types or null, from
   // `boardTypeProperty`. `layoutId` alone cannot say "spray wall".
+  // The mobile tick sheet also adds `angleChanged` and `dateChanged` (issue
+  // #7343); both are absent on one-tap workout logs.
   TickLogged: 'Tick Logged',
   // Bluetooth / hardware
   BluetoothConnectionSuccess: 'Bluetooth Connection Success',
@@ -400,11 +454,13 @@ export const SHARED_EVENTS = {
   BluetoothDisconnected: 'Bluetooth Disconnected',
   // A climber took / gave back the wall with no Bluetooth link — the turn-taking
   // signal for a wall with no light kit. Props: { boardName, layoutId, sizeId,
-  // ledless, inSession, boardId }, plus `reason` on Wall Released
+  // ledless, wallDevice, inSession, boardId }, plus `reason` on Wall Released
   // ('user' | 'ble_connected' | 'board_changed' | 'taken_by_peer' | 'unmount').
   // `ledless` is false when the take came from the device picker's "this wall has
   // no lights" offer on a board still flagged as having them, which is how often
-  // the server flag is wrong (or unset) shows up in the data.
+  // the server flag is wrong (or unset) shows up in the data. `wallDevice` is
+  // true on a board the owner marked "Lit by a wall device": its climbers take
+  // the wall although `ledless` is false.
   WallTaken: 'Wall Taken',
   WallReleased: 'Wall Released',
   // BLE lifecycle telemetry — added so a session recording (and PostHog) shows
@@ -420,7 +476,15 @@ export const SHARED_EVENTS = {
   // invisible in telemetry. Props: { surface: 'connect' | 'quickstart_scan',
   // platform, androidApiLevel, androidLocationPermissionGranted }, plus
   // `boardName` on the 'connect' surface only (the quickstart scan runs before
-  // any board is chosen, so it has none to report).
+  // any board is chosen, so it has none to report). The 'connect' surface also
+  // sends `attempt` and `permission_status` (#6003):
+  //  - `permission_status`: 'denied' (Android will show its dialog again; the
+  //    climber sees an alert with Try again) or 'blocked' (it won't; they see
+  //    Open Settings).
+  //  - `attempt`: 1 for a connect the climber started, 2 or more for one started
+  //    from Try again. It counts within one chain of retries, so cancelling the
+  //    alert and tapping the bulb again is attempt 1.
+  // Both are absent on 'quickstart_scan' and on bundles from before the retry.
   BluetoothPermissionDenied: 'Bluetooth Permission Denied',
   // Mobile-only (#5654): a connect or the /boards quickstart scan stopped because
   // Bluetooth can't be used, and the climber was told why. Fires with the alert or
@@ -457,7 +521,11 @@ export const SHARED_EVENTS = {
   // auto-select), false when the tap opens the device picker. `placement`
   // ('regular' | 'inline') is set only by the iOS 26 tab-bar accessory platter's
   // bulb (open or collapsed), which shares 'board_control_indicator' with the
-  // floating JS capsule's bulb.
+  // floating JS capsule's bulb. 2.7: `boardUuid` (the board the connect is for:
+  // the selected gym or saved board, or the one a move to another gym board
+  // goes to; absent with no board identity) and `phoneNeverConnected` (true
+  // until this phone's first connect; absent while its history isn't loaded),
+  // to read a newcomer's first connect apart from a regular's.
   BoardConnectTapped: 'Board Connect Tapped',
   // The Bluetooth controls sheet (Re-light / Turn off all lights / Disconnect)
   // opened. Props: { surface: 'board_control_indicator' | 'toolbar' | 'app_bar' |
@@ -485,6 +553,10 @@ export const SHARED_EVENTS = {
   // a preview per time it was offered". Roughly 10-20k per 28 days at today's
   // ~10.6k player sessions. Events from the QA builds of PR #7017 also carry a
   // `variant` ('current' | 'bulb' | 'button'); store builds never sent one.
+  // From 2.7, `previewReason` ('default' | 'session' | 'other_board', see
+  // wall-control-events.ts) says why the climb on screen is a preview, and is
+  // absent while it is the committed climb. 'default' is a solo tap now that
+  // taps preview by default; read it to see how often a preview gets lit.
   WallControlShown: 'Wall Control Shown',
   // Mobile-only (#7000): a tap on any view of the player's board control (one
   // handler, so one event per tap). Props: { state, action, control }. `state`:
@@ -499,12 +571,26 @@ export const SHARED_EVENTS = {
   // tap on Disconnect board, state 'lit', called You have the board before
   // #7113; QA builds before Marco's phone test sent 'open_sheet' there instead;
   // 'stop_driving' (#7113) is a tap on You are driving the wall, state 'lit':
-  // driving stops and the link stays). `control`: 'button' (the wall
+  // driving stops and the link stays; 'stop_window' (2.7) is the same tap during
+  // Put on board's timed drive, state 'lit', which QA builds labelled Each pick
+  // lights: the drive stops and the link stays). `control`: 'button' (the wall
   // button, full width or in a workout's top row) | 'bulb' (the first row's
   // bulb, back for the busy-wall question or chosen in View options) |
-  // 'mini_bar' (the MiniPlayer's bulb standing in for a tablet or open-Duo player's).
+  // 'mini_bar' (the MiniPlayer's bulb standing in for a tablet or open-Duo player's;
+  // from 2026-11-03 also a phone's bar bulb or last-pick bulb, but only for a
+  // tap that stopped a drive, state 'lit', 'stop_driving' or 'stop_window': the
+  // phone bar's other taps log Board Connect Tapped or nothing) | 'toolbar' (the
+  // Climbs and Discover toolbar's bulb, glass or the rail's native item) |
+  // 'app_bar' (the Android app bar's bulb) | 'header_pill' (the Climbs header's
+  // You have the board pill) | 'create_climb' (the create-climb editor's bulb):
+  // from 2026-11-03 every bulb stops a drive on a tap, and these four log only
+  // that stop, with the same state and actions as a phone's bar bulb. From then
+  // 'bulb' logs 'stop_driving' / 'stop_window' too (before, its tap during a
+  // drive logged 'disconnect').
   // QA builds before the one-model refactor sent 'wall_control' for the
   // button. A tap while the busy-wall question is up is a 'noop'. Roughly 15-25k per 28 days.
+  // From 2.7 it carries `previewReason` too, as Wall Control Shown does: only
+  // while the climb on screen is a preview.
   WallControlTapped: 'Wall Control Tapped',
   // Mobile-only (#7113): a swipe left on the player's wall button, once per
   // gesture that got going (a drag past 10 pt; a tap never fires it). Props: {
@@ -547,6 +633,27 @@ export const SHARED_EVENTS = {
   // devicesTotal=0 session with location denied is the OS suppressing results,
   // not an absent board. Analyse it by USERS, not events — see
   // posthog-empty-picker-oracle-is-weak.
+  // 2.7 release watch (built by `blePickerSessionProps`, ble-picker-events.ts):
+  // `targetFiltered` (the list first showed filtered to a known gym or saved
+  // board), `searchedAnyBoard` (Search for any board tapped), `listedCount`
+  // (boards the list showed at close), `targetNotListedSeen` ("your board isn't
+  // in the list" showed), `tipsSeen` (the troubleshooting tips showed; from
+  // 2026-11 they show 5 s into the scan, and for a known board while nothing
+  // listed may be the climber's, so the rate is not comparable with earlier
+  // events), `secondsOpen` (list shown to close), `phoneNeverConnected` (null while the
+  // phone's history isn't loaded) and `entrySurface` (the last Board Connect
+  // Tapped surface within 2 minutes before the list, or null). Older events have
+  // none of them.
+  // `targetMatchedDevices` / `targetUnknownDevices` / `targetOtherDevices`
+  // (2026-11): for a picker opened for a known gym or saved board, how many
+  // devices resolved to it, could not be identified (no serial, or an
+  // unrecorded one), and were positively another board (hidden until "Search
+  // for any board"). All three are null when the picker had no board identity;
+  // older events have none of them.
+  // `tipsShownAtMs` (2026-11): milliseconds from the list showing to the tips
+  // first showing, null when they never did. The tips now come in 5 s into the
+  // scan instead of at its end. `browsedForNow` (2026-11): the climber closed the
+  // picker with "Browse for now". Older events have neither.
   BlePickerDevicesResolved: 'BLE Picker Devices Resolved',
   // Consent-driven scan recon: fired once per discovered board when a user
   // submits a bug report with the "Bluetooth trouble" toggle on. Carries the raw

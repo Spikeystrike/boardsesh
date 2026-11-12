@@ -6,12 +6,15 @@
 // filter chips under it. There is no search field: the climb-name search is the
 // first row of the Filters sheet, like the Logbook. On iOS the native header draws
 // no title (`titleHidden`), because the tab already names the screen. The Material
-// variant uses MaterialTopAppBar with "Climbs" above the board switcher, history
-// and the ⋯ menu; its angle is the first chip in the filter row (FilterChipRow).
+// variant matches it on MaterialTopAppBar: the avatar, an empty title slot that
+// TalkBack still reads as "Climbs" (or the climb on the wall as a compact pill),
+// then history and the ⋮ menu. Create is ⋮'s first row on a phone, + in the bar
+// on a regular-width tablet. Its angle is the first chip in the filter row
+// (FilterChipRow), pinned under the bar in a dense 48dp row.
 
 import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Keyboard, StyleSheet, View } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Appbar, Chip } from 'react-native-paper';
 import type { Grade } from '@boardsesh/shared-schema';
@@ -26,24 +29,25 @@ import { CollapsingTopChrome } from '../chrome';
 import { useSettledHeaderValue } from '../chrome/use-settled-header-value';
 import { ClimbListBoardActions, climbListBoardActionCount } from '../chrome/ClimbListBoardActions';
 import { MaterialTopAppBar } from '../chrome/MaterialTopAppBar';
-import { BoardSwitcherButton } from '../chrome/BoardSwitcherButton';
 import { useActiveBoard } from '../../lib/graphql/use-active-board';
 import { GradeRangeRail, type GradeRailChange } from '../grade';
 import { UserAvatarToolbarAction } from '../user-drawer/UserAvatarToolbarAction';
 import { WallStatusCapsule } from '../queue-control/WallStatusCapsule';
 import { BoardHeldCapsule } from '../queue-control/BoardHeldCapsule';
+import { useOwedDropAnnouncement } from '../queue-control/bar-bulb-tap';
 import { useBoardConnectionState } from '../ble/use-board-connection-state';
 import { useTabChrome } from '../../hooks/use-bottom-accessory';
 import { useDeviceLayout } from '../../hooks/use-device-layout';
-import { useWallClimbIfDistinct } from '../queue-control/use-wall-or-queue-climb';
+import { useLiveWallClimb } from '../queue-control/use-wall-or-queue-climb';
 import { trustedWallCapsuleClimb, usePresenceFresh } from '../../lib/board-presence/presence-freshness';
 import { useBoardPresenceControls } from '../../providers/board-presence-provider';
 import {
   dismissWallCapsule,
-  useWallCapsuleDismissed,
+  useWallCapsuleDismissal,
   wallCapsuleOccurrenceKey,
 } from '../../lib/wall-capsule-dismissal-store';
 import { useWallCapsuleHistoryAge } from '../queue-control/use-wall-capsule-history-age';
+import { resolveClimbsHeaderCapsule, type TrustedWallClimb } from './climbs-header-capsule';
 import { useActiveClimbUuid } from '../../providers/queue-provider';
 import { addErrorBreadcrumb } from '../../lib/error-reporting';
 import { FilterButton } from './FilterButton';
@@ -137,89 +141,132 @@ function ClimbTopChromeComponent({
 }: ClimbTopChromeProps) {
   const { t } = useTranslation('climbs');
   const { t: tCommon } = useTranslation('common');
-  const { t: tBoards } = useTranslation('boards');
-  const router = useRouter();
   const { systemColors, variant } = useTheme();
   const { data: activeBoard } = useActiveBoard();
   const glassGradeRail = useFloatingHeaderControls();
-  // "On the wall" capsule: own the gate here so a falsy centre slot falls back to
-  // the title, and the capsule gets a clean mount/unmount (entering/exiting fade).
-  // Only present when a board feed lights a climb that differs from the user's own
-  // current climb (hidden in the solo case). Settled: the capsule swaps the native
-  // header out of large-title mode, which must not happen under the player's
-  // dismiss animation (#6619).
-  const currentClimbUuid = useActiveClimbUuid();
-  const distinctWallClimb = useWallClimbIfDistinct(currentClimbUuid);
-  const { inAppBoardConnection, ledless: liveLedless } = useBoardConnectionState();
+  // The centre slot: the climb on the wall, the "You have the board" capsule, or
+  // nothing (`resolveClimbsHeaderCapsule`). Owned here so a falsy slot falls back
+  // to the title and the capsule gets a clean mount/unmount. The climb on the
+  // wall shows whenever presence trusts it (lit under an hour ago, or a live link
+  // says it is lit), whatever the queue, the link or the layout, until the
+  // climber hides it. Settled: the capsule swaps the native header out of
+  // large-title mode, which must not happen under the player's dismiss
+  // animation (#6619).
+  const queueHeadUuid = useActiveClimbUuid();
+  const wallClimb = useLiveWallClimb();
+  const { inAppBoardConnection, ledless: liveLedless, localConnected } = useBoardConnectionState();
+  // The pill's tap during a drive can let go of the board (Disconnect Bluetooth
+  // when driving ends), and the pill goes with the hold: this header says it.
+  useOwedDropAnnouncement(localConnected);
+  // Presence follows the board the Climbs list shows (the drawer host binds it
+  // to the selected board), so this is that board's wall.
   const { boardId } = useBoardPresenceControls();
   const linked = inAppBoardConnection !== 'disconnected';
   // Hidden past an hour with no live link (#7095): the same trust rule as the player.
-  const wallPresenceFresh = usePresenceFresh(distinctWallClimb?.sentAt ?? null);
-  const liveWallClimb = trustedWallCapsuleClimb(distinctWallClimb, {
+  const wallPresenceFresh = usePresenceFresh(wallClimb?.sentAt ?? null);
+  const liveWallClimb = trustedWallCapsuleClimb(wallClimb, {
     linked,
     presenceFresh: wallPresenceFresh,
   });
   const occurrenceKey =
     boardId !== null && liveWallClimb !== null ? wallCapsuleOccurrenceKey(boardId, liveWallClimb) : null;
-  const { loaded: dismissalLoaded, dismissed } = useWallCapsuleDismissed(boardId, occurrenceKey);
+  const trustedWall = useMemo<TrustedWallClimb | null>(
+    () =>
+      liveWallClimb !== null && boardId !== null && occurrenceKey !== null
+        ? { climb: liveWallClimb, boardId, occurrenceKey }
+        : null,
+    [liveWallClimb, boardId, occurrenceKey],
+  );
+  // Reads the raw wall climb, trusted or not: a different climb on the wall ends
+  // the board's Hide even past the hour.
+  const { loaded: dismissalLoaded, dismissed, hiddenClimbUuid } = useWallCapsuleDismissal(boardId, wallClimb);
   const historyAge = useWallCapsuleHistoryAge(
     liveWallClimb?.sentAt ?? null,
     !linked && dismissalLoaded && !dismissed && liveWallClimb !== null,
   );
-  // Keep the climb, its meaning and its dismissal scope together while a modal
-  // covers the list. None may change the native title during player dismissal.
-  const liveWallCapsule = useMemo(
-    () =>
-      liveWallClimb !== null && boardId !== null && occurrenceKey !== null && dismissalLoaded && !dismissed
-        ? {
-            climb: liveWallClimb,
-            boardId,
-            occurrenceKey,
-            presentation: linked ? { kind: 'live' as const } : { kind: 'history' as const, ageLabel: historyAge ?? '' },
-          }
-        : null,
-    [liveWallClimb, boardId, occurrenceKey, dismissalLoaded, dismissed, linked, historyAge],
-  );
-  const wallCapsuleState = useSettledHeaderValue(liveWallCapsule);
-  const handleDismissWallCapsule = useCallback(
-    (dismissedOccurrence: string) => {
-      if (wallCapsuleState === null || dismissedOccurrence !== wallCapsuleState.occurrenceKey) return;
-      dismissWallCapsule(wallCapsuleState.boardId, dismissedOccurrence);
-    },
-    [wallCapsuleState],
-  );
-  // "You have the board" takes the same slot while this climber holds the board
-  // and the wall shows their own climb. Only where the iOS 26 accessory platter
-  // mounts on iPhone: that platter collapses on scroll and drops its bulb, while
-  // the Material bar and the iOS 18 floating bar keep theirs on screen. A
-  // regular-width iPad has no bottom tab bar for the platter to collapse into, so
-  // its bulb stays in view and a capsule up here would only repeat it; an iPad in
-  // a narrow Split View has the phone's bottom bar and keeps the cue. Every input
-  // is settled, like the wall capsule, so nothing in the title view changes while
-  // the player covers the list (#6619).
+  // Strings, not the hook's fresh object, so the memo below holds between ticks.
+  const historyAgeLabel = historyAge?.label ?? '';
+  const historyAgeByline = historyAge?.byline ?? '';
+  // "You have the board" is the slot's skin while this climber holds the board,
+  // only where the iOS 26 accessory platter mounts on iPhone: that platter
+  // collapses on scroll and drops its bulb, while the Material bar and the iOS
+  // 18 floating bar keep theirs on screen. A regular-width iPad has no bottom
+  // tab bar for the platter to collapse into, so its bulb stays in view; an iPad
+  // in a narrow Split View has the phone's bottom bar and keeps the cue. Where
+  // the cue is off, the climb on the wall still shows, as the wall capsule.
   const { nativeAccessory } = useTabChrome();
   const { isPad, widthClass } = useDeviceLayout();
   const accessoryCollapses = !(isPad && widthClass === 'regular');
-  const boardHeld = useSettledHeaderValue(
-    nativeAccessory && accessoryCollapses && inAppBoardConnection === 'connectedByMe',
+  const heldCue = nativeAccessory && accessoryCollapses && inAppBoardConnection === 'connectedByMe';
+  // Booleans, not the queue head's uuid, so a queue change that alters neither
+  // (a crew advancing, the MiniPlayer moving) builds no new capsule and leaves
+  // the native header's options alone. Only the held cue reads the queue head.
+  const wallIsQueueHead = heldCue && queueHeadUuid !== null && liveWallClimb?.climbUuid === queueHeadUuid;
+  const queueHeadHidden = heldCue && queueHeadUuid !== null && hiddenClimbUuid === queueHeadUuid;
+  // Keep the climb, its meaning and its dismissal scope together while a modal
+  // covers the list. None may change the native title during player dismissal.
+  const liveHeaderCapsule = useMemo(() => {
+    const capsule = resolveClimbsHeaderCapsule({
+      wall: trustedWall,
+      dismissal: { loaded: dismissalLoaded, dismissed },
+      heldCue,
+      wallIsQueueHead,
+      queueHeadHidden,
+    });
+    if (capsule === null || capsule.kind === 'held') return capsule;
+    return {
+      ...capsule,
+      presentation: linked
+        ? { kind: 'live' as const }
+        : { kind: 'history' as const, ageLabel: historyAgeLabel, ageByline: historyAgeByline },
+    };
+  }, [
+    trustedWall,
+    dismissalLoaded,
+    dismissed,
+    heldCue,
+    wallIsQueueHead,
+    queueHeadHidden,
+    linked,
+    historyAgeLabel,
+    historyAgeByline,
+  ]);
+  const headerCapsule = useSettledHeaderValue(liveHeaderCapsule);
+  const settledWall = headerCapsule?.wall ?? null;
+  const handleDismissWallCapsule = useCallback(
+    (dismissedOccurrence: string) => {
+      if (settledWall === null || dismissedOccurrence !== settledWall.occurrenceKey) return;
+      dismissWallCapsule(settledWall.boardId, settledWall.climb);
+    },
+    [settledWall],
   );
   const ledless = useSettledHeaderValue(liveLedless);
   const wallCapsule = useMemo(() => {
-    if (wallCapsuleState) {
+    if (headerCapsule === null) return undefined;
+    if (headerCapsule.kind === 'held') {
       return (
-        <WallStatusCapsule
-          climb={wallCapsuleState.climb}
-          boardName={boardName}
-          presentation={wallCapsuleState.presentation}
-          occurrenceKey={wallCapsuleState.occurrenceKey}
-          onDismiss={handleDismissWallCapsule}
+        <BoardHeldCapsule
+          ledless={ledless}
+          dismiss={
+            headerCapsule.wall
+              ? { occurrenceKey: headerCapsule.wall.occurrenceKey, onDismiss: handleDismissWallCapsule }
+              : undefined
+          }
         />
       );
     }
-    if (boardHeld) return <BoardHeldCapsule ledless={ledless} />;
-    return undefined;
-  }, [wallCapsuleState, boardName, handleDismissWallCapsule, boardHeld, ledless]);
-  const hasWallCapsule = wallCapsuleState !== null;
+    return (
+      <WallStatusCapsule
+        climb={headerCapsule.wall.climb}
+        boardName={boardName}
+        presentation={headerCapsule.presentation}
+        occurrenceKey={headerCapsule.wall.occurrenceKey}
+        onDismiss={handleDismissWallCapsule}
+      />
+    );
+  }, [headerCapsule, boardName, handleDismissWallCapsule, ledless]);
+  // The climb on the wall is in the header, in either skin.
+  const hasWallCapsule = settledWall !== null;
   const loggedWallCapsuleRef = useRef(false);
   useEffect(() => {
     // Skip the "hidden" every Climbs mount would log; only transitions are a trail.
@@ -231,8 +278,8 @@ function ClimbTopChromeComponent({
     });
   }, [hasWallCapsule]);
 
-  const handleOpenBoardSwitcher = useCallback(() => router.push('/boards'), [router]);
-  // The same history and ⋯ actions as native bar items on the iOS 26 iPhone header.
+  // The same history and ⋯ actions for the iOS 26 header: the iPhone's trailing
+  // glass island, or native items on iPad and the Duo rail.
   const climbListBarActions = useMemo(
     () => ({ onOpenHistory: onOpenBoardDetail, badge: showBoardBadge }),
     [onOpenBoardDetail, showBoardBadge],
@@ -246,6 +293,14 @@ function ClimbTopChromeComponent({
   useFocusEffect(useCallback(() => () => handleCloseOverlays(), [handleCloseOverlays]));
 
   const isMaterial = selectByVariant(variant, { material: true, liquidGlass: false });
+  // Material, as on iOS (CollapsingTopChrome): on a compact width + leaves the
+  // bar for ⋮'s first row; a regular-width tablet keeps it in the bar.
+  const materialCreateInMenu = isMaterial && canCreate && widthClass === 'compact';
+  const createLabel = t('mobile.create.fab.ariaLabel');
+  const materialCreateRow = useMemo(
+    () => (materialCreateInMenu ? { label: createLabel, onPress: onCreate } : undefined),
+    [materialCreateInMenu, createLabel, onCreate],
+  );
   const gradeRail =
     gradeRailVisible && gradeBound && onGradeChange ? (
       <GradeRangeRail
@@ -280,72 +335,65 @@ function ClimbTopChromeComponent({
         scrollEdge={scrollEdge}
         below={
           <>
-            {/* "On the wall" status — a compact capsule in a slim centred row under the
-            app bar (M3 has no centre-slot in the bar), only when a board feed lights
-            a climb that differs from the user's own queue head. */}
-            {wallCapsule ? (
-              <View pointerEvents="box-none" style={styles.materialWallStatusRow}>
-                {wallCapsule}
-              </View>
-            ) : null}
-
             {/* Inner wrappers stay box-none: once the outer `auto` container claims the
             RNGH pointer, only RN's own hit-testing runs inside, where box-none just
             means "let touches reach the controls". If an inner control ever adopts
             an RNGH gesture it needs no change — the outer container already stops
-            the list's handlers from being recorded. */}
-            <View
-              pointerEvents="box-none"
-              style={[styles.materialFilterStack, persistentChips ? styles.materialFilterStackAboveChips : null]}
-            >
-              {showTopChromeFilters ? (
-                <View pointerEvents="box-none" style={styles.materialControlRow}>
-                  <GradeFilterControl
-                    label={visibleGradeLabel}
-                    active={hasGradeFilter}
-                    expanded={gradeRailVisible}
-                    height={MATERIAL_CONTROL_HEIGHT}
-                    onPress={() => {
-                      if (gradeRailVisible) {
-                        onCloseGrade();
-                        return;
-                      }
-                      onOpenGrade?.();
-                    }}
-                    onClear={hasGradeFilter ? gradeChip?.onClear : undefined}
-                    toggleAccessibilityLabel={t('mobile.search.gradeAction')}
-                    clearAccessibilityLabel={t('mobile.gradeRail.clearFilterAria')}
-                    openHint={t('mobile.search.gradeOpenHint')}
-                    closeHint={t('mobile.search.gradeCloseHint')}
-                  />
-                  {onOpenFilters ? (
-                    <FilterButton activeFilterCount={nonGradeFilterCount} onPress={onOpenFilters} />
-                  ) : null}
-                </View>
-              ) : null}
+            the list's handlers from being recorded. The stack (and its padding)
+            renders only while it holds the legacy controls or the summary chip. */}
+            {showTopChromeFilters || visibleFilterSummary ? (
+              <View pointerEvents="box-none" style={styles.materialFilterStack}>
+                {showTopChromeFilters ? (
+                  <View pointerEvents="box-none" style={styles.materialControlRow}>
+                    <GradeFilterControl
+                      label={visibleGradeLabel}
+                      active={hasGradeFilter}
+                      expanded={gradeRailVisible}
+                      height={MATERIAL_CONTROL_HEIGHT}
+                      onPress={() => {
+                        if (gradeRailVisible) {
+                          onCloseGrade();
+                          return;
+                        }
+                        onOpenGrade?.();
+                      }}
+                      onClear={hasGradeFilter ? gradeChip?.onClear : undefined}
+                      toggleAccessibilityLabel={t('mobile.search.gradeAction')}
+                      clearAccessibilityLabel={t('mobile.gradeRail.clearFilterAria')}
+                      openHint={t('mobile.search.gradeOpenHint')}
+                      closeHint={t('mobile.search.gradeCloseHint')}
+                    />
+                    {onOpenFilters ? (
+                      <FilterButton activeFilterCount={nonGradeFilterCount} onPress={onOpenFilters} />
+                    ) : null}
+                  </View>
+                ) : null}
 
-              {/* The quick row carries the condensed summary when the persistent
-              chip row is off. The angle rides the persistent chip row above. */}
-              {visibleFilterSummary ? (
-                <View pointerEvents="box-none" style={styles.materialQuickRow}>
-                  <Chip
-                    compact
-                    mode="flat"
-                    icon={iconMap.filter.android}
-                    onPress={visibleFilterSummary.onClear}
-                    onClose={visibleFilterSummary.onClear}
-                    closeIcon={iconMap.close.android}
-                    accessibilityLabel={visibleFilterSummary.text}
-                    style={styles.materialChip}
-                    textStyle={styles.materialChipText}
-                  >
-                    {visibleFilterSummary.text}
-                  </Chip>
-                </View>
-              ) : null}
-            </View>
-            {/* The persistent chip row runs full-bleed under the app bar: its own
-              16dp content inset is the gutter, and chips scroll to the screen edge. */}
+                {/* The quick row carries the condensed summary when the persistent
+                chip row is off. The angle rides the persistent chip row instead. */}
+                {visibleFilterSummary ? (
+                  <View pointerEvents="box-none" style={styles.materialQuickRow}>
+                    <Chip
+                      compact
+                      mode="flat"
+                      icon={iconMap.filter.android}
+                      onPress={visibleFilterSummary.onClear}
+                      onClose={visibleFilterSummary.onClear}
+                      closeIcon={iconMap.close.android}
+                      accessibilityLabel={visibleFilterSummary.text}
+                      style={styles.materialChip}
+                      textStyle={styles.materialChipText}
+                    >
+                      {visibleFilterSummary.text}
+                    </Chip>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+            {/* The persistent chip row runs full-bleed under the app bar, always
+              pinned: its own 16dp content inset is the gutter, and chips scroll to
+              the screen edge. The screen builds it dense, so Compose's 48dp chip
+              targets are the row's only vertical space. */}
             {persistentChips ? (
               <View pointerEvents="box-none" style={styles.materialChipRow}>
                 {persistentChips}
@@ -358,17 +406,27 @@ function ClimbTopChromeComponent({
         }
       >
         <UserAvatarToolbarAction variant="material" />
-        <BoardSwitcherButton
-          title={tCommon('mobile.nav.climbs')}
-          onPress={handleOpenBoardSwitcher}
-          accessibilityHint={tBoards('boardPill.switchHint')}
-        />
-        {canCreate ? (
+        {/* The title slot, empty as on iOS: the tab names the screen and ⋮ switches
+          boards. The climb on the wall sits in it as a compact pill while presence
+          trusts it. TalkBack reads the screen's name from the header under it in
+          either state; the header fills the slot (a zero-size node has no bounds,
+          and TalkBack skips those) and takes no touches, so the pill stays on top. */}
+        <View pointerEvents="box-none" style={styles.materialTitleSlot}>
+          <View
+            accessible
+            accessibilityRole="header"
+            accessibilityLabel={tCommon('mobile.nav.climbs')}
+            pointerEvents="none"
+            style={StyleSheet.absoluteFill}
+          />
+          {wallCapsule}
+        </View>
+        {canCreate && !materialCreateInMenu ? (
           <Appbar.Action
             icon={iconMap.plus.android}
             color={systemColors.label as string}
             onPress={onCreate}
-            accessibilityLabel={t('mobile.create.fab.ariaLabel')}
+            accessibilityLabel={createLabel}
           />
         ) : null}
         <ClimbListBoardActions
@@ -376,6 +434,7 @@ function ClimbTopChromeComponent({
           onOpenHistory={onOpenBoardDetail}
           badge={showBoardBadge}
           showcaseAnchor={anchorBoardButton}
+          createRow={materialCreateRow}
         />
       </MaterialTopAppBar>
     );
@@ -398,9 +457,9 @@ function ClimbTopChromeComponent({
       // The tab names the screen: the iOS native header draws no "Climbs" title.
       titleHidden
       // "On the wall" status — a compact capsule in the centre islands slot (where
-      // the title used to sit) when a board feed lights a climb that differs from
-      // the user's own current climb; otherwise undefined, so the centre falls back
-      // to the title.
+      // the title used to sit) while the wall's climb is trusted and not hidden, or
+      // "You have the board"; otherwise undefined, so the centre falls back to the
+      // title.
       centerContent={wallCapsule}
       canCreate={canCreate}
       onCreate={onCreate}
@@ -446,23 +505,26 @@ function ClimbTopChromeComponent({
 export const ClimbTopChrome = memo(ClimbTopChromeComponent);
 
 const styles = StyleSheet.create({
-  materialWallStatusRow: {
-    // Full-bleed "On the wall" status band — it owns its own padding, accent rail
-    // and bottom divider, so the wrapper adds no inset.
-    width: '100%',
+  // Between the avatar and the actions: the wall pill centred in it (capped at
+  // 280dp by the pill), or the empty header.
+  materialTitleSlot: {
+    flex: 1,
+    minWidth: 0,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: spacing[1],
   },
   materialFilterStack: {
     paddingHorizontal: spacing[4],
     paddingBottom: spacing[3],
     gap: spacing[2],
   },
-  materialFilterStackAboveChips: {
-    // The chip row follows outside the stack; keep the stack's gap above it.
-    paddingBottom: spacing[2],
-  },
   materialChipRow: {
-    // `filterChrome` is a fragment (chip row + sheet-only filter tokens).
-    paddingBottom: spacing[3],
+    // `filterChrome` is a fragment (chip row + sheet-only filter tokens). The
+    // dense chip row is 48dp of touch targets with 8dp visible above and below
+    // each chip, so nothing pads under it.
+    paddingBottom: 0,
     gap: spacing[2],
   },
   materialControlRow: {

@@ -12,7 +12,7 @@ name: help screenshots
 # The same branch turns off `requireRenderLine`, because several shots here never
 # mount a board.
 #
-# The fourteen `takeScreenshot:` names below are a CONTRACT — the help pages
+# The fifteen `takeScreenshot:` names below are a CONTRACT — the help pages
 # reference the files by name. Renumbering or renaming one silently breaks a page
 # image. The numbers are the help pages' DISPLAY order, not capture order (the
 # same split app-store.yaml documents for its own set).
@@ -27,7 +27,7 @@ name: help screenshots
 #     ://profile?screenshotTab=sessions   -> Sessions tab; auto-opens the newest session
 #     ://profile?screenshotTab=logbook    -> profile Logbook tab
 #     ://climbs?screenshotOpenFirst=1&screenshotDrive=1 -> opens and lights the first climb
-#     ://climbs?screenshotOpenClimbActions=1 -> opens the long-press reaction menu
+#     ://climbs?screenshotOpenClimbActions=1 -> lifts the first row's climb menu
 #     ://climbs?screenshotOpenPreview=1   -> play drawer in its browse/preview state
 #     ://share-beta?screenshotShareBeta=1 -> the share matcher, on the account's own beta
 #     ://profile?screenshotBetaShelf=1    -> pushes the signed-in climber's beta grid
@@ -37,6 +37,8 @@ name: help screenshots
 # exposed store-driving marker proves the fake board was lit before capture.
 # 11-climb-actions keeps its deep-link param: climb rows are not exposed to the
 # accessibility tree, and a row coordinate varies with the current list header.
+# The param names the first row, and that row lifts its own climb menu: the same
+# presentation a hold or the row's ⋮ opens, so the shot is the real menu.
 #
 # The two filter sub-routes (://climbs/holds, ://climbs/zone) are normally PUSHED
 # by ClimbFilterSheet with the sheet's board config as route params, and a deep
@@ -69,9 +71,9 @@ name: help screenshots
 #   09 opens Board controls by holding that lit player's wall button; the old
 #   screenshotOpenBoardSheet param opens board history and cannot teach controls.
 #   The controls are dismissed, then driving is stopped before opening a preview.
-#   A ://home hop separates the preview and reaction-menu deep links, because a
-#   deep link to an already mounted route only updates its params. The menu is
-#   modal-backed and must stay last; navigation cannot dismiss that modal.
+#   A ://home hop separates the preview and climb-menu deep links, because a
+#   deep link to an already mounted route only updates its params. The lifted
+#   menu is a full-window overlay and must stay last; navigation cannot dismiss it.
 #
 #   The two beta shots are plain screens and sit just before that tail;
 #   13-share-beta is a root modal, so 14-beta-shelf's tab navigation is what
@@ -316,8 +318,10 @@ name: help screenshots
 - takeScreenshot: 10-board-view
 
 # Board controls — hold the driving player's wall button. This is the connected
-# control sheet with Re-light / Turn off all lights / Disconnect, not the
-# separate board-history sheet opened from the list header. Rows depend on state.
+# control sheet: the status line, Stop driving after, then Re-light / Turn off
+# all lights / Disconnect (Light every climb shows only when a swipe could start
+# a drive), not the separate board-history sheet opened from the list header.
+# Rows depend on state.
 # Coordinates measured on iPhone 16 Pro Max, 1320 x 2868, dark appearance.
 - longPressOn:
     point: '50%,90%'
@@ -337,49 +341,44 @@ name: help screenshots
       id: '^store-driving-.+$'
     timeout: 10000
 
-# Preview runs BEFORE the reaction menu, and the order is not cosmetic.
+# Preview runs BEFORE the climb menu, and the order is not cosmetic.
 #
-# ClimbReactionMenu renders inside a react-native `Modal` (with a
-# `FullWindowOverlay` on iOS), which sits ABOVE the navigator rather than
-# inside it — so unlike the play drawer, navigating away does not dismiss it.
+# The lifted row menu renders in a `FullWindowOverlay`, which sits ABOVE the
+# navigator rather than inside it, and the Climbs tab stays mounted behind
+# ://home — so unlike the play drawer, navigating away does not dismiss it.
 # The ://home hop each of these shots opens with cannot clear it. With the menu
 # shot first, the preview shot photographed the menu again: two captures a
 # single byte apart, which only the duplicate check told apart from a real pair.
 # The play drawer IS a route, so it dismisses normally and can safely precede
 # anything. Keep the modal-backed shot last.
 
-# Preview — the player's back chip and Put on board button, without lighting the
-# wall. The helper turns lightOnSwipe off and marks the one-shot browse notice
-# seen. Driving was stopped above and screenshotDrive is absent here, so this
-# preview cannot silently inherit or restart the preceding still's live drive.
-# Clear whatever overlay the previous shot left up.
-#
-# A repeat deep link to a route that is ALREADY the current route does not
-# remount it — expo-router calls setParams on the mounted screen — so the sheet
-# or drawer the last shot opened is still sitting there when the next param
-# arrives. A full 14-shot run came back with 09/10/11/12 byte-identical for
-# exactly that reason: the board sheet from 09 covered the three drawer shots
-# after it, and the run's own duplicate check caught it.
-#
-# Bouncing through ://home leaves the climbs route, which tears the overlay down,
-# so the next ://climbs link mounts clean. Each of the four params has its own
-# one-shot latch in climbs/index.tsx, so re-entering the route re-arms nothing
-# that has already fired.
+# Preview: tap a tracked row and swipe away from the wall's first climb.
+# The deep-link preview has no swipe track and can select the lit climb.
 - openLink: com.boardsesh.app://home
 - waitForAnimationToEnd
-- openLink: com.boardsesh.app://climbs?screenshotOpenPreview=1
-- tapOn:
-    text: 'Open'
-    optional: true
+- openLink: com.boardsesh.app://climbs
 - waitForAnimationToEnd
+- tapOn:
+    point: '50%,33%'
+- waitForAnimationToEnd
+- swipe:
+    start: '85%,50%'
+    end: '18%,50%'
+    duration: 700
 - waitForAnimationToEnd
 - takeScreenshot: 12-preview
 
-# Climb actions — the long-press reaction menu over the first climb row: preview,
-# Play next, Play last, add to playlist, favourite, log a tick, share, and the rest. The
-# most-missed interaction in the app, which is why the help pages teach it and why
-# it needed the param above. Two settles: the list has to have real rows before
-# the menu opens over them, and the menu animates in.
+# Settings: the real lighting section, before the full-window climb menu.
+- openLink: com.boardsesh.app://settings/board-look?section=lighting
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- takeScreenshot: 15-board-lighting
+
+# Climb actions — the first climb row lifted above the dimmed list, with its
+# menu under it: Play next, Play last, add to playlist, favourite, log a tick,
+# share, and the rest. The most-missed interaction in the app, which is why the
+# help pages teach it and why it needed the param above. Two settles: the list
+# has to have real rows before the menu opens over them, and the menu animates in.
 # Clear whatever overlay the previous shot left up.
 #
 # A repeat deep link to a route that is ALREADY the current route does not

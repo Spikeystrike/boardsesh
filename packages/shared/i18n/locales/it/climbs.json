@@ -10,7 +10,6 @@
     "allSetters": "Tutti i tracciatori",
     "followingClimbs": "Blocchi delle persone che seguo",
     "playlistSubtitleSort": "Tutti i blocchi su questo pannello · {{sort}}",
-    "signIn": "Accedi per seguire questo tracciatore",
     "syncNeeded": "Vai online una volta per sincronizzare chi segui e i tracciatori collegati.",
     "followError": "Impossibile aggiornare questo follow. Riprova.",
     "loadError": "Impossibile caricare questi blocchi.",
@@ -30,7 +29,9 @@
       "description": "Sfoglia i blocchi su {{boardName}} a {{angle}}°",
       "fallbackTitle": "Blocchi",
       "fallbackDescription": "Sfoglia i blocchi",
-      "paginatedTitle": "Blocchi {{boardName}} a {{angle}}° — Pagina {{page}}"
+      "paginatedTitle": "Blocchi {{boardName}} a {{angle}}° — Pagina {{page}}",
+      "ogTitle": "Blocchi su {{name}} a {{angle}}°",
+      "ogDescription": "Scegline uno, illuminalo in parete e registra la ripetizione."
     },
     "view": {
       "title": "{{climbName}} - {{grade}}",
@@ -510,6 +511,10 @@
       "quickFiltersFooter": "Scegli i filtri da mostrare nella riga in alto e il loro ordine.",
       "established2plus": "Consolidati 2+",
       "benchmark": "Benchmark",
+      "verified": "Verificati",
+      "verifiedDescription": "I blocchi verificati sono scelti da Kilter con climber e tracciatori.",
+      "onlyBenchmarks": "Solo blocchi benchmark",
+      "onlyVerified": "Solo blocchi verificati",
       "showCount_one": "Mostra {{count}} blocco",
       "showCount_other": "Mostra {{count}} blocchi",
       "close": "Chiudi i filtri",
@@ -678,6 +683,7 @@
       "anyFeet": "Piedi liberi",
       "noKickboard": "No KB",
       "benchmark": "Benchmark",
+      "verified": "Blocco verificato",
       "method": {
         "footless": "Senza piedi",
         "footlessKickboard": "Senza piedi + KB",
@@ -733,7 +739,6 @@
       }
     },
     "hidden": {
-      "short": "nascosto",
       "chip": "Nascosto",
       "banner": "Nascosto dalla community"
     },
@@ -748,8 +753,8 @@
       "editorHint_other": "Rimuovi le prese grigie per salvare"
     },
     "climbActions": {
-      "preview": "Anteprima",
       "playNext": "Metti subito dopo",
+      "playNextActiveHint": "Questo blocco è già attivo. Apri un altro blocco per metterlo subito dopo.",
       "playLast": "Metti in fondo",
       "replayFromHere": "Riparti da qui",
       "nameCopied": "Nome copiato",
@@ -764,7 +769,6 @@
       "editEntry": "Modifica la salita",
       "report": "Segnala il blocco",
       "changeGrade": "Cambia il grado",
-      "closeOverlay": "Chiudi le azioni del blocco",
       "openQueue": "Apri la coda",
       "deleteClimb": {
         "row": "Elimina il blocco",
@@ -822,6 +826,7 @@
       "settings": {
         "draftLabel": "Salva come bozza",
         "draftDescription": "Le bozze restano private finché non le pubblichi.",
+        "draftDescriptionApps": "Le bozze restano non in elenco finché non le pubblichi. Le app collegate da chi ne registra una possono comunque vederla.",
         "noMatchLabel": "Vietato accoppiare",
         "noMatchDescription": "Non puoi accoppiare le mani sulla stessa presa",
         "noKickboardLabel": "Niente kickboard",
@@ -830,7 +835,8 @@
         "campusDescription": "Solo mani: niente piedi",
         "anyFeetLabel": "Piedi liberi",
         "anyFeetDescription": "I piedi possono usare qualsiasi presa, non solo quelle segnate",
-        "wallDraftDescription": "Chiunque abbia accesso a questa Spraywall può provare le bozze che hai salvato."
+        "wallDraftDescription": "Chiunque abbia accesso a questa Spraywall può provare le bozze che hai salvato.",
+        "wallDraftDescriptionApps": "Chiunque abbia accesso a questa Spraywall può provare le bozze che hai salvato. Anche le app collegate da chi ne registra una possono vederla."
       },
       "drafts": {
         "holds_one": "{{count}} presa",
@@ -1077,7 +1083,10 @@
       },
       "metadata": {
         "title": "{{wallName}} | Spraywall",
-        "description": "{{wallName}}, una Spraywall a {{angle}}°. Guarda la Spraywall e aprila nell'app Boardsesh."
+        "description": "{{wallName}}, una Spraywall a {{angle}}°. Guarda la Spraywall e aprila nell'app Boardsesh.",
+        "ogTitle": "{{wallName}} · Spraywall",
+        "ogDescription_one": "Una Spraywall a {{angle}}° con {{count}} presa. Guarda la Spraywall e prova cosa c'è tracciato.",
+        "ogDescription_other": "Una Spraywall a {{angle}}° con {{count}} prese. Guarda la Spraywall e prova cosa c'è tracciato."
       }
     },
     "install": {

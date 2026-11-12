@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
 vi.mock('../../use-ios-sheet-background-style', () => ({ useIosSheetBackgroundStyle: () => undefined }));
+// The walk's board reads the active board and its gym; board-blind here, and
+// one object, as the real hook's memo hands out.
+const boardBlindWalk = vi.hoisted(() => ({}));
+vi.mock('../../../providers/queue/use-queue-walk-board', () => ({ useQueueWalkBoard: () => boardBlindWalk }));
 vi.mock('../../AccessibleTextInput', async () => {
   const { TextInput } = await import('react-native');
   return { AccessibleTextInput: TextInput };
@@ -94,6 +98,10 @@ vi.mock('react-native', () => ({
   View: ({ children, testID, style }: ViewProps) =>
     createElement('div', { 'data-testid': testID, 'data-style': JSON.stringify(style) }, children),
   Pressable: ({ children }: ViewProps) => createElement('div', null, children),
+  AccessibilityInfo: {
+    isScreenReaderEnabled: () => Promise.resolve(false),
+    addEventListener: () => ({ remove: () => {} }),
+  },
   Platform: {
     get OS() {
       return platform.os;

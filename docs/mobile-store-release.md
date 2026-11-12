@@ -1,9 +1,11 @@
 # Mobile store release runbook
 
-Native and JavaScript work both target `main`. Native fingerprint changes automatically
-open the next unused patch version and start iOS TestFlight and Android tester builds.
-JavaScript-only changes keep the marketing version and use the existing OTA deployment
-pipeline. Several native merges waiting for the coordinator share one current snapshot.
+Native and JavaScript work both target `main`. A native fingerprint change rebuilds
+main's open marketing version with new store build numbers and starts iOS TestFlight and
+Android tester builds. The version stays open until a store accepts it; the first native
+change after that opens the next unused patch. JavaScript-only changes keep the marketing
+version and use the existing OTA deployment pipeline. Several native merges waiting for
+the coordinator share one current snapshot.
 
 Public store submission is manual. Merging a PR, completing a native build, creating
 an automatic store draft, or merging the retired release branch never submits the live
@@ -33,18 +35,42 @@ update, or delete those tags.
 
 **Main Native Release** (`mobile-native-release.yml`) runs after main pushes, native
 workflow completions, hourly, and on demand. It compares both canonical platform
-fingerprints with the latest validated native release stamp. A changed pair uses the
-already-raised, unreleased marketing version when one was deliberately merged above
-the previous native version. For example, importing native work already at 2.7.0 from
-a 2.6.0 baseline adopts 2.7.0, including when 2.7.0 tester builds already exist.
-Otherwise the coordinator opens the next unused patch. Public release anchors and
-higher reserved versions still protect against reusing an unavailable version.
+fingerprints with the latest validated native release stamp. A changed pair adopts
+main's marketing version while that version is open, and rebuilds it: iOS takes the
+next TestFlight build number for that version and Android the next versionCode. A
+version is open when all three hold:
 
-The bot records the parent source SHA, version, and both full fingerprints. A normal
-stamp changes only the marketing version. An adoption stamp preserves the parent tree
-exactly and immediately dispatches both exact-source tester builds, since an empty
-commit does not match their push path filters. The original unversioned merge waits
-for this validated stamp. Version-only changes remain outside the fingerprint.
+1. It is at or above the previous native stamp's version.
+2. No `release/<platform>-v<version>-*` anchor exists for it on either platform.
+3. No other build or release tag reserves a higher version. Tester builds of an
+   explicitly superseded stamp do not count.
+
+That covers a version merged deliberately above the previous one (importing native
+work at 2.7.0 from a 2.6.0 baseline adopts 2.7.0) and the version the previous stamp
+already opened (2.7.0 builds 9, 10 and 11 while 2.7.0 waits for submission). When the
+version is not open, the coordinator opens the next unused patch. Public release
+anchors and higher reserved versions still protect against reusing an unavailable
+version.
+
+The release anchor is what closes a version. **Mobile Release Anchor** cuts it when App
+Store Connect or Play reports the version accepted, so submitting for review does not
+close it: App Store Connect still takes new builds of a version that is waiting for or
+in review, and later native merges keep producing tester builds of it. The next native
+change after acceptance opens the next patch. The anchor job runs every 6 hours. If
+Apple approves a version and a native merge lands before its anchor exists, the adopted
+iOS upload is refused as a closed train, and the coordinator stops on that upload
+instead of guessing. Dispatch Mobile Release Anchor (`mobile-auto-version-bump.yml`)
+right after an approval to close that window. If it happens anyway, raise the version
+on main deliberately; the next native change adopts it.
+
+The bot records the parent source SHA, version, and both full fingerprints. A bump
+stamp changes only the marketing version. An adoption stamp (`chore(mobile): adopt
+native v<version>`) preserves the parent tree exactly and immediately dispatches both
+exact-source tester builds, since an empty commit does not match their push path
+filters. Whether the version was still open is decided when the stamp is planned;
+validating an old stamp reads only git history, so a later store approval never
+invalidates it. The original unversioned merge waits for this validated stamp.
+Version-only changes remain outside the fingerprint.
 
 The coordinator refetches and recomputes if main moves. Repeating a run never bumps an
 unchanged native pair. It does not hold its lock while native builds run. Failed or
@@ -70,15 +96,14 @@ Use `action=plan` to inspect without writing. The repository App needs Contents 
 and bypass permission for the protected tags and main; a GITHUB_TOKEN push would not
 start the downstream native workflows. Major or minor version choices can still be
 committed deliberately; the next changed native snapshot adopts that already-raised
-unreleased version. A later native change at the same marketing version opens the
-next unused patch.
+unreleased version, and later native changes keep it until a store accepts it.
 
 ### Restore a mistaken extra version bump
 
-`restore-version` is an explicit manual recovery for a coordinator bump made after
-the source had already opened an unreleased native version. Plan with the exact
-target version and mistaken stamp, inspect the returned source/fingerprints, then
-repeat with `apply=true`:
+`restore-version` is an explicit manual recovery for a coordinator bump that should
+have kept the open version, such as the bumps made before the coordinator kept open
+versions. Plan with the exact target version and mistaken stamp, inspect the returned
+source/fingerprints, then repeat with `apply=true`:
 
 ```sh
 gh workflow run mobile-native-release.yml --ref main \
@@ -86,11 +111,15 @@ gh workflow run mobile-native-release.yml --ref main \
   -f expected_stamp_sha=<exact-latest-bump-sha> -f apply=false
 ```
 
-The target must equal the mistaken stamp's parent version and remain above the
-previous native version and every public release anchor. The expected stamp must
-still be latest, the current marketing version must match it, and both canonical
-native fingerprints must be unchanged. Apply makes one normal fast-forward bot
-commit changing only that version line and naming the exact superseded stamp.
+The target must equal the mistaken stamp's parent version and still be open by the
+rule above, counting the mistaken stamp's own tester builds as retired: at or above
+the previous native version, with no release anchor at or above it and no other
+higher reservation. The expected stamp must still be latest, the current marketing
+version must match it, and both canonical native fingerprints must be unchanged. A
+newer native stamp on main (including an adoption of the bumped version) makes the
+restoration refuse, so dispatch it before the next native merge. Apply makes one
+normal fast-forward bot commit changing only that version line and naming the exact
+superseded stamp.
 A changed main during the push requires a fresh plan. Repeating a confirmed recovery
 recognizes the existing restoration instead of creating another commit.
 
@@ -128,6 +157,17 @@ processing, submits beta review when needed, and enables tester notifications.
 Pending beta review means submitted, not yet installable. This separate workflow
 never holds the native build lock or blocks store drafts and screenshots.
 
+The native build starts it. After the upload and its receipt succeed, the build
+job dispatches the distribution with its own run ID. The distribution waits up
+to 30 minutes for that run to finish, because it only trusts completed runs.
+It does not listen for `workflow_run`. GitHub sends no `workflow_run` event for
+a run that `GITHUB_TOKEN` started, and Main Native Release starts its recovery
+builds that way. Under the old trigger, 2.7.0 builds 11 and 12 never reached
+testers. A failed dispatch does not fail the build. The hourly check also
+delivers the newest uploaded build when no distribution has tried it yet. It
+finds the build's run by the title `ios:<source sha>`, then checks the receipt
+before trusting it.
+
 Receipt and native-test-note GitHub reads retry rate limits within one 65-minute
 preparation deadline shared across the workflow. They honor GitHub's retry/reset
 headers; secondary limits without a reset retry after 60, 120, then 240 seconds.
@@ -143,7 +183,11 @@ supported; an earlier build of the same commit produces no new test steps.
 TestFlight's **What to Test** contains up to five native test scenarios, ordered
 by PR risk. Only merged PRs entering this binary since the frozen baseline and
 confirmed native on **iOS** by the OTA compatibility check are eligible. JS-only
-and Android-only changes are excluded. Plans come from **Test plan**, even when
+and Android-only changes are excluded. If a `native-fingerprint` PR has no
+readable iOS verdict for its final head, its plan stays in the notes and the run
+logs a warning. This happens, for example, when main was merged into the branch
+after the last OTA comment. Notes never block delivery. That exact case held
+back 2.7.0 build 10. Plans come from **Test plan**, even when
 **Release Notes** is `none`. Complete steps retain prerequisites and expected
 results; CI-only steps are omitted. Full plans and the submitted notes remain in
 the distribution workflow's artifacts for 90 days.
@@ -152,8 +196,8 @@ After a tooling fix, dispatch the corrected workflow from `main` with the newest
 uploaded build's **source_run_id**; rerunning an old workflow uses its old tooling.
 For transient failures, rerun failed jobs in the distribution workflow, or dispatch it from
 `main` with the original native build's **source_run_id**. It never rebuilds or
-uploads an IPA. Missing groups, stale/unknown iOS verdicts, unreadable history,
-or missing receipts fail this follow-up with the affected reference. Correct the
+uploads an IPA. Missing groups, unreadable history, or missing receipts fail
+this follow-up with the affected reference. Correct the
 reported metadata and rerun. Builds predating receipt capture cannot be selected;
 a first-ever build without a predecessor needs an explicit baseline before notes
 can be generated. App Store Connect must already have the beta-review details
@@ -200,7 +244,9 @@ build rather than assuming the configuration change delivered it.
 Manual dispatch runs from main. Forced hotfix builds remain available; recovery
 of an existing stamped version uses `source_sha` and `force_native=false`. Recognized
 Apple processing/review delays receive hourly retries of the same uploaded binary.
-Other failures require explicit `source_run_id` recovery after their cause is fixed.
+A newest upload that no distribution has attempted is delivered by the same
+hourly check. Other failures require explicit `source_run_id` recovery after
+their cause is fixed.
 Newer actual uploads supersede old deferred deliveries; a version bump alone does not.
 
 ## 3. Listing material
@@ -272,6 +318,23 @@ that run skips iOS; `mobile-store-draft.yml` dispatches it again with
 `platform: ios` right after it creates the version (§4), so the text and What's
 New land without anyone running it by hand. Dispatch it manually only to re-push
 unchanged copy.
+
+An iOS listing text push keeps the version's phased release and rating reset
+request as they are on App Store Connect (#7225). Every iOS push runs the same
+`ios metadata` lane: Mobile Store Metadata, the listing push in Mobile Store
+Draft Submission, and the combined Mobile Store Submission's "Push listing text
+and What's New" step. deliver's `phased_release` and `reset_ratings` options
+default to false, and false deletes a phased release or rating reset request
+the version already has, so the lane reads both first and passes those answers
+to deliver. If App Store Connect can't say whether one exists, the push fails
+instead of guessing; rerun it. The run summary says which way it went
+("Phased release: on for 2.7.0" or "Phased release: none on 2.7.0", and the
+same for "Rating reset"). The lane reads them before the upload, which takes
+minutes, so don't turn either on while a listing push is running, and check
+phased release is still on after the last push before release. The App Store
+screenshot upload and the draft lane's version-creation call
+(`ios draft_submission`) skip deliver's metadata step, so they never touch
+either setting.
 
 Screenshots are automatic too. **Mobile Screenshots** (`mobile-screenshots-ios.yml`
 and `mobile-screenshots-android.yml`) runs after each native deploy on
@@ -502,7 +565,8 @@ A busy store is reported as deferred; retry requires another explicit dispatch.
 
 All public writes keep their existing queued store locks and identity checks. Rejected
 versions, custom product pages, staged rollouts, and release-control changes remain
-explicit operations. Merges never authorize them.
+explicit operations. Merges never authorize them. A phased release doesn't use this
+workflow: see Phased release: hold at 5% (below).
 
 ### Submitting by hand
 
@@ -576,6 +640,78 @@ existing edit from the same service account.
 Review contact details, credentials and signed upload operations are excluded
 from the artifacts. A concurrent upload can change the observed assets; repeat
 the audit after all upload jobs finish.
+
+### Phased release: hold at 5%
+
+A native release reaches climbers in phases, and it stops at 5% until connecting
+to a board on it looks no worse than on the store version.
+
+The combined Mobile Store Submission (above) can't start a phased release: it
+releases Android at 100%, and Android Production Release can't shrink a completed
+release afterwards. Listing text pushes keep an App Store phased release the
+version already has (#7226) but never create one. So a phased release goes
+through the two single-store workflows, Android first:
+
+1. **Release Android at 5%.** Dispatch Android Production Release (above) with
+   the exact versionCode, `rollout_percent=5` and `apply`, before anything else
+   writes Android production. If the combined submission runs for the same build
+   pair later, it reports Android `done` (production already carries the build)
+   and leaves Android alone.
+2. **Submit iOS with phased release on.** Turn on phased release for automatic
+   updates on the version in App Store Connect, then submit with App Store Review
+   Submission (below). Later listing text pushes keep it on (#7226); each run's
+   step summary says "Phased release: on for <version>". Don't switch it while a
+   listing push is running, because the push reads it once at the start, and
+   check it is still on right before you submit. Apple's percentage covers
+   automatic updates only; anyone can still update by hand.
+3. **Turn the connect alerts on.** They sit on the PostHog dashboard
+   [Boardsesh 2.7 connect release watch](https://us.posthog.com/project/412845/dashboard/2293063)
+   and were created switched off, so nobody gets paged outside a release.
+4. **Hold at 5%.** On the App Store that is day 3 of the phased release: pause
+   it there. On Play, leave `rollout_percent` at 5.
+5. **Go on once the connect alerts have been quiet for 48 hours.** Resume the
+   App Store phased release, and dispatch Android Production Release again with
+   a higher `rollout_percent`. If an alert fires, keep holding and find the
+   cause on the dashboard's charts first.
+6. **Turn the alerts off** once both stores reach 100%.
+
+The four alerts read the dashboard's "Connect alerts source" table. It compares
+the release (2.7.0 and up) with the store version (2.6.x) on each OS over the
+trailing 7 days, native production only, internal accounts left out. iPadOS
+counts as iOS, so the table has two rows: iOS and Android. Each alert checks
+once a day. Because the window is the trailing 7 days, an alert that fired stays
+red for up to a week after the bad events, even once a fix lands. Read the
+daily charts to see whether a fix worked; the alert clears once the bad days
+leave the window.
+
+| Alert           | Fires when, on any OS                                                                                                                                            |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Empty picker    | The release's share of picker sessions with an empty list is more than 10 points above the store version's.                                                      |
+| Connect success | The release's connect success rate, cancels left out, is more than 5 points below the store version's.                                                           |
+| First light     | The release's share of connecting sessions that light a climb is more than 3 points below the store version's.                                                   |
+| Dropped link    | More than 30% of the release's drives end with `link_dropped`. The store version sends no `Drive Mode Ended`, so this one has no baseline: 30% is a first guess. |
+
+For scale, 2.6.0 from 19 October to 2 November 2026 read, in 48-hour windows: an
+empty list in 7–15% of picker sessions on iOS and 6–20% on Android, and connect
+success of 97–99% on iOS and 85–95% on Android. Over the whole two weeks, 99.8%
+of iOS and 98.2% of Android connecting sessions lit a climb.
+
+Quiet needs volume. Each column reads 0 until the release has 20 events (picker
+sessions, connect attempts, connecting sessions or drives) from 10 climbers on
+that OS, so one climber retrying can't fire an alert and a thin day can't clear
+one. Before calling the alerts quiet, check that the `release_*_climbers`
+columns read 10 or more for iOS and Android. If they don't after 48 hours, keep
+holding; Apple lets a phased release pause for up to 30 days in total.
+
+The three comparisons also read 0 while the store version has fewer than 20
+events of its own on that OS (the `store_*` columns). Once nearly everyone has
+updated past the store version, those alerts can't fire and their quiet means
+nothing; by then the release should be at 100% and the alerts off.
+
+Before the next phased release, move the version floors: `2.7.0` and `2.6.0` in
+the alert source's SQL, and the `2.6.0` floor on the dashboard's charts. What
+each chart and prop means: `docs/growth-metrics.md`, "Connect release watch
+(2.7)".
 
 ### Submit reviewed Apple content
 
@@ -680,11 +816,17 @@ after the shipped fingerprint moves on.
 
 ## End-to-end checklist
 
-1. Merge native work into main and wait for its stamped patch and tester builds.
+1. Merge native work into main and wait for its stamp and tester builds of the open version.
 2. Check Discord Users assignment, beta-review state, and Android tester availability.
 3. QA the exact uploaded candidates and inspect their drafts, listing, and screenshots.
-4. Plan the explicit build pair, then deliberately submit it through the manual workflow.
+4. Plan the explicit build pair, then submit it in phases: Android at 5% through
+   Android Production Release first, then iOS with phased release on through App
+   Store Review Submission (Phased release: hold at 5%, above). The combined manual
+   workflow releases Android at 100%.
 5. Confirm public availability and immutable accepted-build anchors after store approval.
+   The anchor closes the version; the next native merge opens the next patch.
+6. Hold the phased release at 5% until the connect alerts stay quiet for 48 hours
+   (Phased release: hold at 5%, above).
 
 ## Notes
 

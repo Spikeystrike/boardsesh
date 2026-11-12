@@ -5,10 +5,15 @@
 "Next climb" = "Bloque siguiente";
 "Mirror climb" = "Espejear bloque";
 "Unmirror climb" = "Quitar espejo";
-"Wall lit, you are driving" = "Muro encendido, tú lo controlas";
-"Wall control" = "Control del muro";
 "Tap to reconnect" = "Toca para reconectar";
 "Board disconnected. Tap to reconnect" = "Plafón desconectado. Toca para reconectar";
+/* Disconnected card: the last tap failed, or no board is remembered */
+"Board didn't answer. Tap again" = "El plafón no responde. Toca de nuevo";
+"Board didn't answer. Tap to try again" = "El plafón no responde. Toca para volver a intentarlo";
+"Turn on Bluetooth, then tap" = "Activa el Bluetooth y toca";
+"Bluetooth is off. Turn it on, then tap to reconnect" = "El Bluetooth está desactivado. Actívalo y toca para reconectar";
+"Open Boardsesh to connect" = "Abre Boardsesh para conectar";
+"Board disconnected. Open Boardsesh to connect" = "Plafón desconectado. Abre Boardsesh para conectar";
 "On the wall" = "En el muro";
 "%@ is on the wall" = "%@ está en el muro";
 "Wall held by another climber" = "Otro escalador controla el muro";
@@ -29,3 +34,11 @@
 "Queue's empty" = "Cola vacía";
 "Since your last climb" = "Desde tu último bloque";
 "Log a climb to start" = "Registra un bloque para empezar";
+
+/* Driving the wall (2.7): what the wall does with the next pick */
+"Wall lit" = "Muro encendido";
+"Picks are previews" = "Los bloques se abren como vista previa";
+"Driving the wall" = "Estás al mando del plafón";
+"Every climb you pick lights up" = "Cada bloque que elijas se enciende";
+"Lights the climb again" = "Vuelve a encender el bloque";
+"Stops driving" = "Deja el mando del plafón";

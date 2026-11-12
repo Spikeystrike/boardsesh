@@ -157,6 +157,7 @@ export default defineConfig({
       './packages/shared/board-react/vite.config.ts',
       './packages/shared/create-climb-react/vite.config.ts',
       './packages/shared/queue/vite.config.ts',
+      './packages/shared/led-controller/vite.config.ts',
       './packages/shared/privacy/vite.config.ts',
       './packages/shared/offline-sync/vite.config.ts',
       './packages/shared/logbook/vite.config.ts',
@@ -167,6 +168,7 @@ export default defineConfig({
       './packages/shared/playlists-react/vite.config.ts',
       './packages/shared/party-profile/vite.config.ts',
       './packages/shared/watch-pairing/vite.config.ts',
+      './packages/shared/auth-protocol/vite.config.ts',
       './packages/shared/analytics/vite.config.ts',
       './packages/shared/climb-actions/vite.config.ts',
       './packages/shared/key-value-storage/vite.config.ts',
@@ -176,11 +178,13 @@ export default defineConfig({
       './packages/shared/session-inference/vite.config.ts',
       './packages/shared/playlist-generator/vite.config.ts',
       './packages/shared/workout-summary/vite.config.ts',
+      './packages/shared/connected-apps/vite.config.ts',
       './packages/shared/climb-filters/vite.config.ts',
       './packages/shared/gym-filters/vite.config.ts',
       './packages/shared/community-roles/vite.config.ts',
       './packages/shared/consent/vite.config.ts',
       './packages/shared/gym-claim/vite.config.ts',
+      './packages/shared/public-api/vite.config.ts',
       './packages/shared/kiosk/vite.config.ts',
       './packages/shared/i18n/vite.config.ts',
       './packages/shared/graphql/vite.config.ts',
@@ -214,7 +218,7 @@ export default defineConfig({
     // seam crossfade, the veil buckets), and the traced-art shards are hashed
     // into the version directly — both change pixels without touching anything
     // else listed here.
-    '{packages/board-renderer/wasm/pkg/**,packages/shared/board-look/src/**,packages/shared/board-art-geometry/src/generated/**,packages/shared/board-render/src/**,packages/shared/frosted-bokeh/{src/**,assets/**},packages/backend/src/services/spray-og-card.ts,packages/shared/board-config/src/**,packages/board-constants/src/**,packages/web/public/images/**}':
+    '{packages/board-renderer/wasm/pkg/**,packages/shared/board-look/src/**,packages/shared/board-art-geometry/src/generated/**,packages/shared/board-render/{src/**,assets/**},packages/shared/frosted-bokeh/{src/**,assets/**},packages/backend/src/services/spray-og-card.ts,packages/shared/board-config/src/**,packages/board-constants/src/**,packages/web/public/images/**}':
       () => 'vp run check:board-render-version',
   },
   run: {
@@ -334,6 +338,12 @@ export default defineConfig({
       },
       'test:db': {
         command: 'pnpm --filter @boardsesh/db run test',
+      },
+      'test:db:user-reference-catalog': {
+        command: 'node --import tsx scripts/verify-user-reference-catalog.ts --run',
+        // Creates its own offline cluster; never starts or adopts the shared development DB.
+        // Explicit source/head/image/output arguments are required. A missing argument fails.
+        cache: false,
       },
       // The migration-journal node:test suite CI runs (from ci.yml's db-migrations
       // job, against its current PostgreSQL service). It builds its own throwaway
@@ -745,6 +755,22 @@ export default defineConfig({
         command: 'node --import tsx scripts/generate-board-render-version.ts --check',
         cache: false,
       },
+      // The public /v1 contract as a committed document, so a contract change is
+      // a reviewable JSON diff. `check:` is the drift gate.
+      'generate:public-api-openapi': {
+        command: 'node --import tsx scripts/generate-public-api-openapi.ts',
+        cache: false,
+      },
+      'check:public-api-openapi': {
+        command: 'node --import tsx scripts/generate-public-api-openapi.ts --check',
+        cache: false,
+      },
+      // A change to that document needs a changelog entry: the newest entry names
+      // its hash, and on a PR (PR_BASE_SHA) published entries may not change.
+      'check:public-api-changelog': {
+        command: 'node --import tsx scripts/check-public-api-changelog.ts',
+        cache: false,
+      },
       'check:changelog': {
         command: 'node --import tsx scripts/generate-changelog.ts --check',
         cache: false,
@@ -839,6 +865,9 @@ export default defineConfig({
         command: 'pnpm --filter @boardsesh/web run typecheck',
         dependsOn: ['build:web'],
       },
+      'typecheck:auth-prototype-browser': {
+        command: 'tsc -p packages/web/auth-prototype/tsconfig.json --noEmit',
+      },
       'typecheck:ble-protocol': {
         command: 'pnpm --filter @boardsesh/ble-protocol run typecheck',
         dependsOn: ['codegen'],
@@ -889,6 +918,12 @@ export default defineConfig({
       'typecheck:watch-pairing': {
         command: 'pnpm --filter @boardsesh/watch-pairing run typecheck',
       },
+      'typecheck:auth-protocol': {
+        command: 'pnpm --filter @boardsesh/auth-protocol run typecheck',
+      },
+      'typecheck:public-api': {
+        command: 'pnpm --filter @boardsesh/public-api run typecheck',
+      },
       'typecheck:analytics': {
         command: 'pnpm --filter @boardsesh/analytics run typecheck',
       },
@@ -904,6 +939,9 @@ export default defineConfig({
       },
       'typecheck:key-value-storage': {
         command: 'pnpm --filter @boardsesh/key-value-storage run typecheck',
+      },
+      'typecheck:led-controller': {
+        command: 'pnpm --filter @boardsesh/led-controller run typecheck',
       },
       'typecheck:board-config': {
         command: 'pnpm --filter @boardsesh/board-config run typecheck',
@@ -943,6 +981,9 @@ export default defineConfig({
       },
       'typecheck:workout-summary': {
         command: 'pnpm --filter @boardsesh/workout-summary run typecheck',
+      },
+      'typecheck:connected-apps': {
+        command: 'pnpm --filter @boardsesh/connected-apps run typecheck',
       },
       'typecheck:climb-filters': {
         command: 'pnpm --filter @boardsesh/climb-filters run typecheck',
@@ -1045,6 +1086,7 @@ export default defineConfig({
           'build:db',
           'build:backend',
           'typecheck:web',
+          'typecheck:auth-prototype-browser',
           'typecheck:ble-protocol',
           'typecheck:queue',
           'typecheck:privacy',
@@ -1058,9 +1100,12 @@ export default defineConfig({
           'typecheck:create-climb-react',
           'typecheck:party-profile',
           'typecheck:watch-pairing',
+          'typecheck:auth-protocol',
+          'typecheck:public-api',
           'typecheck:analytics',
           'typecheck:climb-actions',
           'typecheck:key-value-storage',
+          'typecheck:led-controller',
           'typecheck:board-config',
           'typecheck:board-render',
           'typecheck:frosted-bokeh',
@@ -1073,6 +1118,7 @@ export default defineConfig({
           'typecheck:profile-stats',
           'typecheck:playlist-generator',
           'typecheck:workout-summary',
+          'typecheck:connected-apps',
           'typecheck:climb-filters',
           'typecheck:gym-filters',
           'typecheck:community-roles',
@@ -1112,6 +1158,15 @@ export default defineConfig({
       // CI runs them the same way (unsharded, after the sharded backend step).
       'test:backend': {
         command: 'vp test run --project backend && vp test run --project backend-serial',
+        cache: false,
+      },
+      'test:auth-prototype': {
+        command: 'vp test run --config packages/backend/vite.auth-prototype.config.ts --reporter=agent',
+        cache: false,
+      },
+      'test:auth-prototype:browser': {
+        command: 'cd packages/web && vp exec playwright test --config=playwright.auth-prototype.config.ts',
+        dependsOn: ['typecheck:auth-prototype-browser'],
         cache: false,
       },
       // The offline-sync engine suites live in their own Vitest project
@@ -1510,6 +1565,15 @@ export default defineConfig({
       },
       'test:e2e:setup': {
         command: 'true',
+        dependsOn: ['db:up'],
+        cache: false,
+      },
+      // Partner OAuth journey (#6981 F18): starts its own backend and www with
+      // partner OAuth on, behind a local edge that answers as the production
+      // hosts, and drives register → consent → sync → disconnect in Chromium.
+      // See docs/integration-platform.md, "End-to-end journey".
+      'test:e2e:partner-oauth': {
+        command: 'cd packages/web && vp exec playwright test --config=playwright.partner-oauth.config.ts',
         dependsOn: ['db:up'],
         cache: false,
       },

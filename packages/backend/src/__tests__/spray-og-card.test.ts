@@ -19,6 +19,7 @@ const { renderGuard, FakeRenderQueueSaturatedError } = vi.hoisted(() => {
 
 vi.mock('../services/board-render', () => ({
   RenderQueueSaturatedError: FakeRenderQueueSaturatedError,
+  noteOgIconState: vi.fn(),
   runOnRenderSemaphore: <T>(fn: () => Promise<T>): Promise<T> => {
     renderGuard.calls += 1;
     // Synchronous throw, exactly like the real one: the saturation check and
@@ -28,6 +29,7 @@ vi.mock('../services/board-render', () => ({
   },
 }));
 
+import { OG_FAMILY_ICON_PATH, resetOgFamilyIcon } from '@boardsesh/board-render/og-family';
 import {
   buildSprayOverlayMarks,
   buildSprayOverlaySvg,
@@ -134,10 +136,19 @@ describe('renderSprayOgCard — the visibility gate', () => {
     if (starting.kind !== 'card' || finishing.kind !== 'card') return;
     const green = await sharp(starting.buffer).ensureAlpha().raw().toBuffer();
     const red = await sharp(finishing.buffer).ensureAlpha().raw().toBuffer();
-    const margin = (140 * 1200 + 900) * 4;
-    expect(green[margin + 1]).toBeGreaterThan(red[margin + 1] + 20);
-    expect(red[margin]).toBeGreaterThan(green[margin] + 20);
-    const photoCenter = (315 * 1200 + 600) * 4;
+    // The frosted field is everywhere the photo is not: the family's scrim quiets
+    // it, so look for the climb's colour wherever it shows rather than at one spot.
+    let greenLead = 0;
+    let redLead = 0;
+    for (let offset = 0; offset < green.length; offset += 4) {
+      greenLead = Math.max(greenLead, green[offset + 1] - red[offset + 1]);
+      redLead = Math.max(redLead, red[offset] - green[offset]);
+    }
+    expect(greenLead).toBeGreaterThan(10);
+    expect(redLead).toBeGreaterThan(10);
+    // A 900x1200 photo fits the family's 544x602 art slot at 451 wide, right
+    // against the column at x 560, so its centre is at x 335.
+    const photoCenter = (315 * 1200 + 335) * 4;
     expect(green.subarray(photoCenter, photoCenter + 4)).toEqual(red.subarray(photoCenter, photoCenter + 4));
   });
 
@@ -242,6 +253,36 @@ describe('renderSprayOgCard — the visibility gate', () => {
     expect(deps.fetchPhotoBytes).toHaveBeenCalledTimes(1);
   });
 
+  it('never caches a wall card drawn without its app icon', async () => {
+    const photo = await makePhotoJpeg();
+    const deps = makeDeps({}, photo);
+    const frames = uniqueFrames('p501r1');
+    const params = {
+      layoutId: publicWall.layoutId,
+      frames,
+      format: 'jpeg' as const,
+      card: { name: 'Crimp city', grade: '6c/V5', setter: 'Marco', angle: 40, fontFamily: 'Noto Sans' },
+    };
+    resetOgFamilyIcon(`${OG_FAMILY_ICON_PATH}.missing`);
+    try {
+      const first = await renderSprayOgCard(params, deps);
+      const second = await renderSprayOgCard(params, deps);
+
+      expect(first).toMatchObject({ kind: 'card', iconMissing: true });
+      expect(second).toMatchObject({ kind: 'card', iconMissing: true });
+      // Each request drew its own card: nothing iconless was kept.
+      expect(deps.fetchPhotoBytes).toHaveBeenCalledTimes(2);
+    } finally {
+      resetOgFamilyIcon();
+    }
+
+    const recovered = await renderSprayOgCard(params, deps);
+    const cached = await renderSprayOgCard(params, deps);
+    expect(recovered).toMatchObject({ kind: 'card', iconMissing: false });
+    expect(cached).toMatchObject({ kind: 'card', iconMissing: false });
+    expect(deps.fetchPhotoBytes).toHaveBeenCalledTimes(3);
+  });
+
   it('does not serve one version’s bytes under another’s key', async () => {
     const photo = await makePhotoJpeg();
     const frames = uniqueFrames('p501r1');
@@ -262,6 +303,40 @@ describe('renderSprayOgCard — the visibility gate', () => {
     );
     await renderSprayOgCard({ layoutId: publicWall.layoutId, frames, format: 'jpeg' }, afterReset);
     expect(afterReset.fetchPhotoBytes).toHaveBeenCalledTimes(1);
+  });
+
+  it('redraws the card when the wall is renamed, because the name is on it', async () => {
+    const photo = await makePhotoJpeg();
+    const frames = uniqueFrames('p501r1');
+
+    const before = await renderSprayOgCard(
+      { layoutId: publicWall.layoutId, frames, format: 'jpeg' },
+      makeDeps({}, photo),
+    );
+    const renamed = makeDeps({ loadWall: vi.fn(async () => ({ ...publicWall, wallName: 'Shed wall' })) }, photo);
+    const after = await renderSprayOgCard({ layoutId: publicWall.layoutId, frames, format: 'jpeg' }, renamed);
+
+    expect(renamed.fetchPhotoBytes).toHaveBeenCalledTimes(1);
+    if (before.kind !== 'card' || after.kind !== 'card') throw new Error('expected two cards');
+    expect(after.buffer.equals(before.buffer)).toBe(false);
+  });
+
+  it('draws the climb identity from the URL in the text column', async () => {
+    const photo = await makePhotoJpeg();
+    const frames = uniqueFrames('p501r1');
+    const textColumn = async (card: Parameters<typeof renderSprayOgCard>[0]['card']) => {
+      const result = await renderSprayOgCard(
+        { layoutId: publicWall.layoutId, frames, format: 'png', card },
+        makeDeps({}, photo),
+      );
+      if (result.kind !== 'card') throw new Error('expected a card');
+      return sharp(result.buffer).extract({ left: 590, top: 0, width: 325, height: 630 }).raw().toBuffer();
+    };
+
+    const bare = await textColumn(undefined);
+    const identified = await textColumn({ name: 'Criss Cross Apple Sauce', grade: '6c/V5', setter: 'someone' });
+
+    expect(identified.equals(bare)).toBe(false);
   });
 });
 

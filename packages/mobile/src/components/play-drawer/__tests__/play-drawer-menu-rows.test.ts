@@ -8,7 +8,6 @@ import {
 } from '../play-drawer-menu-rows';
 
 const ICONS: Record<ClimbActionId, IconName> = {
-  preview: 'visibility',
   queue: 'add',
   openQueue: 'queue',
   playNext: 'queue.next',
@@ -31,7 +30,6 @@ const ICONS: Record<ClimbActionId, IconName> = {
 
 /** What `useClimbActions` hands the player, in the hook's own order. */
 const HOOK_ORDER: ClimbActionId[] = [
-  'preview',
   'queue',
   'openQueue',
   'playNext',
@@ -58,13 +56,13 @@ function item(id: ClimbActionId): ClimbActionItem {
 const EVERY_ITEM = HOOK_ORDER.map(item);
 
 const NOTHING_HIDDEN: PlayDrawerMenuRowOptions = {
-  hidden: { tick: false, favorite: false, share: false, queue: false, mirror: false, angle: false },
+  hidden: { playNext: true, tick: false, favorite: false, share: false, queue: false, mirror: false, angle: false },
   boardMismatch: false,
   isActiveClimb: false,
 };
 const EVERYTHING_HIDDEN: PlayDrawerMenuRowOptions = {
   ...NOTHING_HIDDEN,
-  hidden: { tick: false, favorite: true, share: true, queue: true, mirror: true, angle: true },
+  hidden: { playNext: true, tick: false, favorite: true, share: true, queue: true, mirror: true, angle: true },
 };
 const hiding = (button: keyof PlayDrawerMenuRowOptions['hidden']): PlayDrawerMenuRowOptions => ({
   ...NOTHING_HIDDEN,
@@ -132,12 +130,10 @@ describe('buildPlayDrawerMenuRows', () => {
     ]);
   });
 
-  // Preview: already on that climb. Edit entry: a logbook-only row. Tick: the
-  // hero button is in the bar for a member, except in a timed block with the
-  // wall button in the top row (#7000).
-  it('never offers preview or edit entry, and tick only while the bar puts Log away', () => {
+  // Edit entry: a logbook-only row. Tick: the hero button is in the bar for a
+  // member, except in a timed block with the wall button in the top row (#7000).
+  it('never offers edit entry, and tick only while the bar puts Log away', () => {
     const ids = rowIds(EVERYTHING_HIDDEN);
-    expect(ids).not.toContain('preview');
     expect(ids).not.toContain('tick');
     expect(ids).not.toContain('editEntry');
     expect(rowIds(hiding('tick'))[0]).toBe('tick');
@@ -167,6 +163,12 @@ describe('buildPlayDrawerMenuRows', () => {
     expect(rows[mirrorIndex - 1]?.id).toBe('openQueue');
     expect(rows[mirrorIndex]?.dividerBefore).toBe(true);
     expect(rows[mirrorIndex + 1]).toMatchObject({ id: 'angle', dividerBefore: false });
+  });
+
+  it('keeps Play next out of overflow while its button is drawn', () => {
+    expect(rowIds({ ...NOTHING_HIDDEN, hidden: { ...NOTHING_HIDDEN.hidden, playNext: false } })).not.toContain(
+      'playNext',
+    );
   });
 
   it('drops Play next on the climb that is already on the wall', () => {

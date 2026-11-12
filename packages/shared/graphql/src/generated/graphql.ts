@@ -228,6 +228,7 @@ export type AdminBoard = {
   isUnlisted: Scalars['Boolean']['output'];
   latitude?: Maybe<Scalars['Float']['output']>;
   layoutId: Scalars['Int']['output'];
+  litByWallDevice: Scalars['Boolean']['output'];
   locationName?: Maybe<Scalars['String']['output']>;
   longitude?: Maybe<Scalars['Float']['output']>;
   name: Scalars['String']['output'];
@@ -419,6 +420,8 @@ export type AscentFeedInput = {
   boardTypes?: InputMaybe<Array<Scalars['String']['input']>>;
   /** Optional climb name search (case-insensitive partial match) */
   climbName?: InputMaybe<Scalars['String']['input']>;
+  /** Leave out ascents of climbs the community has hidden. For surfaces that headline one ascent; the logbook itself keeps them. */
+  excludeHiddenClimbs?: InputMaybe<Scalars['Boolean']['input']>;
   /** When true, only include flashes within the selected status mode */
   flashOnly?: InputMaybe<Scalars['Boolean']['input']>;
   /** Optional start of the date range, inclusive. Either a calendar day (YYYY-MM-DD, from that UTC day's midnight) or an ISO 8601 instant with Z or an offset (from exactly that instant). */
@@ -474,6 +477,8 @@ export type AscentFeedItem = {
   boardseshConfidence?: Maybe<Scalars['String']['output']>;
   /** Boardsesh grade on the shared difficulty scale (COALESCE of the cross-board universal grade and the within-board local grade) for this ascent's climb at its angle. Null when no grade row exists. Use boardseshConfidence to distinguish trusted, setter-only, and projected values. */
   boardseshDifficulty?: Maybe<Scalars['Float']['output']>;
+  /** Structured climb characteristics (e.g. 'no_match', 'method_footless'). Decode with @boardsesh/shared-schema helpers (isNoMatch / getMoonBoardMethod). */
+  characteristics?: Maybe<Array<Scalars['String']['output']>>;
   /**
    * Always null. Revision history was retired, so no log is marked as made on an earlier version.
    * @deprecated Climb revision history was retired. Always null.
@@ -1956,6 +1961,43 @@ export type CommunityStats = {
   litLast30Days: Scalars['Int']['output'];
 };
 
+/** An app the signed-in climber connected to their account (docs/integration-platform.md, Connected apps). */
+export type ConnectedApp = {
+  __typename?: 'ConnectedApp';
+  /** ISO 8601. When the app first used its access, or first used it again after a reconnect. */
+  connectedAt: Scalars['String']['output'];
+  /** Pass to disconnectApp. */
+  connectionId: Scalars['ID']['output'];
+  /** ISO 8601. The app's latest call to the API, to within an hour. Null until it makes one. */
+  lastUsedAt?: Maybe<Scalars['String']['output']>;
+  /** The app's registered name. Null when it has none. */
+  name?: Maybe<Scalars['String']['output']>;
+  /**
+   * Who makes the app, as its developer registered it. Null until apps carry a
+   * publisher name, and never the developer account's own name.
+   */
+  publisherName?: Maybe<Scalars['String']['output']>;
+  /**
+   * What the climber allowed, as OAuth scope strings (profile:read, logbook:read,
+   * offline_access, or one added later). Clients word them in the climber's language.
+   */
+  scopes: Array<Scalars['String']['output']>;
+  /** True while Boardsesh has suspended the app. It reads nothing until it is restored. */
+  suspended: Scalars['Boolean']['output'];
+};
+
+export type ConnectedApps = {
+  __typename?: 'ConnectedApps';
+  /** Live connections, the most recently connected first. */
+  apps: Array<ConnectedApp>;
+  /**
+   * False while partner apps are switched off (PARTNER_OAUTH_MODE off): no app can
+   * connect, though connections made before still list here and can be disconnected.
+   * A hold is a short pause and counts as on.
+   */
+  partnerAppsEnabled: Scalars['Boolean']['output'];
+};
+
 /**
  * Whether this visitor is asked before analytics runs, from the Cloudflare
  * country of the request. See docs/analytics-consent.md.
@@ -1968,6 +2010,30 @@ export type ConsentRegion = {
   globalPrivacyControl: Scalars['Boolean']['output'];
   /** True in the EU, EEA, UK, Switzerland and the other prompt regions, and whenever the country is unknown. */
   promptRequired: Scalars['Boolean']['output'];
+};
+
+/**
+ * One board owned by the account a controller API key belongs to, for a wall
+ * device's setup screen (`controllerBoards`). Read-only identity and config.
+ */
+export type ControllerBoard = {
+  __typename?: 'ControllerBoard';
+  /** Board angle in degrees */
+  angle: Scalars['Int']['output'];
+  /** Numeric board-presence channel id (userBoards.id). Feeds boardNowPlaying(boardId). */
+  boardId: Scalars['Int']['output'];
+  /** kilter, tension, moonboard, spray, ... */
+  boardType: Scalars['String']['output'];
+  /** False for a board with no lights (every spray wall) */
+  hasLeds: Scalars['Boolean']['output'];
+  layoutId: Scalars['Int']['output'];
+  /** What the owner calls the board */
+  name: Scalars['String']['output'];
+  /** Comma-separated hold set ids */
+  setIds: Scalars['String']['output'];
+  sizeId: Scalars['Int']['output'];
+  /** The board's uuid. A spray wall's uuid is also its sprayWall(uuid) key. */
+  uuid: Scalars['ID']['output'];
 };
 
 export type ControllerEvent = ControllerPing | ControllerQueueSync | LedUpdate;
@@ -2089,6 +2155,8 @@ export type CreateBoardInput = {
   latitude?: InputMaybe<Scalars['Float']['input']>;
   /** Layout ID */
   layoutId: Scalars['Int']['input'];
+  /** Whether a wall device lights this wall from the board feed (default false) */
+  litByWallDevice?: InputMaybe<Scalars['Boolean']['input']>;
   locationAudience?: InputMaybe<PrivacyLocationAudience>;
   /** Location name */
   locationName?: InputMaybe<Scalars['String']['input']>;
@@ -2149,6 +2217,23 @@ export type CreateGymKioskInput = {
   name: Scalars['String']['input'];
   /** Optional URL slug (lowercase alphanumeric + hyphens, 3–60 chars). Derived from name when omitted. */
   slug?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type CreateOAuthClientInput = {
+  /** The developer terms version the developer accepted. Must equal the current version, or registration is refused. */
+  acceptedTermsVersion: Scalars['String']['input'];
+  applicationType: OAuthClientApplicationType;
+  /** https:// only. */
+  homepageUrl?: InputMaybe<Scalars['String']['input']>;
+  /** 3 to 50 characters. Names of Boardsesh, Aurora and board brands are refused. */
+  name: Scalars['String']['input'];
+  /** https:// only. */
+  privacyPolicyUrl: Scalars['String']['input'];
+  /** The person or company that makes the app. Same rules as name. */
+  publisherName: Scalars['String']['input'];
+  /** 1 to 10. */
+  redirectUris: Array<Scalars['String']['input']>;
+  tokenEndpointAuthMethod: OAuthClientAuthMethod;
 };
 
 /** Input for creating a playlist. */
@@ -3144,6 +3229,8 @@ export type GroupedAscentFeedItem = {
   bestQuality?: Maybe<Scalars['Int']['output']>;
   /** Board type */
   boardType: Scalars['String']['output'];
+  /** Structured climb characteristics (e.g. 'no_match', 'method_footless'). Decode with @boardsesh/shared-schema helpers (isNoMatch / getMoonBoardMethod). */
+  characteristics?: Maybe<Array<Scalars['String']['output']>>;
   /** Name of the climb */
   climbName: Scalars['String']['output'];
   /** UUID of the climb */
@@ -3203,6 +3290,13 @@ export type GroupedNotification = {
    * climbs that carry no angle; clients fall back to the reader's own board.
    */
   climbAngle?: Maybe<Scalars['Int']['output']>;
+  /**
+   * Structured climb characteristics (e.g. 'no_match', 'method_footless').
+   * Decode with @boardsesh/shared-schema helpers (isNoMatch / getMoonBoardMethod).
+   * Drives the Woods matching/feet rules line and the no-match glyph elsewhere
+   * when a notification opens the play drawer directly, without a climb refetch.
+   */
+  climbCharacteristics?: Maybe<Array<Scalars['String']['output']>>;
   /**
    * Sizes the climb fits. Boards whose sizes number holds independently (Woods)
    * render a COMPLETELY different climb on the layout's default size, so a client
@@ -4319,6 +4413,8 @@ export type Mutation = {
    * history. Requires authentication.
    */
   createIntegrationOAuthHandoff: Scalars['String']['output'];
+  /** Register an app. Returns its client ID and, for a confidential app, a secret shown once. */
+  createOAuthClient: OAuthClientCredentials;
   /** Create a new playlist. */
   createPlaylist: Playlist;
   /** Create a proposal for a climb grade/classic/benchmark change. */
@@ -4384,6 +4480,8 @@ export type Mutation = {
    * nothing to remove.
    */
   deleteHoldOutlineOverride: Scalars['Boolean']['output'];
+  /** Delete the signed-in developer's app and end every climber connection to it. False when there was no such app. */
+  deleteOAuthClient: Scalars['Boolean']['output'];
   /** Delete a playlist (owner only). */
   deletePlaylist: Scalars['Boolean']['output'];
   /** Delete an accepted proposal and revert its effects (admin/leader only). */
@@ -4412,6 +4510,15 @@ export type Mutation = {
    * reference its work. Owner only.
    */
   discardSprayWallVersion: Scalars['Boolean']['output'];
+  /**
+   * End the signed-in climber's connection to an app, with the same effect as the
+   * app calling DELETE /v1/connection: every token and the remembered consent go,
+   * and connecting again needs a fresh approval. Works in every PARTNER_OAUTH_MODE,
+   * so a climber can always end a connection. True once the connection is ended,
+   * also when it already was. NOT_FOUND when the id is not one of the climber's
+   * connections.
+   */
+  disconnectApp: Scalars['Boolean']['output'];
   /**
    * Unlink an external platform integration. Revokes the token on the
    * provider's side (best-effort) and deletes the stored credentials.
@@ -4770,6 +4877,8 @@ export type Mutation = {
   revokeResourceAccess: Scalars['Boolean']['output'];
   /** Revoke a community role from a user (admin only). */
   revokeRole: Scalars['Boolean']['output'];
+  /** Replace a confidential app's secret. The old secret stops working at once. */
+  rotateOAuthClientSecret: OAuthClientCredentials;
   /**
    * Save Aurora climbing credentials.
    * Validates with Aurora API before saving.
@@ -4779,6 +4888,12 @@ export type Mutation = {
   saveClimb: SaveClimbResult;
   /** Save a new MoonBoard climb. */
   saveMoonBoardClimb: SaveClimbResult;
+  /**
+   * Save part of a spray wall's LED setup. Owner only: this value reaches every
+   * climber's phone at the wall. Refuses an address that is not on a local network
+   * and a layout outside the shared caps.
+   */
+  saveSprayWallLedSetup: SprayWallLedSetup;
   /** Save a new tick (climb attempt record). */
   saveTick: Tick;
   sendDeviceLogs: SendDeviceLogsResponse;
@@ -4965,6 +5080,8 @@ export type Mutation = {
    * and linked to this kiosk's gym.
    */
   updateGymKiosk: GymKiosk;
+  /** Edit the signed-in developer's app. */
+  updateOAuthClient: OAuthClient;
   /** Update playlist metadata. */
   updatePlaylist: Playlist;
   /** Update only lastAccessedAt for a playlist (does not update updatedAt). */
@@ -5125,6 +5242,11 @@ export type MutationCreateIntegrationOAuthHandoffArgs = {
 };
 
 /** Root mutation type for all write operations. */
+export type MutationCreateOAuthClientArgs = {
+  input: CreateOAuthClientInput;
+};
+
+/** Root mutation type for all write operations. */
 export type MutationCreatePlaylistArgs = {
   input: CreatePlaylistInput;
 };
@@ -5207,6 +5329,11 @@ export type MutationDeleteHoldOutlineOverrideArgs = {
 };
 
 /** Root mutation type for all write operations. */
+export type MutationDeleteOAuthClientArgs = {
+  clientId: Scalars['ID']['input'];
+};
+
+/** Root mutation type for all write operations. */
 export type MutationDeletePlaylistArgs = {
   playlistId: Scalars['ID']['input'];
 };
@@ -5234,6 +5361,11 @@ export type MutationDetachBoardFromGymArgs = {
 /** Root mutation type for all write operations. */
 export type MutationDiscardSprayWallVersionArgs = {
   input: PublishSprayWallVersionInput;
+};
+
+/** Root mutation type for all write operations. */
+export type MutationDisconnectAppArgs = {
+  connectionId: Scalars['ID']['input'];
 };
 
 /** Root mutation type for all write operations. */
@@ -5620,6 +5752,11 @@ export type MutationRevokeRoleArgs = {
 };
 
 /** Root mutation type for all write operations. */
+export type MutationRotateOAuthClientSecretArgs = {
+  clientId: Scalars['ID']['input'];
+};
+
+/** Root mutation type for all write operations. */
 export type MutationSaveAuroraCredentialArgs = {
   input: SaveAuroraCredentialInput;
 };
@@ -5632,6 +5769,11 @@ export type MutationSaveClimbArgs = {
 /** Root mutation type for all write operations. */
 export type MutationSaveMoonBoardClimbArgs = {
   input: SaveMoonBoardClimbInput;
+};
+
+/** Root mutation type for all write operations. */
+export type MutationSaveSprayWallLedSetupArgs = {
+  input: SaveSprayWallLedSetupInput;
 };
 
 /** Root mutation type for all write operations. */
@@ -5844,6 +5986,11 @@ export type MutationUpdateGymArgs = {
 /** Root mutation type for all write operations. */
 export type MutationUpdateGymKioskArgs = {
   input: UpdateGymKioskInput;
+};
+
+/** Root mutation type for all write operations. */
+export type MutationUpdateOAuthClientArgs = {
+  input: UpdateOAuthClientInput;
 };
 
 /** Root mutation type for all write operations. */
@@ -6106,6 +6253,56 @@ export type NotificationType =
   | 'vote_on_comment'
   | 'vote_on_tick';
 
+/** An app a developer registered for the Boardsesh API. Never carries its secret. */
+export type OAuthClient = {
+  __typename?: 'OAuthClient';
+  /** Climbers connected now. Deleting the app disconnects every one of them. */
+  activeConnections: Scalars['Int']['output'];
+  applicationType: OAuthClientApplicationType;
+  clientId: Scalars['ID']['output'];
+  /** ISO 8601. */
+  createdAt: Scalars['String']['output'];
+  homepageUrl?: Maybe<Scalars['String']['output']>;
+  /** Most climbers connected at once. */
+  maxActiveConnections: Scalars['Int']['output'];
+  /** Most new climber connections per day. */
+  maxNewConnectionsPerDay: Scalars['Int']['output'];
+  /** Shown on the consent screen. */
+  name: Scalars['String']['output'];
+  privacyPolicyUrl: Scalars['String']['output'];
+  /** Who makes the app: the consent screen's Made by line. Null only for an app registered before publishers were recorded. */
+  publisherName?: Maybe<Scalars['String']['output']>;
+  /** Matched as exact strings, except the port of a loopback redirect. */
+  redirectUris: Array<Scalars['String']['output']>;
+  /** ISO 8601 when Boardsesh suspended the app, otherwise null. A suspended app gets no tokens. */
+  suspendedAt?: Maybe<Scalars['String']['output']>;
+  /** Why the app was suspended, written for the developer. */
+  suspensionReason?: Maybe<Scalars['String']['output']>;
+  tokenEndpointAuthMethod: OAuthClientAuthMethod;
+};
+
+/**
+ * Where an app's OAuth redirect lands. WEB apps use https:// redirect URIs only;
+ * NATIVE apps may also use http://127.0.0.1 or http://[::1] and private-use
+ * schemes such as com.example.app:/oauth/boardsesh. See docs/partner-api.md.
+ */
+export type OAuthClientApplicationType = 'NATIVE' | 'WEB';
+
+/**
+ * How an app authenticates at the token endpoint. NONE is a public app (no
+ * secret, PKCE protects the code); the other two are confidential apps that send
+ * a client secret by HTTP Basic or in the form body.
+ */
+export type OAuthClientAuthMethod = 'CLIENT_SECRET_BASIC' | 'CLIENT_SECRET_POST' | 'NONE';
+
+/** An app with a secret that is shown this once and can never be read again. */
+export type OAuthClientCredentials = {
+  __typename?: 'OAuthClientCredentials';
+  client: OAuthClient;
+  /** Null for a public app. */
+  clientSecret?: Maybe<Scalars['String']['output']>;
+};
+
 export type ObservedBoardSerialInput = {
   boardType: Scalars['String']['input'];
   observedSerialNumber: Scalars['String']['input'];
@@ -6292,6 +6489,8 @@ export type Playlist = {
   description?: Maybe<Scalars['String']['output']>;
   /** Number of users following this playlist */
   followerCount: Scalars['Int']['output'];
+  /** Grade spread of the playlist's climbs. Null when none of its climbs has a grade yet. */
+  gradeSummary?: Maybe<PlaylistGradeSummary>;
   /** Display icon */
   icon?: Maybe<Scalars['String']['output']>;
   /** Database ID */
@@ -6887,6 +7086,12 @@ export type Query = {
    */
   auroraCredentials: Array<AuroraCredentialStatus>;
   /**
+   * Immutable identity admitted from this request's presented credential.
+   * Returns UNAUTHENTICATED when the credential cannot authorize the request.
+   * Authority failures return SERVICE_UNAVAILABLE instead of an identity.
+   */
+  authenticatedUserId: Scalars['ID']['output'];
+  /**
    * Live preview metadata for a shared Instagram/TikTok URL, before it's
    * attached. Powers the mobile share flow: shows the post thumbnail/caption and
    * lets the client auto-match the climb from the caption. Best-effort — returns
@@ -7091,6 +7296,13 @@ export type Query = {
   /** Whether this request comes from a region where the analytics prompt is shown. No sign-in needed. */
   consentRegion: ConsentRegion;
   contentAudience: PrivacyContentAudience;
+  /**
+   * The boards the controller API key's owner owns (home boards and spray walls,
+   * deleted and archived ones left out), so a wall device can let its owner pick
+   * one. Requires a WebSocket connected with `connectionParams.controllerApiKey`;
+   * without one it fails UNAUTHENTICATED, signed in or not.
+   */
+  controllerBoards: Array<ControllerBoard>;
   /** Read a gym's device configuration using a registered gym owner/admin's controller API key. */
   controllerGymManifest: ControllerGymManifest;
   /** Sessions and the last 30 days of published climbs from followed authors. */
@@ -7286,6 +7498,8 @@ export type Query = {
    * Requires authentication.
    */
   myBoards: UserBoardConnection;
+  /** The signed-in climber's connected apps, in every PARTNER_OAUTH_MODE. */
+  myConnectedApps: ConnectedApps;
   myControllers: Array<ControllerInfo>;
   /**
    * Get current user's gyms (owned + optionally followed).
@@ -7297,6 +7511,11 @@ export type Query = {
    * Requires authentication.
    */
   myNewClimbSubscriptions: Array<NewClimbSubscription>;
+  /**
+   * The signed-in developer's apps. Developer apps answer NOT_FOUND while partner
+   * OAuth is off, and only allowlisted developers may use them.
+   */
+  myOAuthClients: Array<OAuthClient>;
   /**
    * Get the authenticated user's pinned playlists, ordered by most recently pinned.
    * Capped server-side (small grid surface). Requires authentication.
@@ -7342,6 +7561,12 @@ export type Query = {
    * audit list (admin only). List-only; no bulk action.
    */
   orphanGyms: OrphanGymConnection;
+  /**
+   * Whether partner apps are switched on (any PARTNER_OAUTH_MODE but off), the same
+   * value as ConnectedApps.partnerAppsEnabled. Screens that only need to know whether
+   * to mention connected apps read this. It changes only with a deploy.
+   */
+  partnerAppsEnabled: Scalars['Boolean']['output'];
   /** List pending gym ownership claims for the admin review queue (admin only). */
   pendingGymClaims: GymClaimConnection;
   /**
@@ -7569,6 +7794,13 @@ export type Query = {
    */
   sprayWallHoldUsage: Array<SprayWallHoldUsage>;
   sprayWallImportProgress: Array<SprayWallImportProgress>;
+  /**
+   * A spray wall's LED setup, for lighting it from this phone. Anyone who can read
+   * the wall gets it, with the same rules as `sprayWall`; null when the wall does
+   * not exist, is deleted, or this viewer may not see it. `setup` is null when the
+   * wall has no saved setup yet.
+   */
+  sprayWallLedSetup?: Maybe<SprayWallLedSetupView>;
   /**
    * Everything needed to render a wall at one version: the photo, the homography
    * and the holds alive at that version. Omit `version` for the published one.
@@ -8447,6 +8679,11 @@ export type QuerySprayWallImportProgressArgs = {
 };
 
 /** Root query type for all read operations. */
+export type QuerySprayWallLedSetupArgs = {
+  boardUuid: Scalars['ID']['input'];
+};
+
+/** Root query type for all read operations. */
 export type QuerySprayWallRenderDataArgs = {
   uuid: Scalars['ID']['input'];
   version?: InputMaybe<Scalars['Int']['input']>;
@@ -9195,6 +9432,20 @@ export type SaveMoonBoardClimbInput = {
   userGrade?: InputMaybe<Scalars['String']['input']>;
 };
 
+/**
+ * Save part of a wall's LED setup. A field left out (or null) keeps its stored
+ * value, so the settings and the layout save from separate code paths without
+ * overwriting each other.
+ */
+export type SaveSprayWallLedSetupInput = {
+  boardUuid: Scalars['ID']['input'];
+  controllerType?: InputMaybe<Scalars['String']['input']>;
+  /** Local-network addresses only: the server refuses anything else. */
+  controllerUrl?: InputMaybe<Scalars['String']['input']>;
+  enabled?: InputMaybe<Scalars['Boolean']['input']>;
+  layout?: InputMaybe<Scalars['JSON']['input']>;
+};
+
 /** Input for recording a climb attempt. */
 export type SaveTickInput = {
   /** Board angle */
@@ -9455,6 +9706,8 @@ export type SessionDetailTick = {
   boardseshConfidence?: Maybe<Scalars['String']['output']>;
   /** Boardsesh grade on the shared difficulty scale for this tick's climb at its angle. Null when no grade row exists. Use boardseshConfidence to distinguish trusted, setter-only, and projected values. */
   boardseshDifficulty?: Maybe<Scalars['Float']['output']>;
+  /** Structured climb characteristics (e.g. 'no_match', 'method_footless'). Decode with @boardsesh/shared-schema helpers (isNoMatch / getMoonBoardMethod). */
+  characteristics?: Maybe<Array<Scalars['String']['output']>>;
   climbName?: Maybe<Scalars['String']['output']>;
   climbUuid: Scalars['String']['output'];
   climbedAt: Scalars['String']['output'];
@@ -9570,6 +9823,8 @@ export type SessionFeedTickHighlight = {
   boardseshConfidence?: Maybe<Scalars['String']['output']>;
   /** Boardsesh grade on the shared difficulty scale for this tick's climb at its angle. Null when no grade row exists. Use boardseshConfidence to distinguish trusted, setter-only, and projected values. */
   boardseshDifficulty?: Maybe<Scalars['Float']['output']>;
+  /** Structured climb characteristics (e.g. 'no_match', 'method_footless'). Decode with @boardsesh/shared-schema helpers (isNoMatch / getMoonBoardMethod). */
+  characteristics?: Maybe<Array<Scalars['String']['output']>>;
   climbName?: Maybe<Scalars['String']['output']>;
   climbUuid: Scalars['String']['output'];
   climbedAt: Scalars['String']['output'];
@@ -10300,6 +10555,8 @@ export type SetterProfile = {
   linkedUserDisplayName?: Maybe<Scalars['String']['output']>;
   /** Linked Boardsesh user ID (if setter has a Boardsesh account) */
   linkedUserId?: Maybe<Scalars['ID']['output']>;
+  /** Sends across this setter's listable climbs, summing each climb's best angle so a climber who sent it at two angles counts once. Includes imported Aurora ascents. */
+  totalAscents: Scalars['Int']['output'];
   /** The setter's Aurora username */
   username: Scalars['String']['output'];
 };
@@ -11115,6 +11372,40 @@ export type SprayWallKeptDecisionInput = {
   holdId: Scalars['Int']['input'];
 };
 
+/**
+ * The LED setup of one spray wall: which controller drives it, whether it is on,
+ * and the hole, LED and cable layout that maps holds to physical LEDs.
+ *
+ * Lives on the board, so every climber at the wall can light it from their own
+ * phone. The phone talks to the controller directly over the local network; the
+ * server only stores the setup and never contacts the address.
+ */
+export type SprayWallLedSetup = {
+  __typename?: 'SprayWallLedSetup';
+  boardUuid: Scalars['ID']['output'];
+  /** The driver for this controller. `wled` is the only one today. */
+  controllerType: Scalars['String']['output'];
+  /** A local-network base address, or empty until the owner confirms one. */
+  controllerUrl: Scalars['String']['output'];
+  enabled: Scalars['Boolean']['output'];
+  /** A saved T-nut layout. Null until the setup screen has saved one. */
+  layout?: Maybe<Scalars['JSON']['output']>;
+  /** When this setup last changed, ISO 8601. */
+  updatedAt: Scalars['String']['output'];
+};
+
+/**
+ * A wall's LED setup as this viewer may use it. Null at the query, not here, when
+ * the viewer cannot read the wall: the same answer `sprayWall(uuid)` gives.
+ */
+export type SprayWallLedSetupView = {
+  __typename?: 'SprayWallLedSetupView';
+  /** Null when nobody has saved a setup for this wall yet. */
+  setup?: Maybe<SprayWallLedSetup>;
+  /** Whether this viewer may save changes: the wall's owner, on a wall still in use. */
+  viewerCanEdit: Scalars['Boolean']['output'];
+};
+
 /** The outcome of the admin switch, thin on purpose: a moderation tool, not a wall read. */
 export type SprayWallModerationResult = {
   __typename?: 'SprayWallModerationResult';
@@ -11838,6 +12129,8 @@ export type UpdateBoardInput = {
   latitude?: InputMaybe<Scalars['Float']['input']>;
   /** New layout ID (authorized editors only; existing ticks are preserved untouched) */
   layoutId?: InputMaybe<Scalars['Int']['input']>;
+  /** New wall device flag */
+  litByWallDevice?: InputMaybe<Scalars['Boolean']['input']>;
   /** New location name */
   locationName?: InputMaybe<Scalars['String']['input']>;
   /** New GPS longitude */
@@ -11989,6 +12282,16 @@ export type UpdateGymKioskInput = {
   name?: InputMaybe<Scalars['String']['input']>;
   /** New URL slug (lowercase alphanumeric + hyphens, 3–60 chars; unique per gym). */
   slug?: InputMaybe<Scalars['String']['input']>;
+};
+
+/** Fields left out keep their value. A null homepageUrl removes it; publisherName can change but never be removed. The app type and auth method never change. */
+export type UpdateOAuthClientInput = {
+  clientId: Scalars['ID']['input'];
+  homepageUrl?: InputMaybe<Scalars['String']['input']>;
+  name?: InputMaybe<Scalars['String']['input']>;
+  privacyPolicyUrl?: InputMaybe<Scalars['String']['input']>;
+  publisherName?: InputMaybe<Scalars['String']['input']>;
+  redirectUris?: InputMaybe<Array<Scalars['String']['input']>>;
 };
 
 /** Input for updating a playlist. */
@@ -12220,6 +12523,12 @@ export type UserBoard = {
   layoutId: Scalars['Int']['output'];
   /** Human-readable layout name */
   layoutName?: Maybe<Scalars['String']['output']>;
+  /**
+   * Whether an internet-connected wall device (a laser projector, an LED
+   * controller) lights this wall from the board feed. Climbers take the wall
+   * with no Bluetooth link.
+   */
+  litByWallDevice: Scalars['Boolean']['output'];
   /** Location name */
   locationName?: Maybe<Scalars['String']['output']>;
   /** GPS longitude */
@@ -12493,6 +12802,10 @@ export type ZoneBoxInput = {
  */
 export type ZoneMatchMode = 'allHolds' | 'anyHold';
 
+export type GetAuthenticatedUserIdQueryVariables = Exact<{ [key: string]: never }>;
+
+export type GetAuthenticatedUserIdQuery = { __typename?: 'Query'; authenticatedUserId: string };
+
 export type GetDeleteAccountInfoQueryVariables = Exact<{ [key: string]: never }>;
 
 export type GetDeleteAccountInfoQuery = {
@@ -12608,6 +12921,7 @@ export type SessionFeedItemFieldsFragment = {
     isMirror: boolean;
     isBenchmark: boolean;
     isNoMatch: boolean;
+    characteristics?: Array<string> | null;
     comment?: string | null;
     frames?: string | null;
     setterUsername?: string | null;
@@ -12635,6 +12949,7 @@ export type SessionFeedItemFieldsFragment = {
       isMirror: boolean;
       isBenchmark: boolean;
       isNoMatch: boolean;
+      characteristics?: Array<string> | null;
       comment?: string | null;
       frames?: string | null;
       setterUsername?: string | null;
@@ -12729,6 +13044,7 @@ export type GetSessionGroupedFeedQuery = {
         isMirror: boolean;
         isBenchmark: boolean;
         isNoMatch: boolean;
+        characteristics?: Array<string> | null;
         comment?: string | null;
         frames?: string | null;
         setterUsername?: string | null;
@@ -12761,6 +13077,7 @@ export type GetSessionGroupedFeedQuery = {
           isMirror: boolean;
           isBenchmark: boolean;
           isNoMatch: boolean;
+          characteristics?: Array<string> | null;
           comment?: string | null;
           frames?: string | null;
           setterUsername?: string | null;
@@ -12962,6 +13279,7 @@ export type GetCrewFeedQuery = {
               isMirror: boolean;
               isBenchmark: boolean;
               isNoMatch: boolean;
+              characteristics?: Array<string> | null;
               comment?: string | null;
               frames?: string | null;
               setterUsername?: string | null;
@@ -12994,6 +13312,7 @@ export type GetCrewFeedQuery = {
                 isMirror: boolean;
                 isBenchmark: boolean;
                 isNoMatch: boolean;
+                characteristics?: Array<string> | null;
                 comment?: string | null;
                 frames?: string | null;
                 setterUsername?: string | null;
@@ -13087,6 +13406,7 @@ export type GetSessionDetailQuery = {
       isMirror: boolean;
       isBenchmark: boolean;
       isNoMatch: boolean;
+      characteristics?: Array<string> | null;
       comment?: string | null;
       frames?: string | null;
       setterUsername?: string | null;
@@ -13653,6 +13973,36 @@ export type VoteMutation = {
     userVote: number;
   };
 };
+
+export type GetMyConnectedAppsQueryVariables = Exact<{ [key: string]: never }>;
+
+export type GetMyConnectedAppsQuery = {
+  __typename?: 'Query';
+  myConnectedApps: {
+    __typename?: 'ConnectedApps';
+    partnerAppsEnabled: boolean;
+    apps: Array<{
+      __typename?: 'ConnectedApp';
+      connectionId: string;
+      name?: string | null;
+      publisherName?: string | null;
+      scopes: Array<string>;
+      connectedAt: string;
+      lastUsedAt?: string | null;
+      suspended: boolean;
+    }>;
+  };
+};
+
+export type GetPartnerAppsEnabledQueryVariables = Exact<{ [key: string]: never }>;
+
+export type GetPartnerAppsEnabledQuery = { __typename?: 'Query'; partnerAppsEnabled: boolean };
+
+export type DisconnectAppMutationVariables = Exact<{
+  connectionId: Scalars['ID']['input'];
+}>;
+
+export type DisconnectAppMutation = { __typename?: 'Mutation'; disconnectApp: boolean };
 
 export type CreateSessionMutationVariables = Exact<{
   input: CreateSessionInput;
@@ -14345,6 +14695,7 @@ export type GetGroupedNotificationsQuery = {
       climbAngle?: number | null;
       climbFrames?: string | null;
       climbCompatibleSizeIds?: Array<number> | null;
+      climbCharacteristics?: Array<string> | null;
       threadEntityType?: SocialEntityType | null;
       threadEntityId?: string | null;
       proposalUuid?: string | null;
@@ -16683,6 +17034,7 @@ export type GetUserAscentsFeedQuery = {
       qualityAverage?: number | null;
       isBenchmark: boolean;
       isNoMatch: boolean;
+      characteristics?: Array<string> | null;
       comment: string;
       climbedAt: string;
       frames?: string | null;
@@ -16739,6 +17091,7 @@ export type GetUserAscentCaptionMatchesQuery = {
     qualityAverage?: number | null;
     isBenchmark: boolean;
     isNoMatch: boolean;
+    characteristics?: Array<string> | null;
     comment: string;
     climbedAt: string;
     frames?: string | null;
@@ -16771,6 +17124,7 @@ export type GetUserGroupedAscentsFeedQuery = {
       difficultyName?: string | null;
       isBenchmark: boolean;
       isNoMatch: boolean;
+      characteristics?: Array<string> | null;
       date: string;
       flashCount: number;
       sendCount: number;
@@ -16808,6 +17162,7 @@ export type GetUserGroupedAscentsFeedQuery = {
         qualityAverage?: number | null;
         isBenchmark: boolean;
         isNoMatch: boolean;
+        characteristics?: Array<string> | null;
         comment: string;
         climbedAt: string;
         frames?: string | null;
@@ -17109,6 +17464,7 @@ export const SessionFeedItemFieldsFragmentDoc = {
                 { kind: 'Field', name: { kind: 'Name', value: 'isMirror' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'isBenchmark' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'isNoMatch' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'characteristics' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'comment' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'frames' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'setterUsername' } },
@@ -17157,6 +17513,7 @@ export const SessionFeedItemFieldsFragmentDoc = {
                       { kind: 'Field', name: { kind: 'Name', value: 'isMirror' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'isBenchmark' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'isNoMatch' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'characteristics' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'comment' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'frames' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'setterUsername' } },
@@ -17528,6 +17885,20 @@ export const UserDataExportStatusFieldsFragmentDoc = {
     },
   ],
 } as unknown as DocumentNode<UserDataExportStatusFieldsFragment, unknown>;
+export const GetAuthenticatedUserIdDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'GetAuthenticatedUserId' },
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [{ kind: 'Field', name: { kind: 'Name', value: 'authenticatedUserId' } }],
+      },
+    },
+  ],
+} as unknown as DocumentNode<GetAuthenticatedUserIdQuery, GetAuthenticatedUserIdQueryVariables>;
 export const GetDeleteAccountInfoDocument = {
   kind: 'Document',
   definitions: [
@@ -17799,6 +18170,7 @@ export const GetSessionGroupedFeedDocument = {
                 { kind: 'Field', name: { kind: 'Name', value: 'isMirror' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'isBenchmark' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'isNoMatch' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'characteristics' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'comment' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'frames' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'setterUsername' } },
@@ -17847,6 +18219,7 @@ export const GetSessionGroupedFeedDocument = {
                       { kind: 'Field', name: { kind: 'Name', value: 'isMirror' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'isBenchmark' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'isNoMatch' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'characteristics' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'comment' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'frames' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'setterUsername' } },
@@ -18083,6 +18456,7 @@ export const GetCrewFeedDocument = {
                 { kind: 'Field', name: { kind: 'Name', value: 'isMirror' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'isBenchmark' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'isNoMatch' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'characteristics' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'comment' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'frames' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'setterUsername' } },
@@ -18131,6 +18505,7 @@ export const GetCrewFeedDocument = {
                       { kind: 'Field', name: { kind: 'Name', value: 'isMirror' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'isBenchmark' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'isNoMatch' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'characteristics' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'comment' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'frames' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'setterUsername' } },
@@ -18323,6 +18698,7 @@ export const GetSessionDetailDocument = {
                       { kind: 'Field', name: { kind: 'Name', value: 'isMirror' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'isBenchmark' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'isNoMatch' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'characteristics' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'comment' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'frames' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'setterUsername' } },
@@ -19777,6 +20153,94 @@ export const VoteDocument = {
     },
   ],
 } as unknown as DocumentNode<VoteMutation, VoteMutationVariables>;
+export const GetMyConnectedAppsDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'GetMyConnectedApps' },
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'myConnectedApps' },
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'apps' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'connectionId' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'name' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'publisherName' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'scopes' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'connectedAt' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'lastUsedAt' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'suspended' } },
+                    ],
+                  },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'partnerAppsEnabled' } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<GetMyConnectedAppsQuery, GetMyConnectedAppsQueryVariables>;
+export const GetPartnerAppsEnabledDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'GetPartnerAppsEnabled' },
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [{ kind: 'Field', name: { kind: 'Name', value: 'partnerAppsEnabled' } }],
+      },
+    },
+  ],
+} as unknown as DocumentNode<GetPartnerAppsEnabledQuery, GetPartnerAppsEnabledQueryVariables>;
+export const DisconnectAppDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'mutation',
+      name: { kind: 'Name', value: 'DisconnectApp' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: { kind: 'Variable', name: { kind: 'Name', value: 'connectionId' } },
+          type: { kind: 'NonNullType', type: { kind: 'NamedType', name: { kind: 'Name', value: 'ID' } } },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'disconnectApp' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'connectionId' },
+                value: { kind: 'Variable', name: { kind: 'Name', value: 'connectionId' } },
+              },
+            ],
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<DisconnectAppMutation, DisconnectAppMutationVariables>;
 export const CreateSessionDocument = {
   kind: 'Document',
   definitions: [
@@ -21519,6 +21983,7 @@ export const GetGroupedNotificationsDocument = {
                       { kind: 'Field', name: { kind: 'Name', value: 'climbAngle' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'climbFrames' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'climbCompatibleSizeIds' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'climbCharacteristics' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'threadEntityType' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'threadEntityId' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'proposalUuid' } },
@@ -27543,6 +28008,7 @@ export const GetUserAscentsFeedDocument = {
                       { kind: 'Field', name: { kind: 'Name', value: 'qualityAverage' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'isBenchmark' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'isNoMatch' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'characteristics' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'comment' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'climbedAt' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'frames' } },
@@ -27673,6 +28139,7 @@ export const GetUserAscentCaptionMatchesDocument = {
                 { kind: 'Field', name: { kind: 'Name', value: 'qualityAverage' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'isBenchmark' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'isNoMatch' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'characteristics' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'comment' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'climbedAt' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'frames' } },
@@ -27755,6 +28222,7 @@ export const GetUserGroupedAscentsFeedDocument = {
                       { kind: 'Field', name: { kind: 'Name', value: 'difficultyName' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'isBenchmark' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'isNoMatch' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'characteristics' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'date' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'flashCount' } },
                       { kind: 'Field', name: { kind: 'Name', value: 'sendCount' } },
@@ -27802,6 +28270,7 @@ export const GetUserGroupedAscentsFeedDocument = {
                             { kind: 'Field', name: { kind: 'Name', value: 'qualityAverage' } },
                             { kind: 'Field', name: { kind: 'Name', value: 'isBenchmark' } },
                             { kind: 'Field', name: { kind: 'Name', value: 'isNoMatch' } },
+                            { kind: 'Field', name: { kind: 'Name', value: 'characteristics' } },
                             { kind: 'Field', name: { kind: 'Name', value: 'comment' } },
                             { kind: 'Field', name: { kind: 'Name', value: 'climbedAt' } },
                             { kind: 'Field', name: { kind: 'Name', value: 'frames' } },

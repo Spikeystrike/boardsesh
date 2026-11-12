@@ -14,7 +14,9 @@ import { markStartup } from '../src/lib/profiling/startup-profile';
 import { initializeUserDataExportDownloads } from '../src/lib/user-data-export-download';
 import { startHoldShapeSystemDefaultSync } from '../src/lib/hold-shape-system-default';
 import { useCallback, useEffect, useLayoutEffect, useRef, useMemo, useState, type ReactNode } from 'react';
-import { LogBox, StyleSheet } from 'react-native';
+import { LogBox, Platform, StyleSheet } from 'react-native';
+import { getPlayerRouteAnimation } from '../src/lib/player-route-animation';
+import { RootNavigationStack } from '../src/components/navigation/RootNavigationStack';
 // Navigation theme comes from expo-router's vendored React Navigation. Expo
 // SDK 57's expo-router is not compatible with a separately-installed
 // @react-navigation/* package, so import these from `expo-router` directly.
@@ -59,6 +61,7 @@ import { PlaylistsAdapterWrapper } from '../src/providers/playlists-adapter';
 import { BoardProvider } from '@boardsesh/board-react';
 import { toBoardName } from '@boardsesh/board-config';
 import { PersistentQueueBar } from '../src/components/queue-control/persistent-queue-bar';
+import { TabBarVisibilityController } from '../src/components/navigation/TabBarVisibilityController';
 import { UserDrawerProvider } from '../src/components/user-drawer/UserDrawerProvider';
 import { OfflineSyncBridge, OfflineEngineFlagSync } from '../src/components/offline-sync-bridge';
 import { OfflineDownloadKeepAwake } from '../src/components/offline-download-keep-awake';
@@ -70,7 +73,6 @@ import { useActiveBoardSelfHeal } from '../src/lib/boards/use-active-board-self-
 import { useActiveBoardFollowHeal } from '../src/lib/boards/use-active-board-follow-heal';
 import { ScreenshotBoardAutoActivator } from '../src/components/screenshot-board-auto-activator';
 import { iosDarkColors } from '../src/theme/ios-colors';
-import { glassStackScreenOptions } from '../src/theme/navigation';
 import { ensurePlayDrawerSectionsLoaded } from '../src/lib/play-drawer-sections-preference';
 import { ensureClimbRowLegacySynced } from '../src/lib/climb-row-display-preference';
 import { reportError, reportHandledError } from '../src/lib/error-reporting';
@@ -92,6 +94,7 @@ import { AnalyticsGymProperties } from '../src/components/analytics/AnalyticsGym
 import { BoardOpenRecorder } from '../src/components/board-activity/BoardOpenRecorder';
 import { OtaUpdateTracker } from '../src/components/analytics/OtaUpdateTracker';
 import { LowPowerModeTracker } from '../src/components/analytics/LowPowerModeTracker';
+import { ThemeAnalyticsTracker } from '../src/components/analytics/ThemeAnalyticsTracker';
 import { InstallReferrerTracker } from '../src/components/analytics/InstallReferrerTracker';
 import { AppleAdsAttributionTracker } from '../src/components/analytics/AppleAdsAttributionTracker';
 import { KeychainNamespaceMigration } from '../src/components/KeychainNamespaceMigration';
@@ -102,6 +105,7 @@ import { RestTimerRuntime } from '../src/components/queue-control/RestTimerRunti
 import { WorkoutRunSessionSync } from '../src/components/queue-control/WorkoutRunSessionSync';
 import { CrewHolderSuspicionSync } from '../src/providers/crew-holder-suspicion';
 import { DriveModeWatcher } from '../src/components/play-drawer/DriveModeWatcher';
+import { LastPickWatcher } from '../src/components/queue-control/LastPickWatcher';
 import { ScreenshotCurrentDriveReadiness } from '../src/components/play-drawer/ScreenshotCurrentDriveReadiness';
 import { RootRestTimerPillHost } from '../src/components/queue-control/RestTimerPillHost';
 import { FoldHingeObserver } from '../src/components/navigation/FoldHingeObserver';
@@ -543,18 +547,13 @@ function RootLayout() {
                                                                       <UserDrawerProvider>
                                                                         <NavigationScopePublisher />
                                                                         <ThemedNavigation>
-                                                                          <Stack
-                                                                            // Root scenes keep the opaque, theme-aware nav background so a dark
-                                                                            // backstop sits behind the tab screens (the tab stacks paint their own
-                                                                            // transparent content over it). glassStackScreenOptions' transparent
-                                                                            // contentStyle would expose the light window background at the top of the
-                                                                            // screen in dark mode, where the floating chrome leaves it uncovered.
-                                                                            // The header props still apply to root-level pushed screens (session, about).
-                                                                            screenOptions={{
-                                                                              ...glassStackScreenOptions,
-                                                                              headerShown: false,
-                                                                              contentStyle: undefined,
-                                                                            }}
+                                                                          <RootNavigationStack
+                                                                          // Root scenes keep the opaque, theme-aware nav background so a dark
+                                                                          // backstop sits behind the tab screens (the tab stacks paint their own
+                                                                          // transparent content over it). glassStackScreenOptions' transparent
+                                                                          // contentStyle would expose the light window background at the top of the
+                                                                          // screen in dark mode, where the floating chrome leaves it uncovered.
+                                                                          // The header props still apply to root-level pushed screens (session, about).
                                                                           >
                                                                             <Stack.Screen
                                                                               name="privacy-consent"
@@ -628,6 +627,21 @@ function RootLayout() {
                                                       cover is decided here from the entry screen. iPad
                                                       never mounts NativeTabs, so rule 2 of
                                                       docs/mobile-sheets-vs-routes.md is not in play. */}
+                                                                            <Stack.Screen
+                                                                              name="spray-led-fullscreen"
+                                                                              options={{
+                                                                                presentation: 'transparentModal',
+                                                                                headerShown: false,
+                                                                                gestureEnabled: false,
+                                                                                orientation: 'all',
+                                                                                // iOS hides it from inside the route: the plist keeps
+                                                                                // view-controller status bars off, and this option then only logs an error.
+                                                                                statusBarHidden:
+                                                                                  Platform.OS === 'android',
+                                                                                navigationBarHidden: true,
+                                                                                autoHideHomeIndicator: true,
+                                                                              }}
+                                                                            />
                                                                             <Stack.Screen
                                                                               name="boards"
                                                                               options={{
@@ -771,12 +785,16 @@ function RootLayout() {
                                                                                 // RNGH pull-down (use-drawer-dismiss-gesture) drives
                                                                                 // dismissal from the whole surface instead.
                                                                                 gestureEnabled: false,
-                                                                                animation: 'slide_from_bottom',
+                                                                                animation: getPlayerRouteAnimation(
+                                                                                  Platform.OS,
+                                                                                ),
                                                                               }}
                                                                             />
-                                                                          </Stack>
+                                                                          </RootNavigationStack>
                                                                         </ThemedNavigation>
                                                                         <PersistentQueueBar />
+                                                                        {/* Opens the Android nav bar's hide-on-scroll gate and shows the bar again on every route change. Null render. */}
+                                                                        <TabBarVisibilityController />
                                                                         <OfflineSyncBridge />
                                                                         {/* Holds the screen awake while a board download the
                                                             climber started is running (#4310). Renders nothing
@@ -797,6 +815,10 @@ function RootLayout() {
                                                                         {/* Driving the wall (#7113): renders nothing; ends the drive
                                                                             when the link drops, the session or board changes, or on sign-out. */}
                                                                         <DriveModeWatcher />
+                                                                        {/* The climber's last pick (owner decision A): renders
+                                                                            nothing; ends it when the queue's current, the board
+                                                                            or the account changes. */}
+                                                                        <LastPickWatcher />
                                                                         {process.env.EXPO_PUBLIC_SCREENSHOT_MODE ===
                                                                           '1' &&
                                                                         process.env.EXPO_PUBLIC_SCREENSHOT_DRIVING ===
@@ -884,6 +906,7 @@ function RootLayout() {
                                                                     <ImageCacheTabSweeper />
                                                                     <OtaUpdateTracker />
                                                                     <LowPowerModeTracker />
+                                                                    <ThemeAnalyticsTracker />
                                                                     <InstallReferrerTracker />
                                                                     <AppleAdsAttributionTracker />
                                                                     <KeychainNamespaceMigration />

@@ -43,6 +43,7 @@ function makeInput(overrides: Partial<ClimbFilterFormInput> = {}): ClimbFilterFo
       selected: 'all',
       onSelect: vi.fn(),
     } as unknown as ClimbFilterFormInput['collection'],
+    benchmarks: null,
     popularity: { onStatusChange: vi.fn(), onBucket: vi.fn() },
     climbType: {
       show: true,
@@ -105,6 +106,20 @@ function rowKeys(rows: ClimbFilterFormRow[]): string[] {
 }
 
 describe('buildClimbFilterFormModel', () => {
+  it('puts the benchmarks switch under Collection, with what the word means when it needs saying', () => {
+    expect(rowKeys(sectionOf(makeInput(), 'quality').rows)).not.toContain('benchmarks');
+
+    const onValueChange = vi.fn();
+    const input = makeInput({
+      benchmarks: { label: 'Only Verified climbs', subtitle: 'Picked by Kilter.', value: true, onValueChange },
+    });
+    expect(rowKeys(sectionOf(input, 'quality').rows).slice(0, 2)).toEqual(['collection', 'benchmarks']);
+    const row = rowOf(input, 'quality', 'benchmarks', 'toggle');
+    expect(row).toMatchObject({ label: 'Only Verified climbs', subtitle: 'Picked by Kilter.', value: true });
+    row.onValueChange(false);
+    expect(onValueChange).toHaveBeenCalledWith(false);
+  });
+
   it('lays a full Climbs input out in the RN sheet order', () => {
     const { sections } = buildClimbFilterFormModel(makeInput());
     expect(sections.map((section) => section.key)).toEqual([

@@ -81,14 +81,12 @@ export function isClimbType(value: string): value is ClimbTypeFilter {
 }
 
 /**
- * Label for the "Collection" single-select: the chip shows "Benchmarks" / "My
- * drafts" / "Liked" when active, and "Any" for the neutral value (the resting chip uses the
+ * Label for the "Collection" single-select: the chip shows "My drafts" /
+ * "Liked" when active, and "Any" for the neutral value (the resting chip uses the
  * group name "Collection" instead — see the call site).
  */
 export function collectionChipLabel(value: CollectionFilter, t: TFunction<'climbs'>, isSprayWall = false): string {
   switch (value) {
-    case 'benchmarks':
-      return t('mobile.filter.benchmark');
     case 'drafts':
       return isSprayWall ? t('mobile.filter.wallDrafts') : t('mobile.filter.drafts');
     case 'liked':

@@ -4,6 +4,9 @@ import type { DbInstance } from '@boardsesh/db/client';
 import { BACKGROUND_JOB_RECONCILE_QUEUE } from '@boardsesh/db/background-jobs';
 import { backgroundJobRuns } from '@boardsesh/db/schema';
 import { clearFinishedProviderSyncRuns, reconcileBackgroundJobRun } from '@boardsesh/db/queries';
+import { deleteExpiredCommandClaims } from '../auth/current-store/command-context';
+import { purgeRetiredEmailKeys } from '../auth/current-store/email-reservations';
+import { logger } from '../utils/logger';
 import { MAINTENANCE_POLLING_INTERVAL_SECONDS } from './job-queue-client';
 
 /** Backend-owned, bounded and fair even while every homelab consumer is offline. */
@@ -52,6 +55,28 @@ export function backgroundJobReconciler(database: DbInstance) {
   };
 }
 
+/**
+ * Expired staged-auth records, whatever the mode: rows written while a staged
+ * mode was on must still go after it is switched off, and with none it is two
+ * empty reads. Replay records (`ba03-web-auth:`) go once expired; a deleted
+ * address's digest goes 90 days after the deletion.
+ */
+export async function clearExpiredAuthRecords(database: DbInstance): Promise<void> {
+  // SQL failures can carry bound values. Keep fixed categories; the next minute retries.
+  try {
+    // A prefix LIKE cannot use the text primary key under en_US collation, so this
+    // reads all of verificationTokens each minute: 32 kB in production on 2026-11-11.
+    await deleteExpiredCommandClaims(database);
+  } catch {
+    logger.warn('Current-store command claim cleanup unavailable');
+  }
+  try {
+    await purgeRetiredEmailKeys(database);
+  } catch {
+    logger.warn('Deleted-address digest cleanup unavailable');
+  }
+}
+
 export async function startBackgroundJobMaintenance(boss: PgBoss, database: DbInstance): Promise<void> {
   await boss.schedule(BACKGROUND_JOB_RECONCILE_QUEUE, '* * * * *', {}, { tz: 'UTC' });
   const reconcile = backgroundJobReconciler(database);
@@ -60,6 +85,7 @@ export async function startBackgroundJobMaintenance(boss: PgBoss, database: DbIn
     { localConcurrency: 1, batchSize: 1, pollingIntervalSeconds: MAINTENANCE_POLLING_INTERVAL_SECONDS },
     async () => {
       await reconcile();
+      await clearExpiredAuthRecords(database);
     },
   );
 }

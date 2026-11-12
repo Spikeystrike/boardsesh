@@ -190,6 +190,11 @@ export type ConnectionContext = {
   // separately from clientIp so a direct-origin caller cannot evade the
   // secondary rate-limit bucket by forging cf-connecting-ip (issue #4038).
   socketPeerIp?: string;
+  // A per-address limit key no caller can choose (getTrustedClientIp in
+  // packages/backend/src/utils/client-ip.ts): cf-connecting-ip only from a
+  // verified Cloudflare edge, otherwise the hop our private ingress appended or
+  // the socket peer; an IPv6 client is its /64. Unset on test contexts.
+  trustedClientIp?: string;
   // Cloudflare's country for an HTTP request, accepted only from a trusted
   // edge hop (resolveFlagCountry in packages/backend/src/utils/flag-country.ts);
   // 'XX' when unknown or untrusted, undefined on WebSocket and test contexts.
@@ -213,4 +218,10 @@ export type ConnectionContext = {
   controllerId?: string;
   controllerApiKey?: string;
   controllerMac?: string; // Controller's MAC address (used as clientId for BLE disconnect logic)
+  // The user who owns the controller API key this connection presented. Read
+  // access only: it lets a wall device (an ESP32 or an external projector)
+  // read its owner's own boards through `readViewerIdForBoard`. It is NOT a
+  // login: `userId` and `isAuthenticated` stay unset, so every mutation,
+  // queue, session and account resolver still treats the socket as anonymous.
+  controllerOwnerUserId?: string;
 };

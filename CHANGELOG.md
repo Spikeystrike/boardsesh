@@ -4,6 +4,167 @@ User-facing changes to Boardsesh, newest first. Auto-generated from the "Release
 Notes" section of merged pull requests — do not edit by hand (a CI check rejects
 manual changes). See docs/mobile-ota-updates.md.
 
+## 2026-11-10
+
+### New
+
+- Verified climbs get their own quick filter, right after Grade ([#7388](https://github.com/boardsesh/boardsesh/pull/7388))
+  Combine Verified with Liked or My drafts; other boards call it Benchmarks
+- Links to Boardsesh pages now show a lit board in chat and social previews ([#7383](https://github.com/boardsesh/boardsesh/pull/7383))
+- Kilter climbs now carry Kilter's own Verified mark ([#7359](https://github.com/boardsesh/boardsesh/pull/7359))
+  Find them in Filter under Collection, or use Verified only in a workout
+
+### Fixed
+
+- Fewer failed loads in the app when Boardsesh is busy. ([#7381](https://github.com/boardsesh/boardsesh/pull/7381))
+
+## 2026-11-09
+
+### New
+
+- Follow playlists and setters with one tap on a smaller icon ([#7344](https://github.com/boardsesh/boardsesh/pull/7344))
+  Share any public playlist or setter with your crew
+
+### Fixed
+
+- Email verification links now bring you back to Boardsesh instead of a dead page. ([#7362](https://github.com/boardsesh/boardsesh/pull/7362))
+- Old sessions stop working after account deletion. Sign-in recovers when a connection outage clears. ([#7350](https://github.com/boardsesh/boardsesh/pull/7350))
+
+## 2026-11-08
+
+### New
+
+- A new neutral near-black dark theme on Android, and a cleaner, less purple light mode. ([#7333](https://github.com/boardsesh/boardsesh/pull/7333))
+- The Climbs screen on Android gives your list more room ([#7330](https://github.com/boardsesh/boardsesh/pull/7330))
+  A slimmer header, with the climb on the wall right in the top bar, thumbnail and all
+  Create a climb now lives in the ⋮ menu on Android phones
+- On Android, the tab bar tucks away while you scroll climbs, so you see more of the list. Scroll up to get it back. ([#7328](https://github.com/boardsesh/boardsesh/pull/7328))
+
+### Fixed
+
+- Sheets on Android now match the app's colours instead of your wallpaper. ([#7332](https://github.com/boardsesh/boardsesh/pull/7332))
+- New Kilter climbs can finish syncing across board layouts. ([#7334](https://github.com/boardsesh/boardsesh/pull/7334))
+
+## 2026-11-07
+
+### New
+
+- The Android tab bar is slimmer, so you see more climbs. ([#7325](https://github.com/boardsesh/boardsesh/pull/7325))
+- On Android, the climb you're on now sits in a floating card with the same controls as iPhone. ([#7326](https://github.com/boardsesh/boardsesh/pull/7326))
+
+### Fixed
+
+- Add screenshots while typing reports or test notes, and close drafts without getting stuck. ([#7314](https://github.com/boardsesh/boardsesh/pull/7314))
+- Open climbs quickly on Android while keeping the sheet motion. ([#7317](https://github.com/boardsesh/boardsesh/pull/7317))
+
+## 2026-11-05
+
+### New
+
+- Get a key for your Spraywall's projector or display without picking a Kilter or Tension board. ([#7276](https://github.com/boardsesh/boardsesh/pull/7276))
+
+### Improved
+
+- Got a laser or LED box that lights climbs over the internet? Turn on "Lit by a wall device" in Edit board and your crew can put climbs up without Bluetooth ([#7271](https://github.com/boardsesh/boardsesh/pull/7271))
+
+### Fixed
+
+- The board angle stays on the Climbs header, next to your avatar ([#7295](https://github.com/boardsesh/boardsesh/pull/7295))
+  The climb on the wall shows its name, grade and who lit it; swipe it left to hide it
+  New climb is in the ⋯ menu on Climbs
+- Keep finding nearby gyms when the Android map won't load, with a larger list and a map retry. ([#7292](https://github.com/boardsesh/boardsesh/pull/7292))
+
+## 2026-11-03
+
+### App update
+
+A new version shipped to the App Store and Play Store.
+
+### New
+
+- Privacy choices on the website now covers ad measurement with Meta and Reddit, and you can switch it off there anytime. ([#7258](https://github.com/boardsesh/boardsesh/pull/7258))
+
+### Improved
+
+- Laser and LED add-ons can now light your private spray walls using your controller key ([#7263](https://github.com/boardsesh/boardsesh/pull/7263))
+- Put a climb Up next straight from the player, including on fixed-angle walls. ([#7255](https://github.com/boardsesh/boardsesh/pull/7255))
+  Choose Play next instead of Angle in the player's button settings.
+- The help pages are easier to read, with clearer guide cards and framed app screenshots ([#7262](https://github.com/boardsesh/boardsesh/pull/7262))
+- The support banner on boardsesh.com now says every contribution helps, once off or monthly. ([#7267](https://github.com/boardsesh/boardsesh/pull/7267))
+- With VoiceOver or TalkBack on, Undo after clearing your queue waits 80 seconds and your screen reader lands right on it. ([#7244](https://github.com/boardsesh/boardsesh/pull/7244))
+- When someone takes the board while you drive, your phone tells you who ([#7234](https://github.com/boardsesh/boardsesh/pull/7234))
+  A board that drops mid-drive now says so, beside the climb
+- With a queue going, the player tells you where your next swipe goes: "Up next · 2 of 4 · then Projects". ([#7239](https://github.com/boardsesh/boardsesh/pull/7239))
+  Your first swipe through search results or a playlist says how many climbs wait in Up next.
+  A light tick when a swipe leaves your queue and picks your list back up.
+  At the end of a list, "Back to your queue" names the climb it takes you back to.
+  Screen readers hear which list Next and Previous walk, in the player and the mini player.
+- Can't find your board? Tips show 5 seconds into the scan while it keeps looking. ([#7233](https://github.com/boardsesh/boardsesh/pull/7233))
+  Browse for now closes the board picker so you can keep picking climbs.
+  The Bluetooth scan on the Boards tab shows the same tips.
+- Your queue now shows what's on, what's up next, and the list your swipes carry on with ([#7238](https://github.com/boardsesh/boardsesh/pull/7238))
+  Popular climbs on your board sit in their own section, apart from your list
+
+### Fixed
+
+- Long climb names scroll again in the player. ([#7254](https://github.com/boardsesh/boardsesh/pull/7254))
+- Said no to Bluetooth by mistake on Android? Tap Try again and get asked once more. ([#6073](https://github.com/boardsesh/boardsesh/pull/6073))
+- Grade charts on your profile and session pages show full grades like V10, never "V…" ([#7231](https://github.com/boardsesh/boardsesh/pull/7231))
+- Tap any lightbulb while you drive the wall and it just stops driving. Your board stays connected; tap again to disconnect. ([#7252](https://github.com/boardsesh/boardsesh/pull/7252))
+- Playlists you delete stay deleted, even ones synced from Kilter. ([#7249](https://github.com/boardsesh/boardsesh/pull/7249))
+- Play next on a climb you already did now really comes up next, even mid-list. ([#7251](https://github.com/boardsesh/boardsesh/pull/7251))
+  Climb still skipped from an older version? Tap Play next on it once more.
+- Tap Next or Previous on your Lock Screen as your drive runs out, and the board stays connected. ([#7242](https://github.com/boardsesh/boardsesh/pull/7242))
+- Climbs opened from your Logbook, the home feed, or a notification now show their real matching and feet rules on Woods. Tapping a notification for a no-match climb shows its ⊘ again, and Logbook and session rows now show campus, any-feet and no-kickboard badges. ([#5257](https://github.com/boardsesh/boardsesh/pull/5257))
+
+## 2026-11-02
+
+### App update
+
+A new version shipped to the App Store and Play Store.
+
+### Improved
+
+- Learn preview browsing and Put on board from fresh Help clips. ([#7232](https://github.com/boardsesh/boardsesh/pull/7232))
+- Clear your queue from the ⋯ menu in the queue. ([#7228](https://github.com/boardsesh/boardsesh/pull/7228))
+- A climb you open from a link or notification while the app starts stays in the mini player. ([#7222](https://github.com/boardsesh/boardsesh/pull/7222))
+- In a crew session, your drive starts only once your own wall lights, not a crewmate's. ([#7221](https://github.com/boardsesh/boardsesh/pull/7221))
+- Hung up the board by mistake? Tap the bulb again within 10 minutes to reconnect, no board list. ([#7224](https://github.com/boardsesh/boardsesh/pull/7224))
+  Kilter boxes that show up as plain "Kilter Board" are remembered now, so the next tap reconnects.
+- Always drive the wall keeps you driving the wall: every climb you pick lights while you're connected. ([#7218](https://github.com/boardsesh/boardsesh/pull/7218))
+  It replaces the two lighting switches. If you had either on, it's on for you.
+  A MoonBoard now stops driving like any board: after your Stop driving after time (45 seconds to start with), and in a crew only with In a session too on.
+  If you had changed the MoonBoard's own timer, your Stop driving after choice applies now.
+- The mini player's bulb shows a ring that empties as your drive runs out. ([#7213](https://github.com/boardsesh/boardsesh/pull/7213))
+  On the Lock Screen and in the Dynamic Island, the draining ring alone shows the time left.
+- The climb on the wall now stays at the top of Climbs for an hour after it's lit, even when it's your own pick. ([#7216](https://github.com/boardsesh/boardsesh/pull/7216))
+  Tap × to hide it. It stays hidden until a different climb goes up.
+- Help pages now explain browsing before lighting and how long Put on board keeps lighting. ([#7207](https://github.com/boardsesh/boardsesh/pull/7207))
+  Settings › Board links straight to how driving the wall works.
+  Replay walkthrough brings back the card about previews and the frosted button.
+- Hold a climb or tap ⋯ for the same menu, with the climb lifted above the list. ([#7205](https://github.com/boardsesh/boardsesh/pull/7205))
+- Your Lock Screen and notification show how long picks keep lighting the wall. ([#7203](https://github.com/boardsesh/boardsesh/pull/7203))
+  Next and Previous on the Lock Screen keep the countdown going.
+  Driving the wall shows a full amber bulb, so you know every pick lights.
+- Browse climbs without lighting the wall: a tap shows the climb, Put on board lights it. ([#7188](https://github.com/boardsesh/boardsesh/pull/7188))
+  Put on board drives the wall: every climb you pick lights until 45 s after the last one. A MoonBoard drives until you stop.
+  Choose when driving stops in Settings › Board, and whether Bluetooth lets go when it does.
+  The mini player keeps the climb you last opened.
+  Swipe the button left to drive the wall for the whole session.
+- The support page button now reads "Support us". ([#7204](https://github.com/boardsesh/boardsesh/pull/7204))
+
+### Fixed
+
+- On Android, a board that misses your first Connect tap now gets a second try on its own. ([#4153](https://github.com/boardsesh/boardsesh/pull/4153))
+  When the app moves you to another board and can't reach it, the message now says so.
+- Swiping keeps going past the end of your queue again. ([#7230](https://github.com/boardsesh/boardsesh/pull/7230))
+  Swipe back after your queue and you retrace it, climb by climb.
+- Tap the glowing bulb on your Lock Screen to stop driving the wall ([#7214](https://github.com/boardsesh/boardsesh/pull/7214))
+  Tap to reconnect on the Lock Screen gets your board back, or tells you why it couldn't
+- Swiping to the next climb works even while its holds are still loading. ([#7210](https://github.com/boardsesh/boardsesh/pull/7210))
+- Your MoonBoard and older Kilter boxes show up in the board list again. ([#7202](https://github.com/boardsesh/boardsesh/pull/7202))
+  Boards you haven't connected to before are listed too.
+
 ## 2026-11-01
 
 ### New

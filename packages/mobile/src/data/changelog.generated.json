@@ -1,6 +1,420 @@
 {
-  "generatedAt": "2026-11-01T21:09:43.631Z",
+  "generatedAt": "2026-11-10T08:14:25.949Z",
   "entries": [
+    {
+      "prNumber": 7388,
+      "category": "new",
+      "title": "Verified climbs get their own quick filter, right after Grade",
+      "mergedAt": "2026-11-10T08:00:08Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7388",
+      "body": "Combine Verified with Liked or My drafts; other boards call it Benchmarks"
+    },
+    {
+      "prNumber": 7381,
+      "category": "fixed",
+      "title": "Fewer failed loads in the app when Boardsesh is busy.",
+      "mergedAt": "2026-11-10T06:59:23Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7381"
+    },
+    {
+      "prNumber": 7383,
+      "category": "new",
+      "title": "Links to Boardsesh pages now show a lit board in chat and social previews",
+      "mergedAt": "2026-11-10T06:58:17Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7383"
+    },
+    {
+      "prNumber": 7359,
+      "category": "new",
+      "title": "Kilter climbs now carry Kilter's own Verified mark",
+      "mergedAt": "2026-11-10T06:42:35Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7359",
+      "body": "Find them in Filter under Collection, or use Verified only in a workout"
+    },
+    {
+      "prNumber": 7362,
+      "category": "fixed",
+      "title": "Email verification links now bring you back to Boardsesh instead of a dead page.",
+      "mergedAt": "2026-11-09T17:23:33Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7362"
+    },
+    {
+      "prNumber": 7350,
+      "category": "fixed",
+      "title": "Old sessions stop working after account deletion. Sign-in recovers when a connection outage clears.",
+      "mergedAt": "2026-11-09T14:32:49Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7350"
+    },
+    {
+      "prNumber": 7344,
+      "category": "new",
+      "title": "Follow playlists and setters with one tap on a smaller icon",
+      "mergedAt": "2026-11-09T09:03:12Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7344",
+      "body": "Share any public playlist or setter with your crew"
+    },
+    {
+      "prNumber": 7332,
+      "category": "fixed",
+      "title": "Sheets on Android now match the app's colours instead of your wallpaper.",
+      "mergedAt": "2026-11-08T18:15:25Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7332"
+    },
+    {
+      "prNumber": 7333,
+      "category": "new",
+      "title": "A new neutral near-black dark theme on Android, and a cleaner, less purple light mode.",
+      "mergedAt": "2026-11-08T18:15:05Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7333"
+    },
+    {
+      "prNumber": 7334,
+      "category": "fixed",
+      "title": "New Kilter climbs can finish syncing across board layouts.",
+      "mergedAt": "2026-11-08T09:25:37Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7334"
+    },
+    {
+      "prNumber": 7330,
+      "category": "new",
+      "title": "The Climbs screen on Android gives your list more room",
+      "mergedAt": "2026-11-08T08:32:58Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7330",
+      "body": "A slimmer header, with the climb on the wall right in the top bar, thumbnail and all\nCreate a climb now lives in the ⋮ menu on Android phones"
+    },
+    {
+      "prNumber": 7328,
+      "category": "new",
+      "title": "On Android, the tab bar tucks away while you scroll climbs, so you see more of the list. Scroll up to get it back.",
+      "mergedAt": "2026-11-08T07:06:11Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7328"
+    },
+    {
+      "prNumber": 7314,
+      "category": "fixed",
+      "title": "Add screenshots while typing reports or test notes, and close drafts without getting stuck.",
+      "mergedAt": "2026-11-07T18:27:02Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7314"
+    },
+    {
+      "prNumber": 7325,
+      "category": "new",
+      "title": "The Android tab bar is slimmer, so you see more climbs.",
+      "mergedAt": "2026-11-07T18:26:42Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7325"
+    },
+    {
+      "prNumber": 7326,
+      "category": "new",
+      "title": "On Android, the climb you're on now sits in a floating card with the same controls as iPhone.",
+      "mergedAt": "2026-11-07T16:08:33Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7326"
+    },
+    {
+      "prNumber": 7317,
+      "category": "fixed",
+      "title": "Open climbs quickly on Android while keeping the sheet motion.",
+      "mergedAt": "2026-11-07T15:30:05Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7317"
+    },
+    {
+      "prNumber": 7295,
+      "category": "fixed",
+      "title": "The board angle stays on the Climbs header, next to your avatar",
+      "mergedAt": "2026-11-05T13:12:53Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7295",
+      "body": "The climb on the wall shows its name, grade and who lit it; swipe it left to hide it\nNew climb is in the ⋯ menu on Climbs"
+    },
+    {
+      "prNumber": 7292,
+      "category": "fixed",
+      "title": "Keep finding nearby gyms when the Android map won't load, with a larger list and a map retry.",
+      "mergedAt": "2026-11-05T07:29:43Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7292"
+    },
+    {
+      "prNumber": 7271,
+      "category": "improved",
+      "title": "Got a laser or LED box that lights climbs over the internet? Turn on \"Lit by a wall device\" in Edit board and your crew can put climbs up without Bluetooth",
+      "mergedAt": "2026-11-05T05:51:25Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7271"
+    },
+    {
+      "prNumber": 7276,
+      "category": "new",
+      "title": "Get a key for your Spraywall's projector or display without picking a Kilter or Tension board.",
+      "mergedAt": "2026-11-05T05:48:17Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7276"
+    },
+    {
+      "prNumber": 7263,
+      "category": "improved",
+      "title": "Laser and LED add-ons can now light your private spray walls using your controller key",
+      "mergedAt": "2026-11-03T15:11:49Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7263"
+    },
+    {
+      "prNumber": 7255,
+      "category": "improved",
+      "title": "Put a climb Up next straight from the player, including on fixed-angle walls.",
+      "mergedAt": "2026-11-03T14:34:20Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7255",
+      "body": "Choose Play next instead of Angle in the player's button settings."
+    },
+    {
+      "prNumber": 7262,
+      "category": "improved",
+      "title": "The help pages are easier to read, with clearer guide cards and framed app screenshots",
+      "mergedAt": "2026-11-03T14:06:06Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7262"
+    },
+    {
+      "prNumber": 7267,
+      "category": "improved",
+      "title": "The support banner on boardsesh.com now says every contribution helps, once off or monthly.",
+      "mergedAt": "2026-11-03T14:05:54Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7267"
+    },
+    {
+      "prNumber": 7258,
+      "category": "new",
+      "title": "Privacy choices on the website now covers ad measurement with Meta and Reddit, and you can switch it off there anytime.",
+      "mergedAt": "2026-11-03T13:06:26Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7258"
+    },
+    {
+      "prNumber": 7244,
+      "category": "improved",
+      "title": "With VoiceOver or TalkBack on, Undo after clearing your queue waits 80 seconds and your screen reader lands right on it.",
+      "mergedAt": "2026-11-03T11:54:22Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7244"
+    },
+    {
+      "prNumber": 7254,
+      "category": "fixed",
+      "title": "Long climb names scroll again in the player.",
+      "mergedAt": "2026-11-03T11:31:53Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7254"
+    },
+    {
+      "prNumber": 6073,
+      "category": "fixed",
+      "title": "Said no to Bluetooth by mistake on Android? Tap Try again and get asked once more.",
+      "mergedAt": "2026-11-03T11:30:52Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/6073"
+    },
+    {
+      "prNumber": 7231,
+      "category": "fixed",
+      "title": "Grade charts on your profile and session pages show full grades like V10, never \"V…\"",
+      "mergedAt": "2026-11-03T11:29:42Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7231"
+    },
+    {
+      "prNumber": 7252,
+      "category": "fixed",
+      "title": "Tap any lightbulb while you drive the wall and it just stops driving. Your board stays connected; tap again to disconnect.",
+      "mergedAt": "2026-11-03T11:09:13Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7252"
+    },
+    {
+      "prNumber": 7249,
+      "category": "fixed",
+      "title": "Playlists you delete stay deleted, even ones synced from Kilter.",
+      "mergedAt": "2026-11-03T10:52:42Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7249"
+    },
+    {
+      "prNumber": 7251,
+      "category": "fixed",
+      "title": "Play next on a climb you already did now really comes up next, even mid-list.",
+      "mergedAt": "2026-11-03T10:23:05Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7251",
+      "body": "Climb still skipped from an older version? Tap Play next on it once more."
+    },
+    {
+      "prNumber": 7242,
+      "category": "fixed",
+      "title": "Tap Next or Previous on your Lock Screen as your drive runs out, and the board stays connected.",
+      "mergedAt": "2026-11-03T08:06:20Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7242"
+    },
+    {
+      "prNumber": 7234,
+      "category": "improved",
+      "title": "When someone takes the board while you drive, your phone tells you who",
+      "mergedAt": "2026-11-03T07:31:05Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7234",
+      "body": "A board that drops mid-drive now says so, beside the climb"
+    },
+    {
+      "prNumber": 7239,
+      "category": "improved",
+      "title": "With a queue going, the player tells you where your next swipe goes: \"Up next · 2 of 4 · then Projects\".",
+      "mergedAt": "2026-11-03T07:25:47Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7239",
+      "body": "Your first swipe through search results or a playlist says how many climbs wait in Up next.\nA light tick when a swipe leaves your queue and picks your list back up.\nAt the end of a list, \"Back to your queue\" names the climb it takes you back to.\nScreen readers hear which list Next and Previous walk, in the player and the mini player."
+    },
+    {
+      "prNumber": 7233,
+      "category": "improved",
+      "title": "Can't find your board? Tips show 5 seconds into the scan while it keeps looking.",
+      "mergedAt": "2026-11-03T07:22:04Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7233",
+      "body": "Browse for now closes the board picker so you can keep picking climbs.\nThe Bluetooth scan on the Boards tab shows the same tips."
+    },
+    {
+      "prNumber": 5257,
+      "category": "fixed",
+      "title": "Climbs opened from your Logbook, the home feed, or a notification now show their real matching and feet rules on Woods. Tapping a notification for a no-match climb shows its ⊘ again, and Logbook and session rows now show campus, any-feet and no-kickboard badges.",
+      "mergedAt": "2026-11-03T07:21:11Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/5257"
+    },
+    {
+      "prNumber": 7238,
+      "category": "improved",
+      "title": "Your queue now shows what's on, what's up next, and the list your swipes carry on with",
+      "mergedAt": "2026-11-03T07:20:10Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7238",
+      "body": "Popular climbs on your board sit in their own section, apart from your list"
+    },
+    {
+      "prNumber": 4153,
+      "category": "fixed",
+      "title": "On Android, a board that misses your first Connect tap now gets a second try on its own.",
+      "mergedAt": "2026-11-02T22:13:41Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/4153",
+      "body": "When the app moves you to another board and can't reach it, the message now says so."
+    },
+    {
+      "prNumber": 7232,
+      "category": "improved",
+      "title": "Learn preview browsing and Put on board from fresh Help clips.",
+      "mergedAt": "2026-11-02T22:03:48Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7232"
+    },
+    {
+      "prNumber": 7230,
+      "category": "fixed",
+      "title": "Swiping keeps going past the end of your queue again.",
+      "mergedAt": "2026-11-02T21:08:49Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7230",
+      "body": "Swipe back after your queue and you retrace it, climb by climb."
+    },
+    {
+      "prNumber": 7228,
+      "category": "improved",
+      "title": "Clear your queue from the ⋯ menu in the queue.",
+      "mergedAt": "2026-11-02T19:15:49Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7228"
+    },
+    {
+      "prNumber": 7222,
+      "category": "improved",
+      "title": "A climb you open from a link or notification while the app starts stays in the mini player.",
+      "mergedAt": "2026-11-02T19:14:47Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7222"
+    },
+    {
+      "prNumber": 7221,
+      "category": "improved",
+      "title": "In a crew session, your drive starts only once your own wall lights, not a crewmate's.",
+      "mergedAt": "2026-11-02T19:14:29Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7221"
+    },
+    {
+      "prNumber": 7224,
+      "category": "improved",
+      "title": "Hung up the board by mistake? Tap the bulb again within 10 minutes to reconnect, no board list.",
+      "mergedAt": "2026-11-02T19:13:24Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7224",
+      "body": "Kilter boxes that show up as plain \"Kilter Board\" are remembered now, so the next tap reconnects."
+    },
+    {
+      "prNumber": 7218,
+      "category": "improved",
+      "title": "Always drive the wall keeps you driving the wall: every climb you pick lights while you're connected.",
+      "mergedAt": "2026-11-02T17:02:32Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7218",
+      "body": "It replaces the two lighting switches. If you had either on, it's on for you.\nA MoonBoard now stops driving like any board: after your Stop driving after time (45 seconds to start with), and in a crew only with In a session too on.\nIf you had changed the MoonBoard's own timer, your Stop driving after choice applies now."
+    },
+    {
+      "prNumber": 7213,
+      "category": "improved",
+      "title": "The mini player's bulb shows a ring that empties as your drive runs out.",
+      "mergedAt": "2026-11-02T16:01:29Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7213",
+      "body": "On the Lock Screen and in the Dynamic Island, the draining ring alone shows the time left."
+    },
+    {
+      "prNumber": 7214,
+      "category": "fixed",
+      "title": "Tap the glowing bulb on your Lock Screen to stop driving the wall",
+      "mergedAt": "2026-11-02T15:05:55Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7214",
+      "body": "Tap to reconnect on the Lock Screen gets your board back, or tells you why it couldn't"
+    },
+    {
+      "prNumber": 7216,
+      "category": "improved",
+      "title": "The climb on the wall now stays at the top of Climbs for an hour after it's lit, even when it's your own pick.",
+      "mergedAt": "2026-11-02T14:53:48Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7216",
+      "body": "Tap × to hide it. It stays hidden until a different climb goes up."
+    },
+    {
+      "prNumber": 7210,
+      "category": "fixed",
+      "title": "Swiping to the next climb works even while its holds are still loading.",
+      "mergedAt": "2026-11-02T13:24:04Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7210"
+    },
+    {
+      "prNumber": 7207,
+      "category": "improved",
+      "title": "Help pages now explain browsing before lighting and how long Put on board keeps lighting.",
+      "mergedAt": "2026-11-02T12:54:34Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7207",
+      "body": "Settings › Board links straight to how driving the wall works.\nReplay walkthrough brings back the card about previews and the frosted button."
+    },
+    {
+      "prNumber": 7205,
+      "category": "improved",
+      "title": "Hold a climb or tap ⋯ for the same menu, with the climb lifted above the list.",
+      "mergedAt": "2026-11-02T11:45:23Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7205"
+    },
+    {
+      "prNumber": 7203,
+      "category": "improved",
+      "title": "Your Lock Screen and notification show how long picks keep lighting the wall.",
+      "mergedAt": "2026-11-02T11:44:19Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7203",
+      "body": "Next and Previous on the Lock Screen keep the countdown going.\nDriving the wall shows a full amber bulb, so you know every pick lights."
+    },
+    {
+      "prNumber": 7188,
+      "category": "improved",
+      "title": "Browse climbs without lighting the wall: a tap shows the climb, Put on board lights it.",
+      "mergedAt": "2026-11-02T10:48:18Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7188",
+      "body": "Put on board drives the wall: every climb you pick lights until 45 s after the last one. A MoonBoard drives until you stop.\nChoose when driving stops in Settings › Board, and whether Bluetooth lets go when it does.\nThe mini player keeps the climb you last opened.\nSwipe the button left to drive the wall for the whole session."
+    },
+    {
+      "prNumber": 7204,
+      "category": "improved",
+      "title": "The support page button now reads \"Support us\".",
+      "mergedAt": "2026-11-02T08:18:11Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7204"
+    },
+    {
+      "prNumber": 7202,
+      "category": "fixed",
+      "title": "Your MoonBoard and older Kilter boxes show up in the board list again.",
+      "mergedAt": "2026-11-02T07:48:08Z",
+      "prUrl": "https://github.com/boardsesh/boardsesh/pull/7202",
+      "body": "Boards you haven't connected to before are listed too."
+    },
     {
       "prNumber": 7193,
       "category": "new",
@@ -9049,6 +9463,56 @@
     }
   ],
   "nativeReleases": [
+    {
+      "kind": "native-release",
+      "date": "2026-11-03T08:06:20Z",
+      "sha": "7b8b3ffef6cbea8f211b43e5ab768ac4d8dd3ba7",
+      "platforms": [
+        "android",
+        "ios"
+      ],
+      "fingerprints": {
+        "android": "150446bcfb84ecc366353bfd596306caf5d4f17f",
+        "ios": "e171c5f7e69ad32d3915a5ae23155914015b5092"
+      }
+    },
+    {
+      "kind": "native-release",
+      "date": "2026-11-02T16:01:29Z",
+      "sha": "1fdc3c6a219a1c565404871dc836ac0125cc8e94",
+      "platforms": [
+        "android",
+        "ios"
+      ],
+      "fingerprints": {
+        "android": "93536c7b33d7e0855118b16333acdb64177cda8e",
+        "ios": "30a6350779dbd6c505f9177548fe9f80349f291c"
+      }
+    },
+    {
+      "kind": "native-release",
+      "date": "2026-11-02T15:05:55Z",
+      "sha": "89e63970da7594385ac2be6aa0029a56b64bbe00",
+      "platforms": [
+        "ios"
+      ],
+      "fingerprints": {
+        "ios": "54a995834ef1733b90156fa37ed9b2c097c221b7"
+      }
+    },
+    {
+      "kind": "native-release",
+      "date": "2026-11-02T11:45:22Z",
+      "sha": "e3a4fc467f88b2f93823c2dec34279a172d6dadc",
+      "platforms": [
+        "android",
+        "ios"
+      ],
+      "fingerprints": {
+        "android": "1e5c2708a94683a437bc4fecf3a601cd58479914",
+        "ios": "3f21522481fdab4e3c7b8a8508f2214a7cbc46c9"
+      }
+    },
     {
       "kind": "native-release",
       "date": "2026-10-30T19:47:00Z",

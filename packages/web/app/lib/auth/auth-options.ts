@@ -1,5 +1,6 @@
 import type { NextAuthOptions } from 'next-auth';
 import { randomUUID } from 'node:crypto';
+import * as Sentry from '@sentry/nextjs';
 import { DrizzleAdapter } from '@auth/drizzle-adapter';
 import GoogleProvider from 'next-auth/providers/google';
 import AppleProvider from 'next-auth/providers/apple';
@@ -9,10 +10,13 @@ import { getDb } from '@/app/lib/db/db';
 import * as schema from '@/app/lib/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { compare } from 'bcryptjs';
+import { ABSENT_PASSWORD_HASH } from '@boardsesh/auth-protocol/password-hash';
+import { findAccountsByEmail } from '@boardsesh/db/queries/account-email';
 import { verifyNativeOAuthTransferToken } from '@/app/lib/auth/native-oauth-transfer';
 import { isSecureCookieContext, sessionCookieDomain } from '@/app/lib/auth/secure-cookies';
 import { isAllowedAppOrigin } from '@/app/lib/auth/app-origin-allowlist';
 import { applyCanonicalAuthUrl } from '@/app/lib/auth/canonical-auth-url';
+import { partnerLinkGuardActive } from '@/app/lib/auth/partner-link-guard-mode';
 import { parseAccountCreationReceipt } from '@boardsesh/analytics';
 
 // Must run before anything below reads NEXTAUTH_URL (the cookie block does, via
@@ -29,6 +33,35 @@ applyCanonicalAuthUrl();
 // swap). Long enough that ordinary browsing never re-queries the DB, short
 // enough that out-of-band edits still surface within a few minutes.
 const PROFILE_CLAIMS_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * The cutoff generation a new login is stamped with: 0 when the climber has no
+ * cutoff row. Rotations never call this; they keep the login's stamp. A failed
+ * read also stamps 0 and lets the sign-in through: generations only rise, so a
+ * low stamp can end the cookie sooner but never let it outlive a reset. For a
+ * climber whose generation has moved, the backend refuses that cookie, so the
+ * emission check answers 401 before any cookie is sent and the sign-in fails.
+ * Each failure is reported to Sentry so a run of them (or a web role that
+ * lost SELECT on the table) raises an issue instead of quietly failing sign-ins.
+ */
+async function signInGeneration(userId: string): Promise<number> {
+  try {
+    const [cutoff] = await getDb()
+      .select({ generation: schema.authSubjectCutoffs.generation })
+      .from(schema.authSubjectCutoffs)
+      .where(eq(schema.authSubjectCutoffs.userId, userId))
+      .limit(1);
+    return cutoff?.generation ?? 0;
+  } catch {
+    console.warn(JSON.stringify({ event: 'auth_generation_read_unavailable', phase: 'jwt' }));
+    Sentry.captureMessage('auth_generation_read_unavailable', {
+      level: 'warning',
+      tags: { area: 'auth', phase: 'jwt' },
+      fingerprint: ['auth_generation_read_unavailable'],
+    });
+    return 0;
+  }
+}
 
 const OAUTH_EMAIL_REQUIRED_ERROR = 'OAuthEmailRequired';
 const OAUTH_EMAIL_REQUIRED_REDIRECT = `/auth/error?error=${OAUTH_EMAIL_REQUIRED_ERROR}`;
@@ -137,41 +170,33 @@ providers.push(
         return null;
       }
 
-      const db = getDb();
-
-      // Look up user by email
-      const users = await db.select().from(schema.users).where(eq(schema.users.email, credentials.email)).limit(1);
-
-      if (users.length === 0) {
+      // An unknown address, an account with no password (OAuth only), an
+      // address several accounts share in different capitals and a wrong
+      // password must take the same time to reject, or the answer tells a
+      // caller which addresses have accounts. So every path makes this one
+      // query and then one bcrypt comparison at the stored cost.
+      const found = await findAccountsByEmail(getDb(), credentials.email);
+      const candidates = found.rows.flatMap((account) =>
+        account.passwordHash === null ? [] : [{ ...account, passwordHash: account.passwordHash }],
+      );
+      if (candidates.length === 0) {
+        await compare(credentials.password, ABSENT_PASSWORD_HASH);
         return null;
       }
-
-      const user = users[0];
-
-      // Get user credentials (password hash)
-      const userCredentials = await db
-        .select()
-        .from(schema.userCredentials)
-        .where(eq(schema.userCredentials.userId, user.id))
-        .limit(1);
-
-      if (userCredentials.length === 0) {
-        // User exists but has no password (e.g., OAuth only)
-        return null;
-      }
-
-      // Verify password
-      const isValidPassword = await compare(credentials.password, userCredentials[0].passwordHash);
-
-      if (!isValidPassword) {
-        return null;
-      }
+      // Several rows can store the very same text. The password decides, as
+      // native sign-in's bounded match does: exactly one of them must accept it.
+      const accepted = await Promise.all(
+        candidates.map((candidate) => compare(credentials.password, candidate.passwordHash)),
+      );
+      const matched = candidates.filter((_candidate, index) => accepted[index]);
+      if (matched.length !== 1) return null;
+      const [account] = matched;
 
       return {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        image: user.image,
+        id: account.id,
+        email: account.email,
+        name: account.name,
+        image: account.image,
       };
     },
   }),
@@ -351,8 +376,10 @@ export const authOptions: NextAuthOptions = {
         return false;
       }
 
+      // By the ID authorize proved, never by address: another account can
+      // share this address in different capitals or even as the same text.
       const db = getDb();
-      const existingUser = await db.select().from(schema.users).where(eq(schema.users.email, user.email)).limit(1);
+      const existingUser = await db.select().from(schema.users).where(eq(schema.users.id, user.id)).limit(1);
 
       // Check if email verification is enabled (disabled by default until Fastmail auth is set up)
       const emailVerificationEnabled = process.env.EMAIL_VERIFICATION_ENABLED === 'true';
@@ -401,6 +428,25 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.authSessionId = randomUUID();
         delete token.nativeOAuthCreationProof;
+        token.gen = await signInGeneration(user.id);
+        // Epoch seconds of the sign-in. Only this branch sees a completed sign-in, so
+        // a cookie rotation neither sets nor moves it and a cookie from before this
+        // claim stays without one, which readers must treat as "age unknown". A native
+        // transfer hands over a login made elsewhere, so it never claims a fresh one.
+        if (account && account.provider !== 'native-oauth') {
+          token.auth_time = Math.floor(Date.now() / 1000);
+        } else {
+          delete token.auth_time;
+        }
+        // Marks a sign-in made while OAuth account links are guarded, so this
+        // auth_time cannot have been bought by linking a provider into an old
+        // session. Partner consent accepts no sign-in without it. Like auth_time,
+        // only a completed sign-in writes or clears it; a rotation keeps it.
+        if (token.auth_time !== undefined && partnerLinkGuardActive()) {
+          token.link_guarded = true;
+        } else {
+          delete token.link_guarded;
+        }
         // Only this completed provider sign-in knows whether its adapter created a user.
         if ((account?.provider === 'apple' || account?.provider === 'google') && typeof isNewUser === 'boolean') {
           try {
@@ -429,6 +475,9 @@ export const authOptions: NextAuthOptions = {
           }
         }
       }
+      // A cookie from before the claim was signed in while generation 0 was the
+      // only one, so stamping 0 at its next rotation keeps it valid exactly as long.
+      token.gen ??= 0;
 
       // Cache the userProfiles avatar/display name ON the token so the `session`
       // callback (which runs on every /api/auth/session read — each page load,
@@ -450,11 +499,11 @@ export const authOptions: NextAuthOptions = {
           token.profileAvatarUrl = profiles[0]?.avatarUrl ?? null;
           token.profileDisplayName = profiles[0]?.displayName ?? null;
           token.profileClaimsRefreshedAt = Date.now();
-        } catch (error) {
+        } catch {
           // Keep whatever claims are already cached rather than failing the
           // whole token read — a briefly stale avatar/name is fine; a broken
           // session (signed-out header, failed page load) is not.
-          console.warn('Failed to refresh profile claims for session JWT:', error);
+          console.warn(JSON.stringify({ event: 'auth_profile_refresh_unavailable', phase: 'jwt' }));
         }
       }
       return token;

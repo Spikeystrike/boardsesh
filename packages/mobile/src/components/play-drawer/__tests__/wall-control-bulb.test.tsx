@@ -23,6 +23,7 @@ vi.mock('../../ble/BleLightbulbButton', () => ({
   BleLightbulbButton: (props: {
     isConnected: boolean;
     ready?: boolean;
+    halo?: boolean;
     accessibilityLabel: string;
     accessibilityValueText?: string;
     accessibilityTapHint?: string;
@@ -44,12 +45,20 @@ vi.mock('../../ble/BleLightbulbButton', () => ({
       'data-hint': props.accessibilityTapHint,
       'data-lit': String(props.isConnected),
       'data-ready': String(Boolean(props.ready)),
+      'data-halo': String(props.halo ?? true),
       'data-selected': String(Boolean(props.accessibilitySelected)),
       'data-hold': props.onLongPress ? props.longPressActionLabel : 'none',
       'data-own-haptics': `${props.haptic}/${String(props.longPressHaptic)}`,
       'data-writing': String(Boolean(props.writing)),
       'data-scanning': String(Boolean(props.isScanning)),
     }),
+}));
+
+// The ring draws itself from the drive store (wall-window-ring.test.tsx); here
+// only whether the bulb asks for it, and what it says.
+vi.mock('../WallWindowRing', () => ({
+  WallWindowRing: ({ size }: { size: number }) => createElement('s', { 'data-ring': String(size) }),
+  useWindowValueText: (active: boolean) => (active ? 'window-bulb' : null),
 }));
 
 import { WallControlBulb } from '../WallControlBulb';
@@ -67,8 +76,6 @@ const LIT: WallControlModel = {
   labelKey: 'disconnectBoard',
   a11yValueKey: 'youHaveBoardLit',
   a11yHintKey: 'litHint',
-  bulbTapAction: 'disconnect',
-  bulbA11yHintKey: 'litHint',
   bulbValueKey: 'youHaveBoardLit',
   look: 'lit',
   selected: true,
@@ -123,6 +130,47 @@ describe('WallControlBulb', () => {
     fireEvent.contextMenu(bulb);
     expect(onPress).toHaveBeenCalledOnce();
     expect(onLongPress).toHaveBeenCalledOnce();
+  });
+
+  it("draws the timed drive's ring, with no halo under it, and says its time, only during the timed drive", () => {
+    const windowed = renderBulb({
+      ...LIT,
+      lightWindow: true,
+      driving: true,
+      tapAction: 'stop_window',
+      labelKey: 'youAreDriving',
+    });
+    expect(windowed.container.querySelector('[data-ring]')?.getAttribute('data-ring')).toBe('48');
+    expect(windowed.bulb.dataset.value).toBe('window-bulb');
+    // The arc meets the row itself, as on the MiniPlayer: amber on its amber halo falls under 3:1.
+    expect(windowed.bulb.dataset.lit).toBe('true');
+    expect(windowed.bulb.dataset.halo).toBe('false');
+    cleanup();
+    const plain = renderBulb(LIT);
+    expect(plain.container.querySelector('[data-ring]')).toBeNull();
+    expect(plain.bulb.dataset.halo).toBe('true');
+    expect(plain.bulb.dataset.value).toBe('playView.wallControl.youHaveBoardLit');
+  });
+
+  // Owner, 2026-11-03 ("Yes, every bulb"): during a drive the bulb's tap stops
+  // driving, so it speaks the button's stop hint; with none it says it lets go.
+  it.each([
+    ['an open-ended drive', { tapAction: 'stop_driving', look: 'driving' }],
+    ["Put on board's timed drive", { tapAction: 'stop_window', lightWindow: true, look: 'driving' }],
+  ] as [string, Partial<WallControlModel>][])('says a tap stops %s, and that it lets go with none', (_drive, drive) => {
+    const driving = renderBulb({
+      ...LIT,
+      driving: true,
+      labelKey: 'youAreDriving',
+      a11yValueKey: 'drivingEveryClimb',
+      a11yHintKey: 'stopDrivingHint',
+      ...drive,
+    }).bulb;
+    expect(driving.dataset.hint).toBe('playView.wallControl.stopDrivingHint');
+    // Its name stays the bulb's own, whatever the tap does.
+    expect(driving.getAttribute('aria-label')).toBe('playView.wallControl.bulbAria');
+    cleanup();
+    expect(renderBulb(LIT).bulb.dataset.hint).toBe('playView.wallControl.litHint');
   });
 
   it('shows the scan and the write from the model', () => {

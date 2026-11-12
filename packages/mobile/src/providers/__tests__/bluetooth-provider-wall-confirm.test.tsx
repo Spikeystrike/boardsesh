@@ -11,6 +11,11 @@ import type { BleConnectionEnded, BleConnectionHandle, PickerState } from '../..
 import type { CurrentChangeClock } from '../../lib/ble/stale-current-hold';
 import { setHoldColorOverridesPreference } from '../../lib/hold-color-overrides';
 
+vi.mock('../../lib/spray/use-spray-led-route-sender', () => {
+  const sender = { send: async () => null, release: () => undefined };
+  return { useSprayLedRouteSender: () => sender };
+});
+
 type TestResolvedBoard = { boardId: number };
 
 type BluetoothHookOptions = {
@@ -154,7 +159,7 @@ vi.mock('../../settings', async () => {
       // Mirror the real custom hook: every call owns one state slot. BluetoothProvider
       // invokes its settings unconditionally in a fixed order, so this setter can
       // rerender the provider without a test-only rerender seam.
-      const initialValue = key === 'autoDisconnectBle' || key === 'moonboardLightAdjacentHolds' ? false : 30;
+      const initialValue = key === 'moonboardLightAdjacentHolds' || key === 'disconnectWhenDrivingEnds' ? false : 30;
       return useState(initialValue);
     },
   };
@@ -284,8 +289,14 @@ vi.mock('../queue-provider', () => ({
   },
 }));
 
+const toast = vi.hoisted(() => ({ showToast: vi.fn() }));
 vi.mock('../toast-provider', () => ({
-  useToast: () => ({ showToast: vi.fn() }),
+  useToast: () => ({ showToast: toast.showToast }),
+}));
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, values?: Record<string, unknown>) => (values ? `${key} ${JSON.stringify(values)}` : key),
+  }),
 }));
 
 const boardDetails = vi.hoisted(() => ({
@@ -301,6 +312,8 @@ vi.mock('../../lib/board-details', () => ({
 import { BluetoothProvider, useBluetoothContext } from '../bluetooth-provider';
 import { BleControlSheetHost } from '../../components/ble/BleControlSheetHost';
 import { noteRelayReceipt, clearRelayReceipt } from '../../lib/relay-receipt';
+import { readHeldQueueItemUuid } from '../../lib/held-climb-reader';
+import { resetLinkEndForTests, takeLinkEnd } from '../../lib/ble/link-end-store';
 
 function makeQueueItem(uuid: string, frames = 'p1r12', mirrored = false): ClimbQueueItem {
   return {
@@ -421,6 +434,7 @@ describe('BluetoothProvider wall-confirm integration', () => {
     wallConfirm.emitWallConfirm.mockClear();
     analytics.track.mockClear();
     alert.alert.mockClear();
+    toast.showToast.mockClear();
     pickerSheet.props = null;
     resolvedBoards.value = new Map();
     bluetooth.options = undefined;
@@ -477,7 +491,7 @@ describe('BluetoothProvider wall-confirm integration', () => {
       );
     });
 
-    expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1');
+    expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1', 'self');
     expect(queue.confirmClimbOnWall).toHaveBeenCalledWith('climb-1');
   });
 
@@ -561,7 +575,7 @@ describe('BluetoothProvider wall-confirm integration', () => {
       const performanceNow = vi.spyOn(performance, 'now').mockImplementation(() => clock.now);
       onTestFinished(() => performanceNow.mockRestore());
       const { rerender } = renderProvider();
-      await waitFor(() => expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1'));
+      await waitFor(() => expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1', 'self'));
 
       let finishWrite: (succeeded: boolean) => void = () => {};
       bluetooth.state.sendFramesToBoard.mockImplementationOnce(
@@ -609,7 +623,7 @@ describe('BluetoothProvider wall-confirm integration', () => {
 
     it('reports nothing for a write this phone started itself', async () => {
       const { rerender } = renderProvider();
-      await waitFor(() => expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1'));
+      await waitFor(() => expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1', 'self'));
 
       // A receipt for a different item is not this write's relay.
       noteRelayReceipt({
@@ -619,7 +633,7 @@ describe('BluetoothProvider wall-confirm integration', () => {
       });
       queue.currentClimbQueueItem = makeQueueItem('climb-2');
       rerenderKilter(rerender);
-      await waitFor(() => expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-2'));
+      await waitFor(() => expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-2', 'self'));
 
       expect(relayTimedEvents()).toHaveLength(0);
     });
@@ -632,7 +646,7 @@ describe('BluetoothProvider wall-confirm integration', () => {
       const performanceNow = vi.spyOn(performance, 'now').mockImplementation(() => clock.now);
       onTestFinished(() => performanceNow.mockRestore());
       const { rerender } = renderProvider(createElement(BluetoothProbe));
-      await waitFor(() => expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1'));
+      await waitFor(() => expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1', 'self'));
 
       clock.now = 100;
       noteRelayReceipt({
@@ -665,14 +679,14 @@ describe('BluetoothProvider wall-confirm integration', () => {
       act(() => {
         capturedBluetooth?.reassertWall();
       });
-      await waitFor(() => expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-2'));
+      await waitFor(() => expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-2', 'self'));
 
       expect(relayTimedEvents()).toHaveLength(0);
     });
 
     it('reports nothing when the relayed write fails', async () => {
       const { rerender } = renderProvider();
-      await waitFor(() => expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1'));
+      await waitFor(() => expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1', 'self'));
 
       bluetooth.state.sendFramesToBoard.mockResolvedValueOnce(false);
       noteRelayReceipt({
@@ -731,6 +745,8 @@ describe('BluetoothProvider wall-confirm integration', () => {
         queueItemUuid: 'queue-climb-1',
         lastCurrentChangeAt: queue.lastCurrentChange.changedAt,
       });
+      // What a queue sheet tap reads, so a pick of this climb keeps it dark.
+      expect(readHeldQueueItemUuid()).toBe('queue-climb-1');
       expect(heldTelemetry()).toEqual([['Board Stale Current Held', { ageHours: 5, scope: 'session' }]]);
     });
 
@@ -787,9 +803,116 @@ describe('BluetoothProvider wall-confirm integration', () => {
 
       await waitFor(() => expect(bluetooth.state.sendFramesToBoard).toHaveBeenCalledTimes(1));
       expect(capturedBluetooth?.staleCurrentHold).toBeNull();
+      expect(readHeldQueueItemUuid()).toBeNull();
       expect(releaseTelemetry()).toEqual([
         ['Board Stale Current Released', expect.objectContaining({ reason: 'relight', scope: 'session' })],
       ]);
+    });
+
+    // A press that connects (Light again, the swipe's drive) re-asserts the
+    // moment its connect resolves. On Android that is before the link's render
+    // commits, so the auto-sender mounts with the bumped nonce already in its
+    // props: the press must still light the held climb, in one press.
+    it('lights the held climb when the reassert lands in the same render as the link', async () => {
+      queue.lastCurrentChange = { queueItemUuid: 'queue-climb-1', changedAt: Date.now() - 5 * HOUR };
+      bluetooth.state.isConnected = false;
+      const { rerender } = renderProvider(createElement(BluetoothProbe));
+      await settle();
+
+      act(() => {
+        bluetooth.state.isConnected = true;
+        rerenderProvider(rerender, createElement(BluetoothProbe));
+        capturedBluetooth?.reassertWall({ carryToConnect: true });
+      });
+
+      await waitFor(() => expect(bluetooth.state.sendFramesToBoard).toHaveBeenCalledTimes(1));
+      expect(capturedBluetooth?.staleCurrentHold).toBeNull();
+      expect(heldTelemetry()).toEqual([]);
+      await settle();
+      // One write: the carried reassert is spent on this link.
+      expect(bluetooth.state.sendFramesToBoard).toHaveBeenCalledTimes(1);
+
+      // The link drops and a plain connect (the bulb) comes straight back: no
+      // press asked again, so the hold keeps the climb dark this time.
+      act(() => {
+        bluetooth.state.isConnected = false;
+        rerenderProvider(rerender, createElement(BluetoothProbe));
+      });
+      act(() => {
+        bluetooth.state.isConnected = true;
+        rerenderProvider(rerender, createElement(BluetoothProbe));
+      });
+      await settle();
+      expect(bluetooth.state.sendFramesToBoard).toHaveBeenCalledTimes(1);
+      expect(capturedBluetooth?.staleCurrentHold?.queueItemUuid).toBe('queue-climb-1');
+    });
+
+    // A reassert with no press behind it (the MoonBoard adjacent-holds toggle in
+    // the board sheet, the Live Activity's re-light) carries nothing: a plain
+    // connect (the bulb) landing in the same render still keeps the hold.
+    it('keeps the hold on a plain connect right after a reassert with no press behind it', async () => {
+      queue.lastCurrentChange = { queueItemUuid: 'queue-climb-1', changedAt: Date.now() - 5 * HOUR };
+      bluetooth.state.isConnected = false;
+      const { rerender } = renderProvider(createElement(BluetoothProbe));
+      await settle();
+
+      act(() => {
+        bluetooth.state.isConnected = true;
+        rerenderProvider(rerender, createElement(BluetoothProbe));
+        capturedBluetooth?.reassertWall();
+      });
+      await settle();
+
+      expect(bluetooth.state.sendFramesToBoard).not.toHaveBeenCalled();
+      expect(capturedBluetooth?.staleCurrentHold?.queueItemUuid).toBe('queue-climb-1');
+    });
+
+    // A press's carry that no link took within 5 s (the link came up for
+    // something else, much later) is spent: that later plain connect keeps the hold.
+    it('keeps the hold on a plain connect long after a press asked with no link', async () => {
+      queue.lastCurrentChange = { queueItemUuid: 'queue-climb-1', changedAt: Date.now() - 5 * HOUR };
+      bluetooth.state.isConnected = false;
+      const { rerender } = renderProvider(createElement(BluetoothProbe));
+      await settle();
+      const realNow = Date.now();
+      act(() => {
+        capturedBluetooth?.reassertWall({ carryToConnect: true });
+      });
+      const later = vi.spyOn(Date, 'now').mockReturnValue(realNow + 60_000);
+      try {
+        act(() => {
+          bluetooth.state.isConnected = true;
+          rerenderProvider(rerender, createElement(BluetoothProbe));
+        });
+        await settle();
+      } finally {
+        later.mockRestore();
+      }
+
+      expect(bluetooth.state.sendFramesToBoard).not.toHaveBeenCalled();
+      expect(capturedBluetooth?.staleCurrentHold?.queueItemUuid).toBe('queue-climb-1');
+    });
+
+    it('asks again over a new link with no rendered disconnect, the same as a remount (#4413)', async () => {
+      queue.lastCurrentChange = { queueItemUuid: 'queue-climb-1', changedAt: Date.now() - 5 * HOUR };
+      renderProvider(createElement(BluetoothProbe));
+      await settle();
+      act(() => {
+        capturedBluetooth?.reassertWall();
+      });
+      await waitFor(() => expect(bluetooth.state.sendFramesToBoard).toHaveBeenCalledTimes(1));
+      expect(capturedBluetooth?.staleCurrentHold).toBeNull();
+
+      // connect() replaced the live adapter, so isConnected never went false.
+      // The mount above fired no onConnectSuccess, so the sender started on the
+      // provider's generation 0; handle 2 is therefore a new link.
+      await act(async () => {
+        bluetooth.options?.onConnectSuccess?.(null, makeConnectionHandle(2));
+      });
+      await settle();
+
+      expect(bluetooth.state.sendFramesToBoard).toHaveBeenCalledTimes(1);
+      expect(capturedBluetooth?.staleCurrentHold?.queueItemUuid).toBe('queue-climb-1');
     });
 
     it('releases when the current climb changes (a tap, Next or a crewmate pick)', async () => {
@@ -933,6 +1056,25 @@ describe('BluetoothProvider wall-confirm integration', () => {
       expect(releaseTelemetry()).toEqual([
         ['Board Stale Current Released', expect.objectContaining({ reason: 'disconnect', scope: 'solo' })],
       ]);
+    });
+  });
+
+  // 2.7: auto-disconnect is gone. The board is let go only when a drive ends
+  // with Disconnect Bluetooth when driving ends on (`DriveModeWatcher`); the
+  // provider itself never lets go on a timer, and says nothing about it.
+  describe('with no timer of its own', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
+      queue.currentClimbQueueItem = null;
+    });
+
+    it('keeps the board through ten idle minutes', () => {
+      renderProvider(createElement(BluetoothProbe));
+      act(() => {
+        vi.advanceTimersByTime(10 * 60_000);
+      });
+      expect(bluetooth.state.disconnect).not.toHaveBeenCalled();
+      expect(toast.showToast).not.toHaveBeenCalled();
     });
   });
 
@@ -1223,7 +1365,7 @@ describe('BluetoothProvider wall-confirm integration', () => {
     renderProvider();
 
     await waitFor(() => {
-      expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1');
+      expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1', 'self');
     });
 
     expect(bluetooth.state.sendFramesToBoard).not.toHaveBeenCalled();
@@ -1276,13 +1418,122 @@ describe('BluetoothProvider wall-confirm integration', () => {
     expect(bluetooth.state.connectInitialSendRef.current).toBeNull();
   });
 
+  it('re-lights the unchanged climb when a new link opens with no rendered disconnect (#4413)', async () => {
+    // The reported shape: the app already renders `isConnected`, so a connect
+    // that completes flips nothing, the AutoSender is never remounted, and its
+    // dedup still claims this climb is up there. Over a new link the wall may
+    // show another climber's climb, so JS has to write again.
+    renderProvider();
+
+    await waitFor(() => {
+      expect(bluetooth.state.sendFramesToBoard).toHaveBeenCalledTimes(1);
+    });
+
+    // beforeEach renders connected with no onConnectSuccess, so the sender is on
+    // the provider's generation 0 here and handle 2 reads as a new link.
+    await act(async () => {
+      bluetooth.options?.onConnectSuccess?.(null, makeConnectionHandle(2));
+    });
+
+    await waitFor(() => {
+      expect(bluetooth.state.sendFramesToBoard).toHaveBeenCalledTimes(2);
+    });
+    expect(bluetooth.state.sendFramesToBoard).toHaveBeenNthCalledWith(
+      2,
+      'p1r12',
+      false,
+      expect.any(AbortSignal),
+      expect.objectContaining({ sendSource: 'auto' }),
+    );
+
+    // Still the same link, so the sender settles back into dedup.
+    await act(async () => {
+      bluetooth.options?.onConnectSuccess?.(null, makeConnectionHandle(2));
+    });
+    expect(bluetooth.state.sendFramesToBoard).toHaveBeenCalledTimes(2);
+  });
+
+  it('re-lights the climb when the new link opened while the queue was empty (#4413)', async () => {
+    // The drain effect returns early on an empty queue, before it reads the
+    // generation, so the link change has to stay pending until a climb comes
+    // back. It is the same climb as before the link change, so only that
+    // pending change stops the old link's dedup signature eating this write.
+    const providerElement = () =>
+      createElement(BluetoothProvider, {
+        boardName: 'kilter',
+        layoutId: 1,
+        sizeId: 10,
+        setIds: '1,20',
+        children: createElement('div', null),
+      });
+    const settle = () =>
+      act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      });
+    const { rerender } = render(providerElement());
+    await waitFor(() => {
+      expect(bluetooth.state.sendFramesToBoard).toHaveBeenCalledTimes(1);
+    });
+
+    queue.currentClimbQueueItem = null;
+    rerender(providerElement());
+    await settle();
+
+    await act(async () => {
+      bluetooth.options?.onConnectSuccess?.(null, makeConnectionHandle(2));
+    });
+    await settle();
+    expect(bluetooth.state.sendFramesToBoard).toHaveBeenCalledTimes(1);
+
+    queue.currentClimbQueueItem = makeQueueItem('climb-1');
+    rerender(providerElement());
+
+    await waitFor(() => {
+      expect(bluetooth.state.sendFramesToBoard).toHaveBeenCalledTimes(2);
+    });
+    expect(bluetooth.state.sendFramesToBoard).toHaveBeenNthCalledWith(
+      2,
+      'p1r12',
+      false,
+      expect.any(AbortSignal),
+      expect.objectContaining({ sendSource: 'auto' }),
+    );
+  });
+
+  it('keeps suppressing the duplicate when the new link wrote the climb itself', async () => {
+    // A reconnect that DID carry initialFrames already put these frames on the
+    // wall, so the link change must not cost a redundant full-frame write plus
+    // a second success haptic. The seed block runs after the link-change reset,
+    // which is why that reset clears the signature rather than forcing a write.
+    renderProvider();
+
+    await waitFor(() => {
+      expect(bluetooth.state.sendFramesToBoard).toHaveBeenCalledTimes(1);
+    });
+
+    bluetooth.state.connectInitialSendRef.current = {
+      frames: 'p1r12',
+      mirrored: false,
+      colorSignature: 'default',
+      encodingSignature: 'default',
+    };
+    await act(async () => {
+      bluetooth.options?.onConnectSuccess?.(null, makeConnectionHandle(2));
+    });
+
+    await waitFor(() => {
+      expect(bluetooth.state.connectInitialSendRef.current).toBeNull();
+    });
+    expect(bluetooth.state.sendFramesToBoard).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the local wall confirm in solo mode without sending a session mutation', async () => {
     queue.sessionId = null;
 
     renderProvider();
 
     await waitFor(() => {
-      expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1');
+      expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1', 'self');
     });
 
     expect(queue.confirmClimbOnWall).not.toHaveBeenCalled();
@@ -1305,7 +1556,7 @@ describe('BluetoothProvider wall-confirm integration', () => {
         expect.objectContaining({ sendSource: 'auto' }),
       );
     });
-    expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1');
+    expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1', 'self');
     expect(queue.confirmClimbOnWall).toHaveBeenCalledWith('climb-1');
   });
 
@@ -1365,7 +1616,7 @@ describe('BluetoothProvider wall-confirm integration', () => {
         expect.objectContaining({ sendSource: 'auto' }),
       );
     });
-    expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1');
+    expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1', 'self');
     expect(queue.confirmClimbOnWall).toHaveBeenCalledWith('climb-1');
   });
 
@@ -2675,7 +2926,7 @@ describe('BluetoothProvider wall-confirm integration', () => {
       );
 
       await waitFor(() => {
-        expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1');
+        expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1', 'self');
       });
       expect(presence.reportClimbForBoard).not.toHaveBeenCalled();
 
@@ -2727,7 +2978,7 @@ describe('BluetoothProvider wall-confirm integration', () => {
         }),
       );
       await waitFor(() => {
-        expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1');
+        expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1', 'self');
       });
 
       await act(async () => {
@@ -2783,7 +3034,7 @@ describe('BluetoothProvider wall-confirm integration', () => {
         }),
       );
       await waitFor(() => {
-        expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1');
+        expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1', 'self');
       });
       expect(presence.reportClimbForBoard).not.toHaveBeenCalled();
 
@@ -2846,7 +3097,7 @@ describe('BluetoothProvider wall-confirm integration', () => {
       );
 
       await waitFor(() => {
-        expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1');
+        expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1', 'self');
       });
       expect(presence.reportClimbForBoard).not.toHaveBeenCalled();
 
@@ -2886,7 +3137,7 @@ describe('BluetoothProvider wall-confirm integration', () => {
       );
 
       await waitFor(() => {
-        expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1');
+        expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1', 'self');
       });
       expect(presence.reportClimbForBoard).not.toHaveBeenCalled();
 
@@ -3445,6 +3696,52 @@ describe('BluetoothProvider wall-confirm integration', () => {
       });
 
       expect(queue.reportWallDisconnect).toHaveBeenCalled();
+    });
+
+    // Board plan item 8: the drive's watcher says only a drop this phone didn't make.
+    it.each([
+      ['an unexpected drop', 'unexpected', 'link_drop', undefined, false],
+      [
+        'the board closing the link',
+        'unexpected',
+        'link_drop',
+        { source: 'native-ios', iosErrorCode: 7, errorDomain: 'CBErrorDomain' },
+        false,
+      ],
+      [
+        'switching Bluetooth off',
+        'unexpected',
+        'link_drop',
+        { source: 'native-ios', context: 'bluetooth_unavailable', description: 'central state 4' },
+        true,
+      ],
+      [
+        'the Bluetooth stack restarting',
+        'unexpected',
+        'link_drop',
+        { source: 'native-ios', context: 'bluetooth_unavailable', description: 'central state 1' },
+        false,
+      ],
+      ['a hang-up', 'user', 'explicit_user', undefined, true],
+      ['a board switch', 'user', 'config_switch', undefined, true],
+      ['freeing the board as a drive ends', 'user', 'driving_ended', undefined, true],
+    ] as const)('notes %s as the link’s end', (_case, reason, disconnectTrigger, disconnectInfo, deliberate) => {
+      resetLinkEndForTests();
+      renderProvider();
+      act(() => {
+        bluetooth.options?.onConnectionEnded?.({
+          reason,
+          disconnectTrigger,
+          connectionDurationSec: 4,
+          boardName: 'kilter',
+          layoutId: 1,
+          sizeId: 10,
+          setIds: '1,20',
+          inSession: true,
+          ...(disconnectInfo ? { disconnectInfo } : {}),
+        });
+      });
+      expect(takeLinkEnd()).toMatchObject({ deliberate, takenByPeer: false });
     });
 
     it('reports wall disconnect to the session on an unexpected BLE drop', async () => {

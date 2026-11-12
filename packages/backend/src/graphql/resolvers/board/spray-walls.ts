@@ -12,6 +12,10 @@ import type { ConnectionContext } from '@boardsesh/shared-schema';
 import { lockWallForWrite } from '../../../services/spray-wall-lock';
 export { lockWallForWrite } from '../../../services/spray-wall-lock';
 import { lockSprayWallAccount } from '../../../services/spray-account-lock';
+import {
+  captureFixedSystemOwnerOrderMode,
+  lockCooperativeFixedSystemOwnerTransaction,
+} from '../../../services/fixed-system-owner-order';
 import { SPRAY_WALL_ARCHIVED_CODE, SPRAY_WALL_ARCHIVED_MESSAGE } from '../../../services/spray-wall-archive';
 import { markDeletedSprayWallPhotoRetry } from '../../../services/spray-photo-erasure-retry';
 import {
@@ -40,6 +44,7 @@ import { rowsFromResult } from '@boardsesh/db/client';
 import { db } from '../../../db/client';
 import { logger } from '../../../utils/logger';
 import { applyRateLimit, requireAuthenticated, validateInput } from '../shared/helpers';
+import { readViewerIdForBoard } from '../climbs/spray-read-access';
 import { canEditBoard, enrichBoards, generateUniqueSlug, requireBoardEditAccess } from '../social/boards';
 import { requireBoardGymLinkAccess, resolveCanonicalGymByUuid } from '../social/gyms';
 import { syncLocationGeography } from '../social/location-geography';
@@ -266,7 +271,7 @@ async function publishedVersionIdUnderLock(tx: SprayWriteTransaction, wallId: nu
  * angle and visibility. `undefined` for a missing or soft-deleted wall — callers
  * turn that into a null query result or a not-found mutation error.
  */
-async function loadWall(where: 'uuid' | 'layoutId', value: string | number): Promise<LoadedWall | undefined> {
+export async function loadWall(where: 'uuid' | 'layoutId', value: string | number): Promise<LoadedWall | undefined> {
   const [row] = await db
     .select({ wall: dbSchema.sprayWalls, board: dbSchema.userBoards })
     .from(dbSchema.sprayWalls)
@@ -461,6 +466,23 @@ async function loadVisibleWall(uuid: string, userId: string | null | undefined):
   const loaded = await loadWall('uuid', uuid);
   if (!loaded) return undefined;
   return (await viewerCanSeeSprayWall(loaded.wall, loaded.board, userId)) ? loaded : undefined;
+}
+
+/**
+ * `loadVisibleWall` for a read a wall device's controller key may make: the
+ * visibility check reads as `readViewerIdForBoard` (the key's owner, on a wall
+ * that owner owns), and the reader it used comes back so the caller can let the
+ * board enrichment past the same check. Everything the response PROJECTS for a
+ * viewer stays on `ctx.userId`: a key is not signed in.
+ */
+async function loadVisibleWallForReader(
+  uuid: string,
+  ctx: ConnectionContext,
+): Promise<{ loaded: LoadedWall; readerId: string | undefined } | undefined> {
+  const loaded = await loadWall('uuid', uuid);
+  if (!loaded) return undefined;
+  const readerId = await readViewerIdForBoard(ctx, loaded.board);
+  return (await viewerCanSeeSprayWall(loaded.wall, loaded.board, readerId)) ? { loaded, readerId } : undefined;
 }
 
 /** Load a wall for a mutation and assert the caller may edit it. */
@@ -673,6 +695,11 @@ async function toGraphQLWall(
   preloadedVersions?: SprayWallVersionRow[],
   preloadedDeltas?: Map<number, { added: number; removed: number }>,
   preloadedArchiveFacts?: SprayWallArchiveFacts,
+  // Who already passed the wall's visibility check, when that is not `userId`: a
+  // wall device's key owner (readViewerIdForBoard). Used ONLY so the board
+  // enrichment's access filter does not drop a private board the caller was
+  // let in to; every owner-only field below stays on `userId`.
+  accessUserId?: string,
 ) {
   const { wall, board } = loaded;
 
@@ -687,7 +714,7 @@ async function toGraphQLWall(
   const visibleVersions = canEdit ? versionRows : versionRows.filter((version) => version.status !== 'draft');
   const deltas = preloadedDeltas ?? (await versionHoldDeltas(visibleVersions.map((version) => Number(version.id))));
 
-  const [enrichedBoard] = await enrichBoards([{ board }], userId ?? undefined);
+  const [enrichedBoard] = await enrichBoards([{ board }], userId ?? undefined, { accessUserId });
 
   const versions = await Promise.all(
     visibleVersions.map((version) => toGraphQLVersion(version, deltas.get(Number(version.id)))),
@@ -723,9 +750,10 @@ async function toGraphQLWall(
     // `updateClimb` would refuse; the stored `climb_edit_policy` is not read.
     climbEditPolicy: 'SETTER' as const,
     viewerCanEditClimbs: false,
-    // Only ever non-null for the owner: `loadVisibleWall` refuses a hidden wall to
-    // everybody else, so nobody else can reach this field to read it.
-    hiddenAt: wall.hiddenAt ? wall.hiddenAt.toISOString() : null,
+    // Only ever non-null for the signed-in owner. `loadVisibleWall` refuses a
+    // hidden wall to everybody else; a wall device's key may load its owner's
+    // hidden wall, but is not the owner and does not get the moderation stamp.
+    hiddenAt: wall.hiddenAt && userId != null && board.ownerId === userId ? wall.hiddenAt.toISOString() : null,
     renderSettings: wall.renderSettings ?? null,
     archivedAt: wall.archivedAt ? wall.archivedAt.toISOString() : null,
     resetOfWallUuid:
@@ -1769,9 +1797,19 @@ export const sprayWallQueries = {
     await applyRateLimit(ctx, WALL_QUERY_RATE_LIMIT, 'sprayWall');
     const validatedUuid = validateInput(UUIDSchema, uuid, 'uuid');
 
-    const loaded = await loadVisibleWall(validatedUuid, ctx.userId);
-    if (!loaded) return null;
-    return toGraphQLWall(loaded, ctx.userId, await computeCanEdit(ctx, loaded.board));
+    const visible = await loadVisibleWallForReader(validatedUuid, ctx);
+    if (!visible) return null;
+    const { loaded, readerId } = visible;
+    // Projected for ctx.userId, never the key's owner: see loadVisibleWallForReader.
+    return toGraphQLWall(
+      loaded,
+      ctx.userId,
+      await computeCanEdit(ctx, loaded.board),
+      undefined,
+      undefined,
+      undefined,
+      readerId,
+    );
   },
 
   sprayWallByLayout: async (
@@ -1803,8 +1841,12 @@ export const sprayWallQueries = {
     await applyRateLimit(ctx, WALL_QUERY_RATE_LIMIT, 'sprayWallRenderData');
     const validatedUuid = validateInput(UUIDSchema, uuid, 'uuid');
 
-    const loaded = await loadVisibleWall(validatedUuid, ctx.userId);
-    if (!loaded) return null;
+    // A wall device reads its owner's hold coordinates over the same socket it
+    // watches `boardNowPlaying` on (docs/wall-devices.md). canEdit below stays on
+    // ctx, so a key reads published versions only.
+    const visible = await loadVisibleWallForReader(validatedUuid, ctx);
+    if (!visible) return null;
+    const { loaded, readerId } = visible;
 
     const canEdit = await computeCanEdit(ctx, loaded.board);
     const versionRow = await resolveReadableVersion(loaded.wall, version, canEdit);
@@ -1823,7 +1865,7 @@ export const sprayWallQueries = {
     const versionNumberById = await loadVersionNumbers(loaded.wall.id);
 
     return {
-      wall: await toGraphQLWall(loaded, ctx.userId, canEdit),
+      wall: await toGraphQLWall(loaded, ctx.userId, canEdit, undefined, undefined, undefined, readerId),
       versionNumber: versionRow.versionNumber,
       // A wall always has a frame by the time it has a photo — `createSprayWallVersion`
       // writes both in one transaction — so the photo fallbacks here only fire for
@@ -3312,6 +3354,7 @@ export const sprayWallMutations = {
   },
 
   commitSprayWallVersion: async (_: unknown, { input }: { input: unknown }, ctx: ConnectionContext) => {
+    const ownerOrderMode = captureFixedSystemOwnerOrderMode();
     requireAuthenticated(ctx);
     await applyRateLimit(ctx, PUBLISH_RATE_LIMIT, 'commitSprayWallVersion');
 
@@ -3319,6 +3362,7 @@ export const sprayWallMutations = {
     const { wall, board } = await loadEditableWall(ctx, validated.wallUuid);
 
     const committed = await db.transaction(async (tx) => {
+      await lockCooperativeFixedSystemOwnerTransaction(tx, ownerOrderMode);
       await lockWallForWrite(tx, wall.id);
       await assertSprayWallNotArchivedUnderLock(tx, wall.id);
       const version = await loadDraftVersion(tx, wall.id, validated.versionId);
@@ -3359,6 +3403,7 @@ export const sprayWallMutations = {
   },
 
   publishSprayWallVersion: async (_: unknown, { input }: { input: unknown }, ctx: ConnectionContext) => {
+    const ownerOrderMode = captureFixedSystemOwnerOrderMode();
     requireAuthenticated(ctx);
     await applyRateLimit(ctx, PUBLISH_RATE_LIMIT, 'publishSprayWallVersion');
 
@@ -3390,6 +3435,9 @@ export const sprayWallMutations = {
     }
 
     const publishedDraft = await db.transaction(async (tx) => {
+      // Non-blocking, and a no-op unless cooperative ordering is switched on.
+      await lockCooperativeFixedSystemOwnerTransaction(tx, ownerOrderMode);
+
       // Stated here as well as inside the helper. `pg_advisory_xact_lock` is
       // re-entrant within a transaction, so the second take costs nothing, and a
       // reader of this resolver sees the rule where the transaction opens rather

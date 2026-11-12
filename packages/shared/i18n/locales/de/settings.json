@@ -160,6 +160,7 @@
       "nameLabel": "Controller-Name (optional)",
       "namePlaceholder": "z. B. Board im Wohnzimmer",
       "boardLabel": "Board-Typ",
+      "boardSpray": "Spraywall",
       "layoutLabel": "Layout",
       "sizeLabel": "Größe",
       "setsLabel": "Griff-Sets",
@@ -454,7 +455,12 @@
     "noDevicesFound": "Keine Boards in der Nähe gefunden",
     "differentBoardType": "Die sehen nach anderen Boards aus als dein {{board}}-Setup.",
     "troubleshootTitle": "Du siehst dein Board nicht?",
-    "troubleshootTips": "Prüf, ob es an und wach ist. Es kann sich immer nur ein Handy mit einem Board verbinden — trenn also andere Geräte. Geh näher ran oder schalte Bluetooth einmal aus und wieder an.",
+    "scanTipPower": "Prüf, ob das Board an und wach ist.",
+    "scanTipCloser": "Geh näher ans Board.",
+    "scanTipBluetooth": "Schalte Bluetooth einmal aus und wieder an.",
+    "scanTipOtherPhone": "Es kann sich immer nur ein Handy verbinden. Ist ein anderes verbunden, trenn es dort zuerst.",
+    "scanTipOtherPhoneMoonBoard": "Ist ein anderes Handy verbunden, trenn es dort zuerst. Ein älterer MoonBoard-Controller muss eventuell aus- und wieder eingeschaltet werden, bevor sich das nächste Handy verbinden kann.",
+    "browseForNow": "Erst mal stöbern",
     "locationHintTitle": "Android braucht den Standort, um Boards zu sehen",
     "locationHintBody": "Ab Android 12 bleiben Bluetooth-Suchergebnisse verborgen, solange der Standort nicht freigegeben ist. Boardsesh nutzt deinen Standort nicht, um Boards zu finden, und ein kommendes Update wird diese Hürde endgültig los.",
     "locationHintGrant": "Standort erlauben",
@@ -466,34 +472,38 @@
     "cancel": "Abbrechen",
     "connectBoard": "Board verbinden",
     "relightBoard": "Board neu beleuchten",
-    "sectionTitle": "Bluetooth",
-    "autoDisconnect": {
-      "description": "Trennt die Verbindung zum Board, wenn für die gewählte Zeit kein Boulder angezeigt wurde.",
-      "enabledLabel": "Automatisch trennen",
-      "enabledDescription": "Lass andere Kletterer*innen verbinden, sobald der Timer abläuft.",
-      "timeoutLabel": "Trennen nach",
-      "toggleTitle": "Automatisch trennen",
-      "toggleSubtitle": "Trennen nach {{timeout}} ohne Aktivität",
-      "timeoutOptions": {
-        "10": "10 Sekunden",
-        "15": "15 Sekunden",
-        "30": "30 Sekunden",
-        "45": "45 Sekunden",
-        "60": "1 Minute",
-        "120": "2 Minuten",
-        "300": "5 Minuten",
-        "600": "10 Minuten"
-      }
-    },
     "lighting": {
       "title": "Board-Beleuchtung",
-      "description": "Lege fest, was das verbundene Board automatisch beleuchtet.",
-      "onSwipeLabel": "Board beim Wischen beleuchten",
-      "onSwipeDescription": "Nur wenn schon ein Boulder am Board leuchtet. Eine Vorschau beleuchtet beim Wischen nie das Board.",
-      "onTapLabel": "Board beleuchten, wenn ich einen Boulder antippe",
-      "onTapDescription": "Tippst du in einer Liste einen Boulder an, wird er am Board beleuchtet. Ist das aus, öffnet das Antippen eine Vorschau.",
+      "keep": {
+        "label": "Steuern beenden nach",
+        "off": "Sofort",
+        "options": {
+          "30": "30 Sekunden",
+          "45": "45 Sekunden",
+          "60": "1 Minute",
+          "120": "2 Minuten",
+          "300": "5 Minuten"
+        },
+        "untilStopped": "Bis ich stoppe",
+        "inSessionLabel": "Auch in einer Session",
+        "inSessionAccessibilityLabel": "„Am Board beleuchten“ und „Board immer steuern“ gelten auch in einer Session",
+        "inSessionDescription": "Wenn dein Handy das Board der Crew hat. Ist das aus, bleiben die Boulder, die du in einer Session wählst, Vorschauen.",
+        "inSessionOffReason": "Stell dafür „Steuern beenden nach“ auf etwas anderes als „Sofort“.",
+        "alwaysDriveReason": "„Board immer steuern“ ist an, deshalb gilt das nicht.",
+        "footer": "„Am Board beleuchten“ beleuchtet den Boulder und du steuerst das Board: Jeder Boulder, den du wählst, wird auch beleuchtet, und jeder startet die Uhr neu. Ist die Zeit um, öffnet sich dein nächster Boulder als Vorschau.",
+        "footerUntilStopped": "„Am Board beleuchten“ beleuchtet den Boulder und du steuerst das Board: Jeder Boulder, den du wählst, wird auch beleuchtet, bis du auf „Du steuerst das Board“ tippst.",
+        "footerOff": "„Am Board beleuchten“ beleuchtet den Boulder, den du offen hast. Dein nächster Boulder öffnet sich als Vorschau."
+      },
+      "drivingEnds": {
+        "label": "Bluetooth trennen, wenn das Steuern endet",
+        "description": "Endet dein Steuern, gibt dein Handy das Board frei, damit sich die nächste Person verbinden kann: wenn du stoppst oder alle Lichter ausschaltest, wenn die Zeit um ist oder wenn jemand aus deiner Crew einen Boulder beleuchtet, während dein Steuern ein Zeitlimit hat. „Am Board beleuchten“ verbindet wieder."
+      },
+      "drivingHelp": "So funktioniert das Steuern des Boards",
+      "alwaysDriveLabel": "Board immer steuern",
+      "alwaysDriveDescription": "Jeder Boulder, den du wählst, wird beleuchtet, solange dieses Handy das Board hat. In einer Session braucht es „Auch in einer Session“.",
+      "alwaysDriveFooter": "Tippe auf „Du steuerst das Board“, um aufzuhören. Danach öffnen sich die Boulder, die du wählst, als Vorschau, bis du die Verbindung trennst oder auf „Am Board beleuchten“ tippst.",
       "playlistTapLoadsQueueLabel": "Antippen einer Playlist lädt sie in meine Warteschlange",
-      "playlistTapLoadsQueueDescription": "Tippst du einen Boulder in einer Playlist, in Für dich oder auf der Seite von Routenbauer*innen an, ersetzt diese Liste deine Warteschlange. Ist „Board beleuchten, wenn ich einen Boulder antippe“ aus, lädst du sie mit Abspielen."
+      "playlistTapLoadsQueueDescription": "Tippst du einen Boulder in einer Playlist, in Für dich oder auf der Seite von Routenbauer*innen an, lädt das diese Liste. Steuerst du das Board, ersetzt die Liste deine Warteschlange und der angetippte Boulder wird beleuchtet. Sonst kommt die Liste ab dem angetippten Boulder in Als Nächstes und der Boulder öffnet sich als Vorschau, während das Board seinen Boulder behält, bis du Am Board beleuchten wählst. In einer Session kommt die Liste nie in die geteilte Warteschlange."
     },
     "holdForControls": "Halten für die Board-Steuerung",
     "boardControls": "Board-Steuerung",
@@ -501,6 +511,7 @@
     "connectionFailedTitle": "Verbindung fehlgeschlagen",
     "permissionRequired": "Bluetooth-Berechtigung nötig",
     "errorPermissionDenied": "Erlaube Bluetooth, um ein Board zu verbinden.",
+    "tryAgain": "Erneut versuchen",
     "blockedTitle": "Bluetooth ist für Boardsesh gesperrt",
     "blockedBody": "Erlaube Boardsesh in den Einstellungen Bluetooth, um Boulder am Board zu beleuchten.",
     "blockedBodyNearbyDevices": "Erlaube Boardsesh in den Einstellungen „Geräte in der Nähe“, um Boulder am Board zu beleuchten.",
@@ -528,10 +539,13 @@
       "wallHeldWithClimb": "Du hast die Wand: {{name}}, {{grade}}",
       "wallHeldHint": "Gibt die Wand frei",
       "wallOpenLabel": "Wand ist frei",
-      "wallOpenHint": "Übernimmt die Wand"
+      "wallOpenHint": "Übernimmt die Wand",
+      "drivingValue": "Du steuerst das Board",
+      "stopDrivingLabel": "Steuern beenden",
+      "stopDrivingHint": "Die nächsten Boulder, die du wählst, öffnen sich als Vorschau"
     },
     "relayToWall": "Deinen Boulder am Board beleuchten",
-    "peerDrivingBoard": "Jemand anderes steuert das Board"
+    "peerDrivingBoard": "Jemand anderes hat das Board"
   },
   "integrations": {
     "title": "Verbundene Apps",
@@ -563,6 +577,40 @@
     },
     "garmin": {
       "title": "Garmin"
+    },
+    "partnerApps": {
+      "title": "Apps mit Zugriff",
+      "empty": "Noch keine Apps verbunden. Apps, die du mit deinem Boardsesh-Konto verbindest, erscheinen hier.",
+      "footer": "Eine getrennte App liest nichts Neues mehr. Was sie schon kopiert hat, bleibt bei ihr.",
+      "gone": "Diese App ist nicht mehr verbunden.",
+      "loadFailed": "Diese App konnte nicht geladen werden. Prüf deine Verbindung und versuch es noch mal.",
+      "retry": "Erneut versuchen",
+      "scopesHeading": "Was {{app}} sehen kann",
+      "unnamedApp": "Unbenannte App",
+      "publisher": "Von {{publisher}}",
+      "connected": "Verbunden am {{date}}",
+      "lastUsed": "Zuletzt genutzt {{time}}",
+      "lastUsedRecently": "In der letzten Stunde genutzt",
+      "notUsedYet": "Noch nicht genutzt",
+      "suspended": "Boardsesh hat diese App pausiert. Sie kann gerade nichts lesen.",
+      "suspendedShort": "Von Boardsesh pausiert",
+      "scopes": {
+        "logbookRead": "Sieht jeden Eintrag in deinem Routenbuch, auf jedem Board",
+        "logbookOnlyMe": "Auch Einträge, die du auf „Nur ich“ gestellt hast",
+        "logbookUnlisted": "Auch nicht gelistete Boulder und Entwürfe von anderen, die du eingetragen hast",
+        "logbookSpraywall": "Boulder von der Spraywall einer anderen Person mit „Privat“ oder „Nur mit Link“ kommen ohne Namen an",
+        "profileRead": "Sieht deinen Anzeigenamen und dein Profilbild",
+        "offlineAccess": "Behält diesen Zugriff, bis du die App trennst",
+        "other": "Weiterer Zugriff: {{scope}}"
+      },
+      "disconnect": "Trennen",
+      "disconnectA11y": "{{app}} trennen",
+      "disconnectConfirmTitle": "{{app}} trennen?",
+      "disconnectConfirmBody": "{{app}} sieht dein Konto ab sofort nicht mehr. Was die App schon kopiert hat, bleibt bei ihr. Um sie wieder zu nutzen, verbinde sie aus der App heraus.",
+      "disconnected": "{{app}} getrennt",
+      "disconnectFailed": "{{app}} konnte nicht getrennt werden. Versuch es noch mal.",
+      "cancel": "Abbrechen",
+      "close": "Schließen"
     }
   },
   "watchPairing": {

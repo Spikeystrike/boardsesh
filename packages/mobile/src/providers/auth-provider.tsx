@@ -18,6 +18,7 @@ import { SHARED_EVENTS, loginProviderProperties } from '@boardsesh/analytics';
 import { AppLoadingSplash } from '../components/AppLoadingSplash';
 import { resolveAuthSession, type AuthSessionResult } from '../lib/auth-session';
 import { captureAuthCredentialGeneration, getAuthToken, isAuthCredentialGenerationCurrent } from '../lib/auth-store';
+import { isAccountDeletionIntentCurrent, type SignOutRequest } from '../lib/account-deletion-intent';
 import { userIdFromJwt } from '../lib/jwt-user-id';
 import { subscribeAuthTokenChanges } from '../lib/auth-token-events';
 import { bumpAuthTransportRevision } from '../lib/auth-transport-revision';
@@ -37,6 +38,7 @@ import { SCREENSHOT_USER_EMAIL, SCREENSHOT_USER_PASSWORD } from '../lib/screensh
 import { getAnalyticsIdentity, isAnalyticsPinnedToAPerson, reset as resetAnalytics, track } from '../lib/analytics';
 import { resetOfflineUsageSignal } from '../offline/offline-usage-signal';
 import { clearRelayReceipt } from '../lib/relay-receipt';
+import { forgetRememberedBoardsOnSignOut } from '../lib/ble/remembered-boards-sign-out';
 import { reportError, reportHandledError } from '../lib/error-reporting';
 import { setOnForcedSignOut } from '../lib/auth-interceptor';
 import { getHttpClient, resetHttpClient } from '../lib/graphql/client';
@@ -50,6 +52,7 @@ import { clearAllCreateClimbDrafts } from '../lib/create-climb-draft-store';
 import { clearSessionCommentDraft } from '../lib/session-comment-draft-store';
 import { clearWorkoutRun } from '../lib/workout-run-store';
 import { clearEndedWorkouts } from '../lib/ended-workout-store';
+import { eraseAllSprayWallLedCaches } from '../lib/spray/spray-wall-led-cache';
 import { setCurrentUserStorageOwner, type UserStorageOwner } from '../lib/user-storage-owner';
 import { ACTIVE_BOARD_QUERY_KEY, clearStoredActiveBoardCoordinated } from '../lib/graphql/use-active-board';
 import { getAppEntryHref } from '../lib/app-entry-route';
@@ -86,7 +89,7 @@ type AuthState = {
   signInWithAppleWeb: (isRegistration?: boolean) => Promise<OAuthSignInResult>;
   signInWithCredentials: (email: string, password: string) => Promise<CredentialsSignInResult>;
   register: (email: string, password: string, name?: string) => Promise<RegistrationResult>;
-  signOut: (method?: 'manual' | 'account_deleted') => Promise<void>;
+  signOut: (...request: SignOutRequest) => Promise<void>;
   refreshAuthState: () => Promise<void>;
 };
 
@@ -176,6 +179,9 @@ export function AuthProvider({ children, onReady }: AuthProviderProps) {
   const anonymousSessionIsolatedRef = useRef(false);
   const authenticatedStorageOwnerRef = useRef<UserStorageOwner | null>(null);
   const pendingAuthTransportRestartRef = useRef(false);
+  // The server closes a deleted account's socket within a second, which can force
+  // a sign-out while this device is still running its own deletion cleanup.
+  const accountDeletionSignOutInFlightRef = useRef(false);
   const remoteInvalidationVersionRef = useRef(0);
   const remoteRevalidationRef = useRef<Promise<void> | null>(null);
   const nativeSessionDegradedRef = useRef(false);
@@ -296,6 +302,9 @@ export function AuthProvider({ children, onReady }: AuthProviderProps) {
         clearWorkoutRun(),
         // The recaps of ended workouts (#6903), kept for their session summaries.
         clearEndedWorkouts(),
+        // Every Spraywall's LED copy. Kept per wall and account-blind on disk; the
+        // next climber on this phone reads what the server says they may see.
+        eraseAllSprayWallLedCaches(),
       ]);
     },
     [],
@@ -422,6 +431,11 @@ export function AuthProvider({ children, onReady }: AuthProviderProps) {
       resetOfflineUsageSignal();
       // #7014: a pending relay timing belongs to the account that is leaving.
       clearRelayReceipt();
+      // The boards this phone remembers (a hang-up keeps one for 10 minutes, a
+      // drop keeps it longer): the next account's first bulb tap opens the
+      // board list instead of silently taking the box this one held. Not on a
+      // signed-out cold start: an anonymous climber's board stays remembered.
+      void forgetRememberedBoardsOnSignOut();
       await deactivateNotificationDevice();
       const stopTokenCleanup = stopTokenManagement(async () => {});
       if (Platform.OS === 'web') await waitForCleanupPhase(stopTokenCleanup);
@@ -1109,10 +1123,20 @@ export function AuthProvider({ children, onReady }: AuthProviderProps) {
   // ('account_deleted') in analytics, matching web. The cleanup is identical:
   // server revocation is best-effort, while durable credential cleanup failures
   // remain visible to callers after local account isolation has completed.
-  const signOut = useCallback(
-    async (method: 'manual' | 'account_deleted' = 'manual') => {
+  const performSignOut = useCallback(
+    async (...request: SignOutRequest) => {
+      const [method = 'manual', deletionIntent] = request;
+      if (method === 'account_deleted') {
+        if (!deletionIntent || !(await isAccountDeletionIntentCurrent(deletionIntent))) return;
+        // The owner can change in the microtask between the awaited ownership
+        // check and this continuation. No cleanup side effect precedes this.
+        if (!isAuthCredentialGenerationCurrent(deletionIntent.credentialGeneration)) return;
+      }
       cancelAuthAnalyticsHandoffs();
-      const credentialGeneration = captureAuthCredentialGeneration();
+      const credentialGeneration =
+        method === 'account_deleted' && deletionIntent
+          ? deletionIntent.credentialGeneration
+          : captureAuthCredentialGeneration();
       const transitionEpoch = beginAuthTransition();
       updateNativeSessionDegraded(false);
       track(SHARED_EVENTS.Logout, { method });
@@ -1201,14 +1225,32 @@ export function AuthProvider({ children, onReady }: AuthProviderProps) {
     ],
   );
 
+  const signOut = useCallback(
+    async (...request: SignOutRequest) => {
+      if (request[0] !== 'account_deleted') return performSignOut(...request);
+      accountDeletionSignOutInFlightRef.current = true;
+      try {
+        return await performSignOut(...request);
+      } finally {
+        accountDeletionSignOutInFlightRef.current = false;
+      }
+    },
+    [performSignOut],
+  );
+
   const handleForcedSignOut = useCallback(() => {
-    track(SHARED_EVENTS.Logout, { method: 'forced' });
+    // A forced sign-out during account deletion takes over that sign-out, so it
+    // must run the same full wipe and not report a second Logout.
+    const purgeOfflineBoards = accountDeletionSignOutInFlightRef.current;
+    if (!purgeOfflineBoards) track(SHARED_EVENTS.Logout, { method: 'forced' });
     commitVerifiedAuthResult(null);
     const transitionEpoch = beginAuthTransition();
     // The interceptor already confirmed this credential owner is anonymous.
     // Serialize its cleanup with session checks so a later login cannot be
     // erased by the tail of an older asynchronous cleanup.
-    enqueueAuthTransition(() => handleSignedOutTransition(transitionEpoch, true)).catch(reportError);
+    enqueueAuthTransition(() => handleSignedOutTransition(transitionEpoch, true, { purgeOfflineBoards })).catch(
+      reportError,
+    );
   }, [beginAuthTransition, enqueueAuthTransition, handleSignedOutTransition]);
 
   const handleRemoteConfirmedSignOut = useCallback(() => {

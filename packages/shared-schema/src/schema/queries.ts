@@ -189,6 +189,13 @@ export const queriesTypeDefs = /* GraphQL */ `
     # ============================================
 
     """
+    Immutable identity admitted from this request's presented credential.
+    Returns UNAUTHENTICATED when the credential cannot authorize the request.
+    Authority failures return SERVICE_UNAVAILABLE instead of an identity.
+    """
+    authenticatedUserId: ID!
+
+    """
     Get the currently authenticated user's profile.
     Returns null if not authenticated.
     """
@@ -390,6 +397,13 @@ export const queriesTypeDefs = /* GraphQL */ `
     myControllers: [ControllerInfo!]!
     "Read a gym's device configuration using a registered gym owner/admin's controller API key."
     controllerGymManifest(gymRef: String!): ControllerGymManifest!
+    """
+    The boards the controller API key's owner owns (home boards and spray walls,
+    deleted and archived ones left out), so a wall device can let its owner pick
+    one. Requires a WebSocket connected with \`connectionParams.controllerApiKey\`;
+    without one it fails UNAUTHENTICATED, signed in or not.
+    """
+    controllerBoards: [ControllerBoard!]!
 
     # ============================================
     # Social / Follow Queries
@@ -878,6 +892,14 @@ export const queriesTypeDefs = /* GraphQL */ `
     as is a wall with nothing published yet.
     """
     sprayWallRenderData(uuid: ID!, version: Int): SprayWallRenderData
+
+    """
+    A spray wall's LED setup, for lighting it from this phone. Anyone who can read
+    the wall gets it, with the same rules as \`sprayWall\`; null when the wall does
+    not exist, is deleted, or this viewer may not see it. \`setup\` is null when the
+    wall has no saved setup yet.
+    """
+    sprayWallLedSetup(boardUuid: ID!): SprayWallLedSetupView
 
     """
     The generated wall looks of one version (\`wall-crop\`, \`hold-cutouts\`) and

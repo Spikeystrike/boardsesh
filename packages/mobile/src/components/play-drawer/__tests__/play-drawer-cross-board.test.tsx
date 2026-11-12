@@ -22,6 +22,7 @@ import type { Climb } from '@boardsesh/shared-schema';
 import type { ClimbQueueItem } from '@boardsesh/queue';
 import type { LayoutChangeEvent } from 'react-native';
 import { clearOpeningLayoutCache } from '../opening-layout-cache';
+import type { SwipePager } from '../use-swipe-pager';
 import { publishHingeStatus, resetHingeStatusForTests } from '../../../lib/device-hinge-store';
 
 type Props = Record<string, unknown>;
@@ -54,9 +55,12 @@ const viewport = vi.hoisted(() => ({ width: 390, height: 844, fontScale: 1 }));
 // Web: the content gesture skips the native scroll-intent composition.
 const platform = vi.hoisted(() => ({ OS: 'web' as 'web' | 'ios' }));
 const setCurrentClimb = vi.hoisted(() => vi.fn());
+const playNext = vi.hoisted(() => vi.fn(async () => 'added'));
 const toggleFavorite = vi.hoisted(() => vi.fn());
 const dismissGestureRef = vi.hoisted(() => ({ current: undefined as unknown }));
-const crew = vi.hoisted(() => ({ shared: false }));
+// `crew` is the roster's crew (`useIsCrewSession`); null reads `shared`. The two
+// differ while the browse latch outlives a crew that just left.
+const crew = vi.hoisted(() => ({ shared: false, crew: null as boolean | null }));
 // `wall-swipe-to-drive` (#7113). Off by default here, so the older tests keep
 // today's button; the swipe's own tests turn it on.
 const swipeToDrive = vi.hoisted(() => ({ on: false }));
@@ -69,6 +73,8 @@ const announceQueued = vi.hoisted(() => vi.fn());
 const queueState = vi.hoisted(() => ({
   queue: [] as unknown[],
   currentClimbQueueItem: null as unknown,
+  // The list the climb on the wall walks: none unless a case hands one.
+  suggestionSource: null as unknown,
 }));
 // What the prefetch walk hands back, per case. Empty by default: most cases here
 // assert on the displayed board, not on what is warmed ahead of it.
@@ -261,12 +267,14 @@ vi.mock('@boardsesh/play-view', async (importOriginal) => ({
   countRemainingQueueItemsWithSuggestions: () => 0,
   boardSupportsMirroring: () => true,
 }));
-vi.mock('@boardsesh/analytics', () => ({
+vi.mock('@boardsesh/analytics', async (importOriginal) => ({
   SHARED_EVENTS: {
     ClimbShared: 'Climb Shared',
     FavoriteToggle: 'Favorite Toggle',
     QuickTickOpened: 'Quick Tick Opened',
   },
+  // Pure: the reason a preview reports is the real rule.
+  wallControlPreviewReason: (await importOriginal<typeof import('@boardsesh/analytics')>()).wallControlPreviewReason,
 }));
 vi.mock('../../../lib/analytics', () => ({ track: vi.fn() }));
 const queueAnalytics = vi.hoisted(() => ({ navigation: vi.fn(), sheetOpened: vi.fn() }));
@@ -340,6 +348,7 @@ vi.mock('../../LogAscentSheet', () => ({
 }));
 vi.mock('../WallStatePill', () => ({ WallStatePill: () => null }));
 vi.mock('../TrackEndCard', () => ({ TrackEndCard: () => null }));
+vi.mock('../../onboarding/PlayerPreviewTip', () => ({ PlayerPreviewTip: () => null }));
 vi.mock('../WorkoutRunnerOverlay', () => ({ WorkoutRunnerOverlay: () => null }));
 vi.mock('../PanePlaceholder', () => ({ PanePlaceholder: () => null }));
 vi.mock('../BoardRenderUnavailable', () => ({ BoardRenderUnavailable: () => null }));
@@ -450,6 +459,7 @@ vi.mock('../../../providers/queue-provider', () => ({
   useQueueActions: () => ({
     getQueueSnapshot: () => queueState,
     setCurrentClimb,
+    playNext,
     nextClimb: vi.fn(),
     previousClimb: vi.fn(),
     addToQueue: vi.fn(async () => 'added'),
@@ -458,8 +468,8 @@ vi.mock('../../../providers/queue-provider', () => ({
   // Solo unless a case says otherwise (the busy-wall question needs a crew):
   // the crew gate is off, so gestures commit as they always have.
   useIsSharedSession: () => crew.shared,
-  useIsCrewSession: () => crew.shared,
-  usePlaylistSuggestionSource: () => null,
+  useIsCrewSession: () => crew.crew ?? crew.shared,
+  usePlaylistSuggestionSource: () => queueState.suggestionSource,
 }));
 // Null (no Bluetooth transport) unless a case hands the player a context, as
 // the #4979 stale-climb hold cases do.
@@ -541,21 +551,36 @@ vi.mock('../../../lib/analytics-wall-control', () => ({
   trackWallControlTapped: wallControlTapped,
   trackWallControlShown: vi.fn(),
   trackDriveModeEnded: vi.fn(),
+  trackDriveModeStarted: vi.fn(),
 }));
 vi.mock('../copy-climb-name', () => ({ copyClimbName: vi.fn() }));
+const selectionHaptic = vi.hoisted(() => vi.fn());
 vi.mock('../../../lib/haptics', () => ({
   hapticSuccess: vi.fn(),
   hapticMedium: wallHaptics.hapticMedium,
   hapticWarning: wallHaptics.hapticWarning,
   hapticLight: wallHaptics.hapticLight,
+  hapticSelection: selectionHaptic,
 }));
 vi.mock('../../../lib/announce-queued', () => ({ announceQueued }));
 
 const { PlayDrawer } = await import('../PlayDrawer');
 const { setSetting, resetAllSettings } = await import('../../../settings');
 const { resetWallCleared } = await import('../../ble/wall-cleared-store');
-const { getDriveMode, isDrivingStoppedForLink, markDriveLive, enterDriveMode, resetDriveModeForTests } =
-  await import('../drive-mode-store');
+const {
+  getDriveMode,
+  isDrivingStoppedForLink,
+  markDriveLive,
+  enterDriveMode,
+  resetDriveModeForTests,
+  startAlwaysDrive,
+} = await import('../drive-mode-store');
+
+/** Always drive the wall's drive, as `DriveModeWatcher` starts it once this phone's link is up. */
+function driveTheWall(): void {
+  setSetting('alwaysDrive', true);
+  startAlwaysDrive({ sessionId: null, boardId: null });
+}
 
 // The Original 12x12 the climber switched TO.
 const TWELVE_BY_TWELVE = { boardName: 'kilter', layoutId: 1, sizeId: 10, setIds: '1,20', angle: 40 };
@@ -662,6 +687,7 @@ beforeEach(() => {
   drawerSections.ready = true;
   queueState.queue = [];
   queueState.currentClimbQueueItem = null;
+  queueState.suggestionSource = null;
   bluetoothContext.value = null;
   lightbulbState.lit = false;
   lightbulbState.ledless = false;
@@ -670,6 +696,7 @@ beforeEach(() => {
   lightbulbState.holderIsAuthoritative = false;
   disconnectAllBluetooth.mockClear();
   crew.shared = false;
+  crew.crew = null;
   wallClimbState.uuid = null;
   wallClimbState.sentAt = null;
   boardSheet.props = [];
@@ -958,6 +985,48 @@ describe('PlayDrawer draws the climb on its own board (#5099)', () => {
     renderDrawer(vi.fn());
 
     expect(recorded.topBar.at(-1)?.parts).toMatchObject({ name: 'stage:queue-twelve', count: '2 of 5' });
+  });
+
+  // The then-signposts: in a workout the stage label keeps the top bar, so
+  // nothing new shows there, on the board or under the thumb, even on the last
+  // Up next climb before the list picks up.
+  it('shows no signposts in a workout', () => {
+    const listClimb = { ...TWELVE_CLIMB, uuid: 'twelve-on-list' };
+    const nextOnList = { ...TWELVE_CLIMB, uuid: 'twelve-next-on-list' };
+    const onList = queueItem(listClimb, 'queue-on-list');
+    const queued = queueItem(TWELVE_CLIMB, 'queue-twelve');
+    queueState.queue = [onList, queued];
+    queueState.currentClimbQueueItem = queued;
+    queueState.suggestionSource = {
+      playlistUuid: 'smart:projects',
+      activatedClimbUuid: listClimb.uuid,
+      boardKey: 'kilter:1',
+      climbs: [listClimb, nextOnList],
+      label: 'Projects',
+      resume: { climbUuid: listClimb.uuid, queueItemUuid: onList.uuid },
+    };
+    navigation.state = {
+      nextItem: queueItem(nextOnList, 'queue-next-on-list'),
+      prevItem: onList,
+      canNext: true,
+      canPrevious: true,
+      // The step back onto the list: the crossing.
+      nextTrackResume: null,
+    } as typeof navigation.state;
+    renderDrawer(vi.fn());
+
+    expect(recorded.topBar.at(-1)?.parts).toMatchObject({ name: 'stage:queue-twelve' });
+    expect(recorded.topBar.at(-1)?.parts).not.toHaveProperty('thenTail');
+    expect(recorded.topBar.at(-1)?.caption ?? null).toBeNull();
+    const board = recorded.board.at(-1);
+    expect(board?.accessibilityValueText).toBeUndefined();
+    expect(board?.nextActionLabel).toBeUndefined();
+    act(() => (board?.onSwipeNext as () => void)());
+    expect(selectionHaptic).not.toHaveBeenCalled();
+    expect(queueAnalytics.navigation).toHaveBeenCalledWith(
+      expect.objectContaining({ walk: expect.objectContaining({ track: 'list', crossed: true }) }),
+      expect.anything(),
+    );
   });
 
   it('withholds a peek whose climb lives on another board', () => {
@@ -1434,9 +1503,43 @@ describe('PlayDrawer ⋯ menu', () => {
     });
   });
 
+  it('queues the displayed preview slot next without changing the active climb', () => {
+    const current = queueItem({ ...TWELVE_CLIMB, uuid: 'current-other' }, 'current-slot');
+    const previewQueueItem = queueItem(TWELVE_CLIMB, 'preview-slot');
+    queueState.currentClimbQueueItem = current;
+    queueState.queue = [current, previewQueueItem];
+    render(
+      createElement(PlayDrawer, {
+        presentation: 'pane' as const,
+        boardConfig: TWELVE_BY_TWELVE,
+        openTarget: { climb: TWELVE_CLIMB, options: { previewQueueItem }, nonce: 1 },
+        onOpenQueue: vi.fn(),
+      }),
+    );
+    expect(recorded.actionBar.at(-1)?.playNextDisabled).toBe(false);
+    const onPlayNext = recorded.actionBar.at(-1)?.onPlayNext;
+    if (typeof onPlayNext !== 'function') throw new Error('Play next handler missing');
+    act(() => onPlayNext());
+    expect(playNext).toHaveBeenCalledWith({
+      item: expect.objectContaining({ climb: TWELVE_CLIMB }),
+      queueItemUuid: 'preview-slot',
+    });
+    expect(setCurrentClimb).not.toHaveBeenCalled();
+  });
+
+  it('keeps Play next disabled and guards its handler for the active climb', () => {
+    queueState.currentClimbQueueItem = queueItem(TWELVE_CLIMB, 'current-slot');
+    renderDrawer();
+    expect(recorded.actionBar.at(-1)?.playNextDisabled).toBe(true);
+    const onPlayNext = recorded.actionBar.at(-1)?.onPlayNext;
+    if (typeof onPlayNext !== 'function') throw new Error('Play next handler missing');
+    act(() => onPlayNext());
+    expect(playNext).not.toHaveBeenCalled();
+  });
+
   it('hands ⋯ a button the climber switched off, and the bar the same buttons', () => {
     onTestFinished(() => resetAllSettings());
-    setSetting('playerButtonsV3', {
+    setSetting('playerButtonsV4', {
       version: 1,
       order: ['mirror', 'favorite', 'queue', 'share', 'angle'],
       visible: { queue: false },
@@ -1483,7 +1586,7 @@ describe('PlayDrawer controls position (#6229)', () => {
   // (below it), and they would take the taps meant for Switch board.
   it('holds the whole switch-board card inside the controls, above the board with every small button off', () => {
     setSetting('playerButtonsPosition', 'above');
-    setSetting('playerButtonsV3', {
+    setSetting('playerButtonsV4', {
       version: 1,
       order: ['mirror', 'favorite', 'queue', 'share', 'angle'],
       visible: { mirror: false, favorite: false, angle: false, share: false, queue: false },
@@ -1537,7 +1640,6 @@ describe('PlayDrawer stale-climb hold', () => {
       armUndoWallChangeToast: vi.fn(),
       sendFramesToBoard: vi.fn(async () => true),
       wallHeldByOtherUser: false,
-      autoDisconnectWarning: false,
     };
   }
 
@@ -1573,6 +1675,7 @@ describe('PlayDrawer stale-climb hold', () => {
     { label: 'an accessory bar reopen', options: { reopensCurrent: true }, lights: false },
     { label: 'a queue-sheet tap', options: { committedExternally: true }, lights: false },
   ])('$label of the held climb lights=$lights', ({ options, lights }) => {
+    driveTheWall();
     queueState.currentClimbQueueItem = queueItem(TWELVE_CLIMB, 'queue-twelve');
     const bluetooth = connectedBluetooth({ queueItemUuid: 'queue-twelve', lastCurrentChangeAt: LAST_ON_WALL_AT });
     bluetoothContext.value = bluetooth;
@@ -1696,6 +1799,7 @@ describe('PlayDrawer queue analytics', () => {
   it('reports the action bar ⏮ ⏭ as button steps, once each', () => {
     setSetting('playerPreviousNext', true);
     onTestFinished(() => resetAllSettings());
+    driveTheWall();
     arrangeNeighbours();
     renderDrawer();
     expect(recorded.actionBar.at(-1)?.previousNext).toBe(true);
@@ -1714,6 +1818,7 @@ describe('PlayDrawer queue analytics', () => {
   });
 
   it('reports a board swipe as a swipe step', () => {
+    driveTheWall();
     arrangeNeighbours();
     renderDrawer();
     const pager = lastBoardProps().pager as { requestStep: (direction: 1 | -1, step: number) => void };
@@ -1722,6 +1827,26 @@ describe('PlayDrawer queue analytics', () => {
     expect(queueAnalytics.navigation).toHaveBeenCalledWith(
       expect.objectContaining({ ...solo, direction: 'previous', method: 'swipe', outcome: 'moved' }),
       expect.objectContaining({ player_layout_version: 3, player_previous_next: false }),
+    );
+  });
+
+  it.each([
+    [1, 'next'],
+    [-1, 'previous'],
+  ] as const)('says when a board swipe toward %s went before the climb had painted', async (step, direction) => {
+    driveTheWall();
+    arrangeNeighbours();
+    renderDrawer();
+    const pager = lastBoardProps().pager as SwipePager;
+    const artWait = { artState: 'loading' as const, waitedMs: 700 };
+    await act(async () => {
+      pager.noteStepArtWait(1, artWait);
+      pager.requestStep(step, 1);
+    });
+    expect(queueAnalytics.navigation).toHaveBeenCalledOnce();
+    expect(queueAnalytics.navigation).toHaveBeenCalledWith(
+      expect.objectContaining({ ...solo, direction, method: 'swipe', outcome: 'moved', artWait }),
+      expect.anything(),
     );
   });
 
@@ -1741,16 +1866,37 @@ describe('PlayDrawer queue analytics', () => {
     renderDrawer();
     press(recorded.actionBar.at(-1), 'onOpenQueue');
     press(recorded.actionsMenu.at(-1), 'onOpenQueue');
+    // The player shows the climb up, and nothing is queued after it.
     expect(queueAnalytics.sheetOpened.mock.calls).toEqual([
       [
-        { surface: 'player', boardType: 'kilter' },
+        { surface: 'player', boardType: 'kilter', from: 'current', upNextCount: 0 },
         expect.objectContaining({ player_layout_version: 3, player_previous_next: false }),
       ],
       [
-        { surface: 'player_menu', boardType: 'kilter' },
+        { surface: 'player_menu', boardType: 'kilter', from: 'current', upNextCount: 0 },
         expect.objectContaining({ player_layout_version: 3, player_previous_next: false }),
       ],
     ]);
+  });
+
+  it('says the player showed a preview, and how many climbs Up next held (Then-signposts)', () => {
+    const current = queueItem(TWELVE_CLIMB, 'queue-twelve');
+    queueState.currentClimbQueueItem = current;
+    queueState.queue = [current, queueItem(TWELVE_CLIMB, 'queued-a'), queueItem(TWELVE_CLIMB, 'queued-b')];
+    const previewQueueItem = queueItem(TWELVE_CLIMB, 'preview-item');
+    render(
+      createElement(PlayDrawer, {
+        presentation: 'pane' as const,
+        boardConfig: TWELVE_BY_TWELVE,
+        openTarget: { climb: TWELVE_CLIMB, options: { previewQueueItem }, nonce: 1 },
+        onOpenQueue: vi.fn(),
+      }),
+    );
+    press(recorded.actionBar.at(-1), 'onOpenQueue');
+    expect(queueAnalytics.sheetOpened).toHaveBeenCalledWith(
+      { surface: 'player', boardType: 'kilter', from: 'preview', upNextCount: 2 },
+      expect.anything(),
+    );
   });
 });
 
@@ -1767,7 +1913,6 @@ describe('PlayDrawer wall button reads the wall', () => {
     retainMirrorIntentFor: vi.fn(),
     sendFramesToBoard: vi.fn(async () => true),
     wallHeldByOtherUser: false,
-    autoDisconnectWarning: false,
   });
 
   it('says Lit on the wall for the current climb on this phone’s link, with this phone as the holder', () => {
@@ -1837,7 +1982,6 @@ describe('PlayDrawer wall button taps', () => {
       retainMirrorIntentFor: vi.fn(),
       sendFramesToBoard: vi.fn(async () => true),
       wallHeldByOtherUser: false,
-      autoDisconnectWarning: false,
     };
   }
   function linkedTo(bluetooth: ReturnType<typeof linkedBluetooth>, lit: boolean) {
@@ -1860,8 +2004,7 @@ describe('PlayDrawer wall button taps', () => {
     ['the wall button', 'onWallControl', 'button'],
     ['the bulb, back in the first row', 'onLightbulb', 'bulb'],
   ] as const)('a tap on Disconnect board on %s disconnects, and opens no sheet', (_control, prop, control) => {
-    // Not driving: solo with lighting on swipes off.
-    setSetting('lightOnSwipe', false);
+    // Not driving.
     disconnectAllBluetooth.mockClear();
     boardSheet.opened.mockClear();
     queueState.currentClimbQueueItem = queueItem(TWELVE_CLIMB, 'queue-twelve');
@@ -1869,6 +2012,7 @@ describe('PlayDrawer wall button taps', () => {
     linkedTo(bluetooth, true);
     const view = renderDrawer();
     expect(recorded.actionBar.at(-1)?.wallControlState).toBe('lit');
+    expect(recorded.actionBar.at(-1)?.wallGlow).toBeNull();
 
     tap(prop);
 
@@ -1917,11 +2061,13 @@ describe('PlayDrawer wall button taps', () => {
     expect(recorded.actionBar.at(-1)?.wallControl).toMatchObject({ holder: null, holderFace: null });
   });
 
-  // F1b: the lit button glows with the climb's holds, in the player's role colours.
-  it('hands the lit wall button the climb’s holds, once per climb and frame', () => {
+  // F1b: confirmed driving glows with the climb's holds, in the player's role colours.
+  it('hands the driving wall button the climb’s holds, once per climb and frame', () => {
     queueState.currentClimbQueueItem = queueItem(TWELVE_CLIMB, 'queue-twelve');
     linkedTo(linkedBluetooth(), true);
+    act(() => startLiveDrive());
     const view = renderDrawer();
+    expect(recorded.actionBar.at(-1)?.wallControl).toMatchObject({ driving: true });
     const glow = recorded.actionBar.at(-1)?.wallGlow as {
       key: string;
       holds: { x: number; y: number; color: string }[];
@@ -1958,14 +2104,14 @@ describe('PlayDrawer wall button taps', () => {
   });
 
   // #7113: one rule, solo included. A press on the frosted button stops driving
-  // and keeps the link; swipes go back to previews until the link drops.
-  const nothingToArrange = (): void => {};
+  // and keeps the link; swipes go back to previews until the link drops or the
+  // next Put on board.
   const startLiveDrive = (): void => {
     enterDriveMode({ startedBy: 'swipe', sessionId: null, boardId: null });
     markDriveLive();
   };
   it.each<[string, () => void]>([
-    ['solo with lighting on swipes', nothingToArrange],
+    ["Always drive the wall's drive", driveTheWall],
     ['a live drive', startLiveDrive],
   ])('a tap on You are driving the wall (%s) stops driving and keeps the link', (_case, arrange) => {
     disconnectAllBluetooth.mockClear();
@@ -2008,7 +2154,6 @@ describe('PlayDrawer wall button taps', () => {
     const { usePaneWallControl } = await import('../pane-wall-control-store');
     queueState.currentClimbQueueItem = queueItem(TWELVE_CLIMB, 'queue-twelve');
     linkedTo(linkedBluetooth(), true);
-    setSetting('lightOnSwipe', false);
     miniPlayerBeside.mirrors = true;
     onTestFinished(() => {
       miniPlayerBeside.mirrors = false;
@@ -2079,8 +2224,10 @@ describe('PlayDrawer wall button taps', () => {
         'play_drawer',
         expect.objectContaining({ uuid: TWELVE_CLIMB.uuid }),
       );
-      // Lit explicitly, never left to the auto-send the hold would stop.
+      // Lit explicitly, never left to the auto-send the hold would stop, and
+      // carried to the link this press brought up (it can mount in this render).
       expect(bluetooth.reassertWall).toHaveBeenCalledOnce();
+      expect(bluetooth.reassertWall).toHaveBeenCalledWith({ carryToConnect: true });
       expect(wallControlTapped).toHaveBeenCalledWith({
         state: 'on_wall_unlinked',
         action: 'relight',
@@ -2098,7 +2245,7 @@ describe('PlayDrawer wall button taps', () => {
 
   it('hands the bar the climber’s board control choice', () => {
     queueState.currentClimbQueueItem = queueItem(TWELVE_CLIMB, 'queue-twelve');
-    setSetting('playerButtonsV3', {
+    setSetting('playerButtonsV4', {
       version: 1,
       order: ['mirror', 'favorite', 'queue', 'share', 'angle'],
       visible: { mirror: true, favorite: true, queue: true, share: false, angle: false },
@@ -2107,6 +2254,32 @@ describe('PlayDrawer wall button taps', () => {
     onTestFinished(() => resetAllSettings());
     renderDrawer();
     expect(recorded.actionBar.at(-1)?.boardControl).toBe('lightbulb');
+  });
+
+  // 2.7: Wall Control Tapped says why the climb on screen is a preview.
+  it.each([
+    ['default', false],
+    ['session', true],
+  ] as const)('logs Put on board from a %s preview with its reason', (reason, shared) => {
+    crew.shared = shared;
+    queueState.currentClimbQueueItem = queueItem(TWELVE_CLIMB, 'queue-twelve');
+    linkedTo(linkedBluetooth(), true);
+    const other = climbOn('kilter', 1, 40, 'OTHER00000000000000000000000CCCC');
+    render(
+      createElement(PlayDrawer, {
+        presentation: 'pane' as const,
+        boardConfig: TWELVE_BY_TWELVE,
+        openTarget: { climb: other, options: { previewQueueItem: queueItem(other, 'preview-other') }, nonce: 1 },
+        onOpenQueue: vi.fn(),
+      }),
+    );
+    expect(recorded.actionBar.at(-1)?.wallControlState).toBe('put_on_wall');
+
+    tap('onWallControl');
+
+    expect(wallControlTapped).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ state: 'put_on_wall', action: 'put_on_wall', previewReason: reason }),
+    );
   });
 
   it("relays a tap on a crewmate's board to their phone, and never disconnects", () => {
@@ -2212,6 +2385,181 @@ describe('PlayDrawer wall button taps', () => {
     });
   });
 
+  // #4979: a climb current for 4 h is held dark on the connect's first write.
+  // A press that connects asked for the climb, so it lights through the hold in
+  // ONE press, on every path that connects: Put on board, its keep-lighting
+  // window, and the swipe's drive. Light again is pinned above ("on the wall
+  // per presence, no link"). The provider's half (the reassert that lands with
+  // the link) is pinned in bluetooth-provider-wall-confirm.test.tsx.
+  describe('one press through the #4979 hold', () => {
+    const HELD = { queueItemUuid: 'queue-twelve', lastCurrentChangeAt: Date.parse('2026-10-20T08:00:00Z') };
+    function noLink() {
+      queueState.currentClimbQueueItem = queueItem(TWELVE_CLIMB, 'queue-twelve');
+      const bluetooth = { ...linkedBluetooth(), isConnected: false };
+      bluetoothContext.value = bluetooth;
+      lightbulbState.pressAction = 'connect';
+      return bluetooth;
+    }
+    /** The link comes up and the provider's first write meets the hold (or not). */
+    function linkUp(
+      view: ReturnType<typeof renderDrawer>,
+      bluetooth: ReturnType<typeof noLink>,
+      hold: typeof HELD | null,
+    ) {
+      act(() => {
+        bluetoothContext.value = { ...bluetooth, isConnected: true, staleCurrentHold: hold };
+        lightbulbState.localConnected = true;
+        lightbulbState.pressAction = 'disconnect';
+      });
+      view.rerender(drawerElement());
+    }
+    const flush = () =>
+      act(async () => {
+        await Promise.resolve();
+      });
+
+    it('Put on board connects, and the hold it meets is let go at once', async () => {
+      const bluetooth = noLink();
+      const view = renderDrawer();
+      expect(recorded.actionBar.at(-1)?.wallControlState).toBe('connect');
+
+      tap('onWallControl');
+      await flush();
+      expect(lightbulbState.connect).toHaveBeenCalledWith(
+        'play_drawer',
+        expect.objectContaining({ uuid: TWELVE_CLIMB.uuid }),
+      );
+      expect(bluetooth.reassertWall).not.toHaveBeenCalled();
+
+      linkUp(view, bluetooth, HELD);
+      expect(bluetooth.reassertWall).toHaveBeenCalledOnce();
+    });
+
+    it('Put on board opens its keep-lighting window and lights through the hold, still one press', async () => {
+      swipeToDrive.on = true;
+      const bluetooth = noLink();
+      const view = renderDrawer();
+
+      tap('onWallControl');
+      await flush();
+      // The window arms at the press and goes live at the lit confirm.
+      expect(getDriveMode()).toMatchObject({ phase: 'arming', startedBy: 'tap', windowMs: 45_000 });
+
+      linkUp(view, bluetooth, HELD);
+      expect(bluetooth.reassertWall).toHaveBeenCalledOnce();
+    });
+
+    // The picker stays open while the climber finds their board: the minute the
+    // relight waits for counts from the connect, not from the press.
+    it('lights through the hold after a picker that stayed open past a minute', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+      vi.setSystemTime(Date.parse('2026-11-02T10:00:00Z'));
+      let finishConnect: (connected: boolean) => void = () => undefined;
+      lightbulbState.connect.mockImplementationOnce(
+        () =>
+          new Promise<boolean>((resolve) => {
+            finishConnect = resolve;
+          }),
+      );
+      const bluetooth = noLink();
+      const view = renderDrawer();
+
+      tap('onWallControl');
+      vi.setSystemTime(Date.parse('2026-11-02T10:01:30Z'));
+      await act(async () => {
+        finishConnect(true);
+        await Promise.resolve();
+      });
+
+      linkUp(view, bluetooth, HELD);
+      expect(bluetooth.reassertWall).toHaveBeenCalledOnce();
+    });
+
+    // iOS links before the connect's promise settles: the hold can land while
+    // the connect is still on its way, however long the picker stayed open.
+    it('lights through a hold that lands while a long connect is still settling', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+      vi.setSystemTime(Date.parse('2026-11-02T10:00:00Z'));
+      lightbulbState.connect.mockImplementationOnce(() => new Promise<boolean>(() => undefined));
+      const bluetooth = noLink();
+      const view = renderDrawer();
+
+      tap('onWallControl');
+      vi.setSystemTime(Date.parse('2026-11-02T10:01:30Z'));
+      linkUp(view, bluetooth, HELD);
+      expect(bluetooth.reassertWall).toHaveBeenCalledOnce();
+    });
+
+    it('lets a hold that lands more than a minute after the link stand', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+      vi.setSystemTime(Date.parse('2026-11-02T10:00:00Z'));
+      const bluetooth = noLink();
+      const view = renderDrawer();
+
+      tap('onWallControl');
+      await flush();
+      vi.setSystemTime(Date.parse('2026-11-02T10:01:01Z'));
+      linkUp(view, bluetooth, HELD);
+      expect(bluetooth.reassertWall).not.toHaveBeenCalled();
+    });
+
+    it('lets the hold stand after a connect that failed, when a later link meets it', async () => {
+      lightbulbState.connect.mockImplementationOnce(async () => false);
+      const bluetooth = noLink();
+      const view = renderDrawer();
+
+      tap('onWallControl');
+      await flush();
+      // Another control (the bulb) connects later: the bulb keeps the hold by design.
+      linkUp(view, bluetooth, HELD);
+      expect(bluetooth.reassertWall).not.toHaveBeenCalled();
+    });
+
+    it('lets a hold on another climb stand', async () => {
+      const bluetooth = noLink();
+      const view = renderDrawer();
+
+      tap('onWallControl');
+      await flush();
+      linkUp(view, bluetooth, { ...HELD, queueItemUuid: 'queue-other' });
+      expect(bluetooth.reassertWall).not.toHaveBeenCalled();
+    });
+
+    it('lets the hold stand when no press asked for the climb', () => {
+      const bluetooth = noLink();
+      const view = renderDrawer();
+      linkUp(view, bluetooth, HELD);
+      expect(bluetooth.reassertWall).not.toHaveBeenCalled();
+    });
+
+    it('the swipe’s drive connects, then re-asserts the held climb once', async () => {
+      swipeToDrive.on = true;
+      const bluetooth = noLink();
+      renderDrawer();
+      const drive = recorded.actionBar.at(-1)?.onWallControlDrive;
+      if (typeof drive !== 'function') throw new Error('no drive action');
+
+      act(() => {
+        drive('button');
+      });
+      await flush();
+
+      expect(lightbulbState.connect).toHaveBeenCalledOnce();
+      expect(bluetooth.reassertWall).toHaveBeenCalledOnce();
+      expect(bluetooth.reassertWall).toHaveBeenCalledWith({ carryToConnect: true });
+      expect(getDriveMode()).toMatchObject({ phase: 'arming', startedBy: 'action', windowMs: null });
+    });
+  });
+
   it('re-lights the #4979 held climb on a tap, with no Put on the wall beside it', () => {
     queueState.currentClimbQueueItem = queueItem(TWELVE_CLIMB, 'queue-twelve');
     const bluetooth = linkedBluetooth({
@@ -2307,5 +2655,28 @@ describe('PlayDrawer wall button taps', () => {
       'play_drawer',
       expect.objectContaining({ uuid: TWELVE_CLIMB.uuid }),
     );
+  });
+});
+
+describe('preview-first angle changes', () => {
+  it('keeps a solo preview on screen without reactivating the committed climb', () => {
+    queueState.currentClimbQueueItem = queueItem(TWELVE_CLIMB, 'queue-current');
+    const previewClimb = { ...TWELVE_CLIMB, uuid: 'angle-preview', frames: 'p1200r15' };
+    const previewItem = queueItem(previewClimb, 'preview-slot');
+    const target = { climb: previewClimb, options: { previewQueueItem: previewItem }, nonce: 1 };
+    const element = (angle: number) =>
+      createElement(PlayDrawer, {
+        presentation: 'pane',
+        boardConfig: { ...TWELVE_BY_TWELVE, angle },
+        onOpenQueue: onOpenQueueForDrawer,
+        openTarget: target,
+      });
+    const view = render(element(40));
+    expect(lastBoardProps().currentFrames).toBe(previewClimb.frames);
+    view.rerender(element(45));
+    expect(lastBoardProps().currentFrames).toBe(previewClimb.frames);
+    expect(recorded.playback.at(-1)?.viewOnly).toBe(true);
+    expect(setCurrentClimb).not.toHaveBeenCalled();
+    view.unmount();
   });
 });

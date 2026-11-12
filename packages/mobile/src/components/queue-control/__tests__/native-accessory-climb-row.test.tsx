@@ -13,7 +13,7 @@ vi.mock('../../PressableSurface', async () => {
   };
 });
 import { describe, it, expect, vi, beforeEach, onTestFinished } from 'vitest';
-import { act, cleanup, render, renderHook } from '@testing-library/react';
+import { act, cleanup, render } from '@testing-library/react';
 import { createElement, useEffect, type ReactNode, type CSSProperties } from 'react';
 import type { Climb, ClimbQueueItem } from '@boardsesh/queue';
 import type { BoardConfig } from '../../../providers/drawer-host-provider';
@@ -52,11 +52,19 @@ const connection = vi.hoisted(() => ({
   state: {
     bluetooth: {} as object | null,
     inAppBoardConnection: 'disconnected' as 'connectedByMe' | 'heldByPeer' | 'disconnected',
+    // This phone's own Bluetooth link (a hold on a wall with no lights has none).
+    localConnected: false,
     ledless: false,
     holderDisplayName: null as string | null,
   },
 }));
 vi.mock('../../ble/use-board-connection-state', () => ({ useBoardConnectionState: () => connection.state }));
+// This phone's drive (`useDriveLightingMode`): none by default.
+const drive = vi.hoisted(() => ({ mode: 'off' as 'off' | 'arming' | 'window' | 'driving' }));
+vi.mock('../../play-drawer/drive-mode-store', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../play-drawer/drive-mode-store')>()),
+  useDriveLightingMode: () => drive.mode,
+}));
 vi.mock('../../Icon', () => ({
   Icon: ({ name, color }: { name: string; color?: string }) =>
     createElement('i', { 'data-icon': name, 'data-icon-color': color ?? '' }),
@@ -231,6 +239,37 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => k
 vi.mock('../PaneWallControlBulb', () => ({
   PaneWallControlBulb: ({ control }: { control: { model: { state: string | null } } }) =>
     createElement('span', { 'data-pane-wall-control': control.model.state ?? 'none' }),
+}));
+// The last pick's bulb (owner decision A): a marker, with the usual bulb it
+// falls back to while the pick is lit. Its own suite covers what it draws.
+vi.mock('../PickPutOnBoardBulb', () => ({
+  PickBulbSlot: ({
+    pick,
+    bulb,
+    litBulb,
+  }: {
+    pick: { item: { uuid: string } };
+    bulb: { kind: string };
+    litBulb: ReactNode;
+  }) =>
+    // As the real slot: a pick no board here can light draws nothing.
+    bulb.kind === 'none'
+      ? null
+      : createElement(
+          'span',
+          { 'data-pick-bulb': pick.item.uuid, 'data-pick-bulb-kind': bulb.kind },
+          bulb.kind === 'lit' ? litBulb : null,
+        ),
+}));
+// What the pick's bulb is (`resolvePickBulb` has its own suite): null without a pick.
+const pickBulb = vi.hoisted(() => ({
+  value: { kind: 'putOnBoard', gymBoardName: null } as
+    | { kind: 'lit' }
+    | { kind: 'putOnBoard'; gymBoardName: string | null }
+    | { kind: 'none' },
+}));
+vi.mock('../use-pick-bulb', () => ({
+  usePickBulb: (pick: unknown) => (pick ? pickBulb.value : null),
 }));
 vi.mock('../BoardControlIndicator', () => ({
   BoardControlIndicator: ({ solidGlyphs, placement }: { solidGlyphs?: boolean; placement?: string }) =>
@@ -466,14 +505,17 @@ vi.mock('../LogAscentToolbarButton', () => ({
     iconSize,
     placement,
     appearance,
+    isMirror,
   }: {
     size?: number;
     iconSize?: number;
     placement?: string;
     appearance?: string;
+    isMirror?: boolean;
   }) =>
     createElement('button', {
       'data-tick': 'true',
+      'data-is-mirror': isMirror === undefined ? 'unset' : String(isMirror),
       'data-appearance': appearance ?? 'plain',
       'data-placement': placement ?? '',
       'data-tick-size': String(size),
@@ -560,7 +602,14 @@ describe('NativeAccessoryClimbRow', () => {
     queue.previousClimb.mockClear();
     liveStats.override = null;
     drawer.openPlayDrawer.mockClear();
-    connection.state = { bluetooth: {}, inAppBoardConnection: 'disconnected', ledless: false, holderDisplayName: null };
+    connection.state = {
+      bluetooth: {},
+      inAppBoardConnection: 'disconnected',
+      localConnected: false,
+      ledless: false,
+      holderDisplayName: null,
+    };
+    drive.mode = 'off';
     miniPlayer.layout = null;
     miniPlayer.isTablet = false;
     miniPlayer.windowWidth = 402;
@@ -575,6 +624,7 @@ describe('NativeAccessoryClimbRow', () => {
     miniPlayer.playerRouteUp = false;
     workoutGate.inTimedBlock = false;
     workoutGate.shown = null;
+    pickBulb.value = { kind: 'putOnBoard', gymBoardName: null };
   });
 
   it('renders a regular now-climbing row with thumbnail, grade, and integrated tick', () => {
@@ -695,6 +745,91 @@ describe('NativeAccessoryClimbRow', () => {
 
     expectNumericAttribute(thumbnail, 'data-board-width', 32);
     expectNumericAttribute(thumbnail, 'data-board-height', 17.68);
+  });
+
+  // Owner decision A: on the climber's last pick the bulb is the pick's
+  // (unlit, Put on board), and it keeps the collapsed platter's one slot so
+  // putting the pick up stays one tap away even with the board held.
+  function makePick(mirrored = false) {
+    const climb = queue.state.currentClimbQueueItem?.climb as Climb;
+    return {
+      climb,
+      pick: {
+        item: { uuid: 'queue-pick', climb },
+        suggestionSource: null,
+        commitOptions: undefined,
+        mirrored,
+        currentAtPick: 'queue-current',
+        wallAtPick: null,
+        pickedAt: 0,
+        generation: 0,
+      },
+    };
+  }
+
+  it('hands the bulb slot to the last pick, open or collapsed', () => {
+    connection.state.inAppBoardConnection = 'connectedByMe';
+    const { climb, pick } = makePick();
+    const open = render(
+      <NativeAccessoryClimbRow climb={climb} queueItemUuid="queue-pick" pick={pick} placement="regular" />,
+    );
+    expect(open.container.querySelector('[data-pick-bulb="queue-pick"]')).not.toBeNull();
+    open.unmount();
+    const collapsed = render(
+      <NativeAccessoryClimbRow climb={climb} queueItemUuid="queue-pick" pick={pick} placement="inline" />,
+    );
+    expect(collapsed.container.querySelector('[data-pick-bulb="queue-pick"]')).not.toBeNull();
+    expect(collapsed.container.querySelector('[data-tick="true"]')).toBeNull();
+  });
+
+  // ✓ logs the shown climb: a lit pick, or one on a board with no lights, has
+  // nothing to put up, so the collapsed platter's one slot stays the tick.
+  it.each([
+    ['lit', { kind: 'lit' as const }, false],
+    ['on a board with no lights', { kind: 'putOnBoard' as const, gymBoardName: null }, true],
+  ])('keeps ✓ in the collapsed platter for a pick that is %s', (_label, bulb, ledless) => {
+    pickBulb.value = bulb;
+    connection.state.ledless = ledless;
+    const { climb, pick } = makePick();
+    const { container } = render(
+      <NativeAccessoryClimbRow climb={climb} queueItemUuid="queue-pick" pick={pick} placement="inline" />,
+    );
+    expect(container.querySelector('[data-tick="true"]')).not.toBeNull();
+    expect(container.querySelector('[data-pick-bulb]')).toBeNull();
+  });
+
+  // A climb this wall can't light, with no board at the gym to walk to: the
+  // player has no board control for it, so the bar has no bulb either.
+  it('draws no bulb for a pick no board here can light, and the climb link speaks the board', () => {
+    pickBulb.value = { kind: 'none' };
+    connection.state.inAppBoardConnection = 'connectedByMe';
+    const { climb, pick } = makePick();
+    const { container } = render(
+      <NativeAccessoryClimbRow climb={climb} queueItemUuid="queue-pick" pick={pick} placement="regular" />,
+    );
+    expect(container.querySelector('[data-pick-bulb]')).toBeNull();
+    expect(container.querySelector('[data-board-control="true"]')).toBeNull();
+    expect(container.querySelector('[data-tick="true"]')).not.toBeNull();
+    // No bulb speaks the connection, so the climb link does.
+    expect(container.querySelector('[data-accessory-play-link]')?.getAttribute('data-a11y-value')).toBeTruthy();
+  });
+
+  // The ascent is the flip the bar draws: the pick's own, never its slot's.
+  it("hands ✓ the pick's own flip, and leaves the queue's current to its slot", () => {
+    const { climb, pick } = makePick(true);
+    const picked = render(
+      <NativeAccessoryClimbRow climb={climb} queueItemUuid="queue-pick" pick={pick} placement="regular" />,
+    );
+    expect(picked.container.querySelector('[data-tick="true"]')?.getAttribute('data-is-mirror')).toBe('true');
+    picked.unmount();
+    const current = renderRow('regular');
+    expect(current.container.querySelector('[data-tick="true"]')?.getAttribute('data-is-mirror')).toBe('unset');
+  });
+
+  it('keeps the usual bulb with no pick', () => {
+    const { container } = renderRow('regular');
+    expect(container.querySelector('[data-pick-bulb]')).toBeNull();
+    expect(container.querySelector('[data-board-control="true"]')).not.toBeNull();
   });
 
   it('shows the thumbnail, the byline and the tick, but no lightbulb, when collapsed and connected', () => {
@@ -853,6 +988,15 @@ describe('NativeAccessoryClimbRow', () => {
       },
     );
 
+    // `AccessoryPlacement` is UIKit's platter placement and is sent only from the
+    // platter: a tap on the Material card must keep reading as a JS-bar tap.
+    it('sends no analytics placement from the bulb or the tick on the Material card', () => {
+      const climb = queue.state.currentClimbQueueItem?.climb as Climb;
+      const { container } = render(<NativeAccessoryClimbRow climb={climb} placement="regular" host="materialCard" />);
+      expect(container.querySelector('[data-board-control]')?.getAttribute('data-placement')).toBe('');
+      expect(container.querySelector('[data-tick="true"]')?.getAttribute('data-placement')).toBe('');
+    });
+
     it.each([
       // The platter beside iPhone Duo's side tab rail in the closed shots.
       ['290pt (iPhone Duo outer display)', 290, 466, true],
@@ -875,6 +1019,98 @@ describe('NativeAccessoryClimbRow', () => {
       expect(held.container.querySelector('[data-accessory-play-link]')?.getAttribute('data-a11y-value')).toBe(
         'ble.barControl.connectedLabel',
       );
+    });
+  });
+
+  // Put on board's timed drive (owner decision 2026-11-02): the bulb's draining
+  // ring is the only sign of how long picks keep lighting, so the one slot
+  // stays the bulb while it runs, even with the board held, and ✓ comes back
+  // when it ends.
+  describe("the one slot during this phone's timed drive", () => {
+    function driveTheWall(mode: 'arming' | 'window' | 'driving') {
+      connection.state.inAppBoardConnection = 'connectedByMe';
+      connection.state.localConnected = true;
+      drive.mode = mode;
+    }
+
+    it('keeps the bulb collapsed while the drive runs, and hands the slot back to ✓ without remounting', () => {
+      driveTheWall('window');
+      const climb = queue.state.currentClimbQueueItem?.climb as Climb;
+      const { container, rerender } = render(<NativeAccessoryClimbRow climb={climb} placement="inline" />);
+      const row = container.firstElementChild;
+      expect(container.querySelector('[data-board-control]')?.getAttribute('data-placement')).toBe('inline');
+      expect(container.querySelector('[data-tick="true"]')).toBeNull();
+      // The bulb speaks for itself, so the climb link adds nothing.
+      expect(container.querySelector('[data-accessory-play-link]')?.getAttribute('data-a11y-value')).toBe('');
+
+      drive.mode = 'off';
+      rerender(<NativeAccessoryClimbRow climb={climb} placement="inline" />);
+      expect(container.firstElementChild).toBe(row);
+      expect(container.querySelector('[data-board-control]')).toBeNull();
+      expect(container.querySelector('[data-tick="true"]')).not.toBeNull();
+    });
+
+    it('keeps the bulb on a narrow open platter too', () => {
+      layout.width = 290;
+      miniPlayer.windowWidth = 466;
+      miniPlayer.verticalTabBar = true;
+      driveTheWall('window');
+      const { container } = renderRow('regular');
+      expect(container.querySelector('[data-board-control]')).not.toBeNull();
+      expect(container.querySelector('[data-tick="true"]')).toBeNull();
+    });
+
+    it("keeps a lit last pick's bulb (the usual one) in the slot", () => {
+      pickBulb.value = { kind: 'lit' };
+      driveTheWall('window');
+      const { climb, pick } = makePick();
+      const { container } = render(
+        <NativeAccessoryClimbRow climb={climb} queueItemUuid="queue-pick" pick={pick} placement="inline" />,
+      );
+      expect(container.querySelector('[data-pick-bulb="queue-pick"] [data-board-control]')).not.toBeNull();
+      expect(container.querySelector('[data-tick="true"]')).toBeNull();
+    });
+
+    it.each([
+      ['an open-ended drive: it has no end to show', () => driveTheWall('driving')],
+      ['an arming drive', () => driveTheWall('arming')],
+      [
+        "a crewmate's board",
+        () => {
+          driveTheWall('window');
+          connection.state.inAppBoardConnection = 'heldByPeer';
+        },
+      ],
+      [
+        'a dropped link',
+        () => {
+          driveTheWall('window');
+          connection.state.localConnected = false;
+        },
+      ],
+      [
+        'a wall with no lights, held with no link',
+        () => {
+          driveTheWall('window');
+          connection.state.ledless = true;
+          connection.state.localConnected = false;
+        },
+      ],
+    ])('keeps ✓ for %s', (_label, arrange) => {
+      arrange();
+      const { container } = renderRow('inline');
+      expect(container.querySelector('[data-board-control]')).toBeNull();
+      expect(container.querySelector('[data-tick="true"]')).not.toBeNull();
+    });
+
+    it("keeps the bulb for this phone's live link to a wall-device board's LEDs", () => {
+      // A wall-device board is driven without Bluetooth (`ledless`), but a live
+      // link writes real LEDs, so the drive shows as on any LED board.
+      driveTheWall('window');
+      connection.state.ledless = true;
+      const { container } = renderRow('inline');
+      expect(container.querySelector('[data-board-control]')).not.toBeNull();
+      expect(container.querySelector('[data-tick="true"]')).toBeNull();
     });
   });
 
@@ -1467,6 +1703,22 @@ describe('NativeAccessoryClimbRow', () => {
       expect(link(free.container)?.getAttribute('data-a11y-value')).toBe('');
       free.unmount();
       connection.state.inAppBoardConnection = 'connectedByMe';
+      const open = renderRow('regular');
+      expect(link(open.container)?.getAttribute('data-a11y-value')).toBe('');
+    });
+
+    // With ✓ in the one slot (an open-ended drive), no bulb says the drive, so the link does.
+    it('adds Driving the wall while this phone drives and the bulb is hidden', () => {
+      connection.state.inAppBoardConnection = 'connectedByMe';
+      connection.state.localConnected = true;
+      drive.mode = 'driving';
+      const collapsed = renderRow('inline');
+      expect(collapsed.container.querySelector('[data-board-control]')).toBeNull();
+      expect(link(collapsed.container)?.getAttribute('data-a11y-value')).toBe(
+        'ble.barControl.connectedLabel, ble.barControl.drivingValue',
+      );
+      collapsed.unmount();
+      // On the open platter the bulb says it instead.
       const open = renderRow('regular');
       expect(link(open.container)?.getAttribute('data-a11y-value')).toBe('');
     });

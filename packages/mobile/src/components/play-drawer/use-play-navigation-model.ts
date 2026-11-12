@@ -4,16 +4,22 @@ import type { ClimbQueueItem, PlaylistSuggestionSource } from '@boardsesh/queue'
 import {
   computeNavigationTargetsWithSuggestions,
   countRemainingQueueItemsWithSuggestions,
+  countUpNextBeforeList,
   prepareQueueNavigation,
   findUpcomingQueueItemsWithSuggestions,
   resolveNavigationSuggestionSource,
+  resolvePreviewStepSource,
   resolveTrackLabel,
   resolveTrackListClimbUuid,
   resolveTrackPosition,
   resolveUpNextProgress,
   resolveUpNextTrackLabel,
+  resolveStepTrack,
   selectNextQueueItemWithSuggestions,
+  stepCrossesIntoList,
+  upNextHandsBackToList,
   type ReachableClimbPredicate,
+  type StepTrack,
 } from '@boardsesh/play-view';
 import { toBoardName } from '@boardsesh/board-config';
 import { resolveClimbRenderBoard, sameRenderBoard } from '../../lib/boards/climb-render-board';
@@ -64,6 +70,28 @@ type PlayNavigationInputs = {
   renderBoardConfig: BoardConfig;
   isReachableClimb: ReachableClimbPredicate | undefined;
   enhancementsReady: boolean;
+};
+
+/**
+ * What the then-signposts read off the walk (see `then-signposts.ts`): where
+ * each step lands, whether it leaves Up next for the list, and how much of Up
+ * next the climber's own climb plays before its list goes on.
+ */
+export type PlayNavigationSignposts = {
+  /** Climbs Up next: after the queue's Now, or the whole queue without one. The room's, in a crew. */
+  upNextCount: number;
+  nextTrack: StepTrack;
+  previousTrack: StepTrack;
+  /** Next leaves Up next for the list. */
+  nextCrosses: boolean;
+  /** Previous leaves Up next for the list climb it was played from. */
+  previousCrosses: boolean;
+  /**
+   * "Up next first · 4 climbs": the Up next climbs the walk plays before the
+   * list goes on, while Next from this climb on the list steps into Up next.
+   * Null whenever Next stays on the list (or walks no list).
+   */
+  upNextFirstCount: number | null;
 };
 
 /** Pure render-time derivations: provider reads and pager lifetimes stay in Core. */
@@ -165,6 +193,27 @@ export function usePlayNavigationModel({
     () => ({ ...navigationTargets, remainingCount }),
     [navigationTargets, remainingCount],
   );
+  // The list a step that only looks carries into its preview (#7227): the
+  // track this walk is on, with the step's place in Up next. A look off the
+  // climb on the wall then goes on through Up next and down the list, as Next
+  // would, rather than stopping at the end of the queue. Null when the walk
+  // has no list: a preview opened without one never takes the committed track.
+  // A step back onto the list records the Up next climb on screen as the one
+  // it stepped off, where Previous retraces from. With no preview on screen the
+  // step leaves the climb on the wall itself, so it starts a look, and the
+  // list says so (`offWall`): the look's Put on board then leaves the queue as
+  // Next would, back up the list too. A preview's steps keep its list as it is.
+  const { nextTrackResume, prevTrackResume } = navigationTargets;
+  const steppedOffQueueItemUuid = displayedQueueItem?.uuid;
+  const offWall = drawerPreviewItem === null;
+  const nextPreviewSource = useMemo(
+    () => resolvePreviewStepSource(navigationSuggestionSource, nextTrackResume, { steppedOffQueueItemUuid, offWall }),
+    [navigationSuggestionSource, nextTrackResume, steppedOffQueueItemUuid, offWall],
+  );
+  const previousPreviewSource = useMemo(
+    () => resolvePreviewStepSource(navigationSuggestionSource, prevTrackResume, { steppedOffQueueItemUuid, offWall }),
+    [navigationSuggestionSource, prevTrackResume, steppedOffQueueItemUuid, offWall],
+  );
 
   // The neighbours' headers stay mounted beside the current one, like their
   // boards, so the title and grade being swiped towards are already there.
@@ -185,6 +234,12 @@ export function usePlayNavigationModel({
     [queue, displayedQueueItem, navigationSuggestionSource, preparedQueue],
   );
   const playsUpNext = trackPosition.kind === 'upNext';
+  // "· then Projects": the list picks up again once Up next is played, read off
+  // the climb the walk's own step lands on after Up next. A list still paging
+  // in its next climb carries on too.
+  const upNextCarriesOn =
+    upNextHandsBackToList(trackPosition, navigationSuggestionSource) ||
+    (playsUpNext && canLoadMoreOfTrack(navigationSuggestionSource));
   const currentTrackLabel = useMemo(
     () =>
       playsUpNext
@@ -199,6 +254,7 @@ export function usePlayNavigationModel({
               navigationBoardConfig,
               isReachableClimb,
             ),
+            upNextCarriesOn,
           )
         : resolveTrackLabel(labelSource, displayedClimbUuid),
     [
@@ -211,6 +267,7 @@ export function usePlayNavigationModel({
       navigationBoardConfig,
       isReachableClimb,
       displayedClimbUuid,
+      upNextCarriesOn,
     ],
   );
   // How far down the list the walk is, for paging: while Up next plays, the
@@ -226,9 +283,44 @@ export function usePlayNavigationModel({
   // The queue button's Up next count while a list is walked (#6238): the same
   // count the end card offers, so Up next stays in sight before the list ends.
   // Null when no list is walked.
-  const listWalkUpNextCount = resolveListWalkUpNextBadge(
-    currentTrackLabel,
-    countUpNext(queue.length, committedQueueIndex),
+  // With nothing current, History stays in the array (F3) and is not Up next.
+  const upNextCount = countUpNext(queue, committedQueueIndex, historyCount);
+  const listWalkUpNextCount = resolveListWalkUpNextBadge(currentTrackLabel, upNextCount);
+
+  // The then-signposts' reading of the walk: each step's own `trackResume`
+  // says where it lands, so the signs follow the swipe, never a second guess.
+  const nextTrack = resolveStepTrack(trackPosition, nextTrackResume);
+  const previousTrack = resolveStepTrack(trackPosition, prevTrackResume);
+  const nextCrosses = stepCrossesIntoList(trackPosition, nextTrackResume);
+  const previousCrosses = stepCrossesIntoList(trackPosition, prevTrackResume);
+  // Only worked out while Next plays Up next; from a climb already in it the
+  // count is null (`countUpNextBeforeList` counts from the list).
+  const entersUpNext = nextTrack === 'upNext';
+  const upNextFirstCount = useMemo(
+    () =>
+      entersUpNext
+        ? countUpNextBeforeList(
+            queue,
+            displayedQueueItem,
+            navigationSuggestionSource,
+            preparedQueue,
+            navigationBoardConfig,
+            isReachableClimb,
+          )
+        : null,
+    [
+      entersUpNext,
+      queue,
+      displayedQueueItem,
+      navigationSuggestionSource,
+      preparedQueue,
+      navigationBoardConfig,
+      isReachableClimb,
+    ],
+  );
+  const signposts = useMemo<PlayNavigationSignposts>(
+    () => ({ upNextCount, nextTrack, previousTrack, nextCrosses, previousCrosses, upNextFirstCount }),
+    [upNextCount, nextTrack, previousTrack, nextCrosses, previousCrosses, upNextFirstCount],
   );
 
   // Past the list's last climb: the end card, and where "Keep going with your
@@ -248,6 +340,7 @@ export function usePlayNavigationModel({
       navigationBoardConfig,
       isReachableClimb,
       preparedQueue,
+      historyCount,
     ).item;
     return resolveTrackEndCard({
       navigationState: { atTrackEnd },
@@ -255,12 +348,15 @@ export function usePlayNavigationModel({
       trackLabel: currentTrackLabel,
       queue,
       committedQueueIndex,
+      historyCount,
       queueSuccessor,
       previewOverNow,
+      committedClimbName: currentClimbQueueItem?.climb?.name ?? null,
     });
   }, [
     atTrackEnd,
     committedQueueIndex,
+    historyCount,
     currentClimbQueueItem,
     preparedQueue,
     queue,
@@ -346,10 +442,13 @@ export function usePlayNavigationModel({
   return {
     navigationSuggestionSource,
     navigationState,
+    nextPreviewSource,
+    previousPreviewSource,
     currentTrackLabel,
     trackListClimbUuid,
     trackEndCard,
     listWalkUpNextCount,
+    signposts,
     nextHeaderClimb,
     previousHeaderClimb,
     nextHeaderBoard,

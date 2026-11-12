@@ -20,10 +20,25 @@
       "import": "./src/validation.ts",
       "default": "./src/validation.ts"
     },
+    "./og-board-line": {
+      "types": "./src/og-board-line.ts",
+      "import": "./src/og-board-line.ts",
+      "default": "./src/og-board-line.ts"
+    },
     "./og-card": {
       "types": "./src/og-card.ts",
       "import": "./src/og-card.ts",
       "default": "./src/og-card.ts"
+    },
+    "./render-version-projection": {
+      "types": "./src/render-version-projection.ts",
+      "import": "./src/render-version-projection.ts",
+      "default": "./src/render-version-projection.ts"
+    },
+    "./og-family": {
+      "types": "./src/og-family.ts",
+      "import": "./src/og-family.ts",
+      "default": "./src/og-family.ts"
     },
     "./pipeline": {
       "types": "./src/pipeline.ts",

@@ -1,4 +1,5 @@
 import Link from '@mui/material/Link';
+import { parsePartnerOAuthMode } from '@boardsesh/auth-protocol/partner-oauth-mode';
 import { buildAppHandoffUrl } from '@/app/lib/app-handoff';
 import { createPageMetadata } from '@/app/lib/seo/metadata';
 import { getServerTranslation } from '@/app/lib/i18n/server';
@@ -16,6 +17,10 @@ export async function generateMetadata() {
 
 export default async function PrivacyPolicyPage() {
   const { t } = await getServerTranslation('marketing');
+  // Apps can connect only once this web service's PARTNER_OAUTH_MODE is on, so
+  // the section describing them appears with them. DRAFT (#6981 F18): the
+  // wording waits for the owner's approval, which is also a launch gate.
+  const partnerAppsOn = parsePartnerOAuthMode(process.env.PARTNER_OAUTH_MODE) !== 'off';
   return (
     <PageShell title={t('privacy.title')} lead={t('privacy.lastUpdated')}>
       <PageSection>
@@ -35,6 +40,9 @@ export default async function PrivacyPolicyPage() {
         </Prose>
         <Prose>
           <strong>{t('privacy.collect.productAnalyticsLabel')}</strong> {t('privacy.collect.productAnalyticsBody')}
+        </Prose>
+        <Prose>
+          <strong>{t('privacy.collect.adMeasurementLabel')}</strong> {t('privacy.collect.adMeasurementBody')}
         </Prose>
         <Prose>
           <strong>{t('privacy.collect.serviceStatsLabel')}</strong> {t('privacy.collect.serviceStatsBody')}
@@ -58,6 +66,15 @@ export default async function PrivacyPolicyPage() {
         <Prose>{t('privacy.sprayPhotos.body5')}</Prose>
       </PageSection>
 
+      {partnerAppsOn ? (
+        <PageSection title={t('privacy.connectedApps.title')}>
+          <Prose>{t('privacy.connectedApps.intro')}</Prose>
+          <Prose>{t('privacy.connectedApps.whatItGets')}</Prose>
+          <Prose>{t('privacy.connectedApps.afterSharing')}</Prose>
+          <Prose>{t('privacy.connectedApps.disconnect')}</Prose>
+        </PageSection>
+      ) : null}
+
       <PageSection title={t('privacy.thirdParty.title')}>
         <Prose>
           <strong>{t('privacy.thirdParty.hostingLabel')}</strong> {t('privacy.thirdParty.hostingBody')}
@@ -76,6 +93,17 @@ export default async function PrivacyPolicyPage() {
             {t('privacy.thirdParty.posthogLink')}
           </Link>
           .
+        </Prose>
+        <Prose>
+          <strong>{t('privacy.thirdParty.adPixelsLabel')}</strong> {t('privacy.thirdParty.adPixelsBody')}
+          <Link href="https://www.facebook.com/privacy/policy/" target="_blank" rel="noopener">
+            {t('privacy.thirdParty.metaLink')}
+          </Link>
+          {t('privacy.thirdParty.adPixelsJoin')}
+          <Link href="https://www.reddit.com/policies/privacy-policy" target="_blank" rel="noopener">
+            {t('privacy.thirdParty.redditLink')}
+          </Link>
+          {t('privacy.thirdParty.adPixelsBodyEnd')}
         </Prose>
         <Prose>
           <strong>{t('privacy.thirdParty.sentryLabel')}</strong> {t('privacy.thirdParty.sentryBody')}
@@ -109,6 +137,7 @@ export default async function PrivacyPolicyPage() {
 
       <PageSection title={t('privacy.choices.title')}>
         <Prose>{t('privacy.choices.storageBody')}</Prose>
+        <Prose>{t('privacy.choices.adCookiesBody')}</Prose>
         <Prose>{t('privacy.choices.changeBody')}</Prose>
       </PageSection>
 

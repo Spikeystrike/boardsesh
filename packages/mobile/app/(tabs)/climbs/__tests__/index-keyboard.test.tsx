@@ -110,7 +110,11 @@ const mocks = vi.hoisted(() => ({
   openPlayDrawer: vi.fn(),
   // Row actions, hoisted so tests can assert a stale row never reaches them.
   playNext: vi.fn(),
-  openClimbActions: vi.fn(),
+  getClimbActions: vi.fn(),
+  // What the row's last onOpenActions call returned: its menu target.
+  lastActionsTarget: undefined as unknown,
+  // Every onOpenActions the rows were handed, to check it stays one function.
+  actionsHandlers: new Set<unknown>(),
   openAddToPlaylist: vi.fn(),
   // Mutable per-test: whether another climber is in the session.
   isSharedSession: false,
@@ -119,9 +123,12 @@ const mocks = vi.hoisted(() => ({
   // without a second mock scaffold.
   searchParams: {} as Record<string, string>,
   isFocused: true,
+  // Run the screen's focus effects (the one-shot tips arm there).
+  runFocusEffects: false,
+  connectCardExpected: false,
   // Mutable per-test setting: false exercises the preview-open branch instead
   // of the committing activateClimb path.
-  lightOnClimbTap: true,
+  alwaysDrive: true,
   dismissKeyboard: vi.fn(),
   getLastSearch: vi.fn(),
   saveLastSearch: vi.fn(),
@@ -351,18 +358,25 @@ vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
-vi.mock('expo-router', () => ({
-  Stack: {
-    Screen: ({ options }: { options: NativeStackNavigationOptions }) => {
-      mocks.stackOptions.push(options);
-      return null;
+vi.mock('expo-router', async () => {
+  const { useEffect: useMountEffect } = await import('react');
+  return {
+    Stack: {
+      Screen: ({ options }: { options: NativeStackNavigationOptions }) => {
+        mocks.stackOptions.push(options);
+        return null;
+      },
     },
-  },
-  useRouter: () => ({ push: mocks.push }),
-  useLocalSearchParams: () => mocks.searchParams,
-  useIsFocused: () => mocks.isFocused,
-  useFocusEffect: () => {},
-}));
+    useRouter: () => ({ push: mocks.push }),
+    useLocalSearchParams: () => mocks.searchParams,
+    useIsFocused: () => mocks.isFocused,
+    // Off unless a case asks: only the one-shot tips arm on focus, and most
+    // cases are about something else.
+    useFocusEffect: (effect: () => void | (() => void)) => {
+      useMountEffect(() => (mocks.runFocusEffects ? effect() : undefined), [effect]);
+    },
+  };
+});
 vi.mock('expo-router/react-navigation', async () => {
   const { createContext } = await import('react');
   return {
@@ -390,12 +404,15 @@ vi.mock('../../../../src/components/spray-wall/SprayWallArchivedBanner', () => (
 }));
 vi.mock('../../../../src/components/onboarding/FirstConnectCard', () => ({
   FirstConnectCard: () => null,
-  useFirstConnectCardExpected: () => false,
+  useFirstConnectCardExpected: () => mocks.connectCardExpected,
 }));
-vi.mock('../../../../src/lib/onboarding/onboarding-storage', () => ({
+const onboardingStorage = vi.hoisted(() => ({
   hasBoardRevealTipPending: vi.fn(async () => false),
   clearBoardRevealTipPending: vi.fn(async () => {}),
+  hasSeenTip: vi.fn(async (_key: string) => true),
+  markTipSeen: vi.fn(async (_key: string) => {}),
 }));
+vi.mock('../../../../src/lib/onboarding/onboarding-storage', () => onboardingStorage);
 
 // The favourite-hearts fetcher reads the signed-in user's id, which reaches
 // `expo-secure-store` (a native module) through `local-user-id`. Stub the hook
@@ -522,23 +539,35 @@ vi.mock('../../../../src/components/ClimbListRow', () => ({
     climb: Climb;
     onPress?: (pressedClimb: Climb) => void;
     onPlayNext?: (queuedClimb: Climb) => void;
-    onOpenActions?: (actionsClimb: Climb) => void;
+    onOpenActions?: (actionsClimb: Climb) => unknown;
     onOpenPlaylist?: (playlistClimb: Climb) => void;
     selected?: boolean;
-  }) => [
-    createElement(
-      'button',
-      { key: 'row', onClick: () => onPress?.(rowClimb), 'data-selected': selected ? 'true' : 'false' },
-      rowClimb.name,
-    ),
-    createElement('button', { key: 'queue', onClick: () => onPlayNext?.(rowClimb) }, `queue:${rowClimb.name}`),
-    createElement('button', { key: 'actions', onClick: () => onOpenActions?.(rowClimb) }, `actions:${rowClimb.name}`),
-    createElement(
-      'button',
-      { key: 'playlist', onClick: () => onOpenPlaylist?.(rowClimb) },
-      `playlist:${rowClimb.name}`,
-    ),
-  ],
+  }) => {
+    mocks.actionsHandlers.add(onOpenActions);
+    return [
+      createElement(
+        'button',
+        { key: 'row', onClick: () => onPress?.(rowClimb), 'data-selected': selected ? 'true' : 'false' },
+        rowClimb.name,
+      ),
+      createElement('button', { key: 'queue', onClick: () => onPlayNext?.(rowClimb) }, `queue:${rowClimb.name}`),
+      createElement(
+        'button',
+        {
+          key: 'actions',
+          onClick: () => {
+            mocks.lastActionsTarget = onOpenActions?.(rowClimb);
+          },
+        },
+        `actions:${rowClimb.name}`,
+      ),
+      createElement(
+        'button',
+        { key: 'playlist', onClick: () => onOpenPlaylist?.(rowClimb) },
+        `playlist:${rowClimb.name}`,
+      ),
+    ];
+  },
 }));
 
 vi.mock('../../../../src/components/ClimbListRowSkeleton', () => ({
@@ -733,7 +762,7 @@ vi.mock('../../../../src/hooks/use-tab-reselect', () => ({
 
 vi.mock('../../../../src/providers/drawer-host-provider', () => ({
   useDrawerHost: () => ({
-    openClimbActions: mocks.openClimbActions,
+    getClimbActions: mocks.getClimbActions,
     openAddToPlaylist: mocks.openAddToPlaylist,
     openBoardSheet: vi.fn(),
     openPlayDrawer: mocks.openPlayDrawer,
@@ -778,7 +807,7 @@ vi.mock('../../../../src/settings', async () => {
       // Read through a store, like the real hook, so a write re-renders the screen.
       const gradeRowShown = useSyncExternalStore(subscribeGradeRow, () => mocks.gradeRow.shown);
       if (key === 'gradeRowShown') return [gradeRowShown, mocks.gradeRow.set];
-      return key === 'lightOnClimbTap' ? [mocks.lightOnClimbTap, vi.fn()] : [false, vi.fn()];
+      return key === 'alwaysDrive' ? [mocks.alwaysDrive, vi.fn()] : [false, vi.fn()];
     },
     setSetting: mocks.setSetting,
   };
@@ -970,6 +999,12 @@ vi.mock('../../../../src/theme/layout', () => ({ glassSize: { standard: 48 } }))
 vi.mock('../../../../src/theme/animations', () => ({ timing: { normal: 180 } }));
 
 import ClimbList from '../index';
+import { isListCardShowing } from '../../../../src/lib/onboarding/list-card-presence';
+import {
+  _resetFirstConnectConfirmationPresenceForTests,
+  setFirstConnectConfirmationShowing,
+} from '../../../../src/lib/onboarding/first-connect-confirmation-presence';
+import { ONBOARDING_TIP_QUICKACTIONS_KEY } from '@boardsesh/key-value-storage';
 import { HIDDEN_HEADER_TITLE_STYLE } from '../../../../src/components/chrome/hidden-header-title';
 import { setPinnedChips } from '../../../../src/lib/pinned-chips-store';
 import { DEFAULT_PINNED_CHIPS } from '../../../../src/lib/pinnable-chips';
@@ -981,7 +1016,7 @@ beforeEach(() => {
   mocks.activateClimb.mockClear();
   mocks.openPlayDrawer.mockClear();
   mocks.setSetting.mockClear();
-  mocks.lightOnClimbTap = true;
+  mocks.alwaysDrive = true;
   mocks.dismissKeyboard.mockClear();
   mocks.tickBatch.mockClear();
   mocks.holdInteractions = false;
@@ -1054,9 +1089,18 @@ beforeEach(() => {
   mocks.offlineCatalog = null;
   mocks.searchParams = {};
   mocks.isFocused = true;
+  mocks.runFocusEffects = false;
+  mocks.connectCardExpected = false;
+  onboardingStorage.hasBoardRevealTipPending.mockReset();
+  onboardingStorage.hasBoardRevealTipPending.mockImplementation(async () => false);
+  onboardingStorage.hasSeenTip.mockReset();
+  onboardingStorage.hasSeenTip.mockImplementation(async () => true);
+  onboardingStorage.markTipSeen.mockClear();
+  _resetFirstConnectConfirmationPresenceForTests();
   mocks.isSharedSession = false;
   mocks.activationOptions = undefined;
   mocks.isPlaceholderData = false;
+  mocks.lastActionsTarget = undefined;
   mocks.isRefetching = false;
   mocks.nativeRootHeader = true;
   mocks.renderNativeChrome = false;
@@ -1735,7 +1779,8 @@ describe('ClimbList previous results standing in for a loading search', () => {
   it('ignores queue, actions and playlist on a stale row', async () => {
     mocks.isPlaceholderData = true;
     mocks.playNext.mockClear();
-    mocks.openClimbActions.mockClear();
+    mocks.getClimbActions.mockClear();
+    mocks.getClimbActions.mockImplementation((menuClimb: Climb) => ({ climb: menuClimb, boardConfig: {} }));
     mocks.openAddToPlaylist.mockClear();
     const { findByText, getByText } = render(<ClimbList />);
 
@@ -1744,25 +1789,41 @@ describe('ClimbList previous results standing in for a loading search', () => {
     fireEvent.click(getByText('playlist:Moonage'));
 
     expect(mocks.playNext).not.toHaveBeenCalled();
-    expect(mocks.openClimbActions).not.toHaveBeenCalled();
+    // The row keeps a menu; a command picked on it is dropped.
+    const target = mocks.lastActionsTarget as { resolveClimb?: () => Promise<Climb | null> } | undefined;
+    await expect(target?.resolveClimb?.()).resolves.toBeNull();
     expect(mocks.openAddToPlaylist).not.toHaveBeenCalled();
+  });
+
+  it("keeps one menu builder through a search's placeholder rows", async () => {
+    mocks.actionsHandlers.clear();
+    const { findByText, rerender } = render(<ClimbList />);
+    await findByText('Moonage');
+    mocks.isPlaceholderData = true;
+    rerender(<ClimbList />);
+    mocks.isPlaceholderData = false;
+    rerender(<ClimbList />);
+    expect(mocks.actionsHandlers.size).toBe(1);
   });
 
   it('runs queue, actions and playlist on a fresh row', async () => {
     mocks.playNext.mockClear();
-    mocks.openClimbActions.mockClear();
+    mocks.getClimbActions.mockClear();
+    mocks.getClimbActions.mockImplementation((menuClimb: Climb) => ({ climb: menuClimb, boardConfig: {} }));
     mocks.openAddToPlaylist.mockClear();
     const { findByText, getByText } = render(<ClimbList />);
 
     fireEvent.click(await findByText('queue:Moonage'));
     fireEvent.click(getByText('actions:Moonage'));
     fireEvent.click(getByText('playlist:Moonage'));
+    const target = mocks.lastActionsTarget as { resolveClimb?: () => Promise<Climb | null> } | undefined;
+    await expect(target?.resolveClimb?.()).resolves.toEqual(expect.objectContaining({ uuid: 'climb-1' }));
 
     // The right swipe is Play next (#6772).
     expect(mocks.playNext).toHaveBeenCalledWith({
       item: expect.objectContaining({ climb: expect.objectContaining({ uuid: 'climb-1' }) }),
     });
-    expect(mocks.openClimbActions).toHaveBeenCalledWith(expect.objectContaining({ uuid: 'climb-1' }));
+    expect(mocks.getClimbActions).toHaveBeenCalledWith(expect.objectContaining({ uuid: 'climb-1' }));
     expect(mocks.openAddToPlaylist).toHaveBeenCalledWith(
       expect.objectContaining({ uuid: 'climb-1' }),
       undefined,
@@ -2052,9 +2113,9 @@ describe('ClimbList shared-session row taps', () => {
     expect(mocks.activationOptions?.previewOnly).toBe(true);
   });
 
-  it('browses in a crew even when the climber has tap-lighting ON', async () => {
+  it('browses in a crew even when the climber has Always drive the wall ON', async () => {
     mocks.isSharedSession = true;
-    mocks.lightOnClimbTap = true;
+    mocks.alwaysDrive = true;
     const { findByText } = render(<ClimbList />);
 
     fireEvent.click(await findByText('Moonage'));
@@ -2073,12 +2134,12 @@ describe('ClimbList shared-session row taps', () => {
   });
 });
 
-describe('ClimbList lightOnClimbTap setting', () => {
-  // The activation hook reads the setting at the tap now, for every list (issue
+describe('ClimbList Always drive the wall setting', () => {
+  // The activation hook reads the drive at the tap now, for every list (issue
   // #6665), so a preview carries the results as its track and swipes walk them
   // (#5157). The screen no longer opens a bare, trackless preview of its own.
   it('routes the tap through the activation hook when the setting is off', async () => {
-    mocks.lightOnClimbTap = false;
+    mocks.alwaysDrive = false;
     const { findByText } = render(<ClimbList />);
 
     fireEvent.click(await findByText('Moonage'));
@@ -2592,7 +2653,7 @@ describe('ClimbList screenshot-mode wall-state deep links', () => {
       // The drawer only claims "Browsing" while a swipe genuinely stays
       // view-only, so the capture puts the device in that state rather than
       // photographing a promise the app wouldn't keep.
-      expect(mocks.setSetting).toHaveBeenCalledWith('lightOnSwipe', false);
+      expect(mocks.setSetting).toHaveBeenCalledWith('alwaysDrive', false);
       // And the one-shot card that same setting triggers is spent up front: a
       // store shot is the steady state, not a climber's first five seconds.
       expect(mocks.setSetting).toHaveBeenCalledWith('browseNoticeSeen', true);
@@ -2844,6 +2905,63 @@ describe('ClimbList row highlight', () => {
     // Exactly one row is selected — the previewed uuid clears itself on the next
     // committing open, so the two can never both claim a row.
     expect((await findByText('Moonage')).getAttribute('data-selected')).toBe('false');
+  });
+});
+
+// The player's preview-first card waits for this list's cards (one card at a
+// time). Beside a tablet's player pane both are on screen, so the list says
+// when its first-connect card is up, and stops saying it once it is not.
+describe('ClimbList publishes its cards for the preview-first card', () => {
+  it('says the first-connect card is up while the list is focused', () => {
+    mocks.connectCardExpected = true;
+    const view = render(<ClimbList />);
+    expect(isListCardShowing('firstConnect')).toBe(true);
+
+    view.unmount();
+    expect(isListCardShowing('firstConnect')).toBe(false);
+  });
+
+  it('says nothing while the list is covered', () => {
+    mocks.connectCardExpected = true;
+    mocks.isFocused = false;
+    const view = render(<ClimbList />);
+    expect(isListCardShowing('firstConnect')).toBe(false);
+    view.unmount();
+  });
+});
+
+// Connecting from the first-connect card hides it, and the "Connected to
+// {{board}}" dialog lands a moment later. The tips that waited behind the card
+// wait through the dialog too, so neither shows under it, and the
+// quick-actions tip (spent the moment it shows) is not used up there.
+describe('ClimbList one-shot tips and the first-connect confirmation', () => {
+  it('holds the board-reveal tip back until the confirmation closes', async () => {
+    mocks.runFocusEffects = true;
+    onboardingStorage.hasBoardRevealTipPending.mockImplementation(async () => true);
+    setFirstConnectConfirmationShowing(true);
+    const view = render(<ClimbList />);
+    await waitFor(() => expect(onboardingStorage.clearBoardRevealTipPending).toHaveBeenCalled());
+    expect(isListCardShowing('boardReveal')).toBe(false);
+
+    act(() => setFirstConnectConfirmationShowing(false));
+    expect(isListCardShowing('boardReveal')).toBe(true);
+    view.unmount();
+  });
+
+  it('keeps the quick-actions tip unspent while the confirmation is coming or up', async () => {
+    mocks.runFocusEffects = true;
+    onboardingStorage.hasSeenTip.mockImplementation(async () => false);
+    setFirstConnectConfirmationShowing(true);
+    const view = render(<ClimbList />);
+    await waitFor(() => expect(onboardingStorage.hasSeenTip).toHaveBeenCalledWith(ONBOARDING_TIP_QUICKACTIONS_KEY));
+    await act(async () => {});
+    expect(isListCardShowing('quickActions')).toBe(false);
+    expect(onboardingStorage.markTipSeen).not.toHaveBeenCalledWith(ONBOARDING_TIP_QUICKACTIONS_KEY);
+
+    act(() => setFirstConnectConfirmationShowing(false));
+    expect(isListCardShowing('quickActions')).toBe(true);
+    expect(onboardingStorage.markTipSeen).toHaveBeenCalledWith(ONBOARDING_TIP_QUICKACTIONS_KEY);
+    view.unmount();
   });
 });
 

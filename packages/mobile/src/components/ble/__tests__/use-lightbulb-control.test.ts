@@ -24,11 +24,13 @@ type BluetoothCtx = {
   reconnectSerialForCurrentBoard: string | null;
   reconnectDeviceIdForCurrentBoard: string | null;
   ledless: boolean;
+  wallDevice: boolean;
   virtualWallHeld: boolean;
   wallHeldByOtherUser: boolean;
   canDriveWall: boolean;
   takeVirtualWall: ReturnType<typeof vi.fn>;
   releaseVirtualWall: ReturnType<typeof vi.fn>;
+  reassertWall: ReturnType<typeof vi.fn>;
 } | null;
 
 const ctrl = vi.hoisted(() => ({
@@ -85,11 +87,13 @@ function makeBluetooth(over: Partial<NonNullable<BluetoothCtx>> = {}): NonNullab
     reconnectSerialForCurrentBoard: null,
     reconnectDeviceIdForCurrentBoard: null,
     ledless: false,
+    wallDevice: false,
     virtualWallHeld: false,
     wallHeldByOtherUser: false,
     canDriveWall: false,
     takeVirtualWall: vi.fn(),
     releaseVirtualWall: vi.fn(),
+    reassertWall: vi.fn(),
     ...over,
   };
 }
@@ -250,6 +254,18 @@ describe('useLightbulbControl press action', () => {
     });
   });
 
+  // #4979: a bulb connects and lets the auto-send decide. A climb current for
+  // 4 h stays dark (the hold), by design: only the wall button's press, which
+  // asked for that climb, lights through it (PlayCore's relight after connect).
+  it('connects with no reassert, so the #4979 hold keeps a stale climb dark', async () => {
+    ctrl.bluetooth = makeBluetooth({ isConnected: false, reconnectSerialForCurrentBoard: 'serial-1' });
+    const { result } = renderControl();
+    result.current.onPress();
+    await expect(result.current.connect()).resolves.toBe(true);
+    expect(ctrl.bluetooth?.connect).toHaveBeenCalled();
+    expect(ctrl.bluetooth?.reassertWall).not.toHaveBeenCalled();
+  });
+
   it('reconnects a MoonBoard by its remembered device id (no serial)', () => {
     ctrl.bluetooth = makeBluetooth({ isConnected: false, reconnectDeviceIdForCurrentBoard: 'moon-abc' });
     const { result } = renderControl();
@@ -320,6 +336,17 @@ describe('useLightbulbControl on a wall with no LED light kit', () => {
     });
     result.current.onLongPress();
     expect(openControls).not.toHaveBeenCalled();
+  });
+
+  it('opens wall controls while this phone drives a spray wall over LAN', () => {
+    const openControls = vi.fn();
+    ctrl.bluetooth = makeBluetooth({ boardName: 'spray', ledless: true, virtualWallHeld: true, canDriveWall: true });
+    const { result } = renderHook(() => useLightbulbControl({ surface: 'toolbar', onOpenControls: openControls }), {
+      wrapper,
+    });
+    result.current.onLongPress();
+    expect(openControls).toHaveBeenCalledOnce();
+    expect(ctrl.bluetooth.connect).not.toHaveBeenCalled();
   });
 
   it('still disconnects a ledless board that somehow holds a live link', () => {
@@ -478,6 +505,31 @@ describe('useLightbulbControl relay to an authoritative holder', () => {
     result.current.onPress();
     expect(virtualWallHeld ? ctrl.bluetooth.releaseVirtualWall : ctrl.bluetooth.takeVirtualWall).toHaveBeenCalledOnce();
     expect(onRelayToHolder).not.toHaveBeenCalled();
+    expect(ctrl.bluetooth.connect).not.toHaveBeenCalled();
+  });
+
+  it("relays on a wall-device board instead of taking the wall off a crewmate's link", () => {
+    // Bluetooth wins across phones: the crewmate may light the LEDs over a live
+    // link, so a take from here would pull the wall from under them.
+    arrangePeerHoldsBoard();
+    ctrl.bluetooth = makeBluetooth({ ledless: true, wallDevice: true });
+    const onRelayToHolder = vi.fn();
+    const { result } = renderControl({ onRelayToHolder, canRelay: true });
+
+    expect(result.current.pressAction).toBe('relay');
+    result.current.onPress();
+    expect(onRelayToHolder).toHaveBeenCalledOnce();
+    expect(ctrl.bluetooth.takeVirtualWall).not.toHaveBeenCalled();
+    expect(ctrl.bluetooth.connect).not.toHaveBeenCalled();
+  });
+
+  it('takes the wall on a wall-device board nobody holds', () => {
+    ctrl.bluetooth = makeBluetooth({ ledless: true, wallDevice: true });
+    const { result } = renderControl({ canRelay: true });
+
+    expect(result.current.pressAction).toBe('takeWall');
+    result.current.onPress();
+    expect(ctrl.bluetooth.takeVirtualWall).toHaveBeenCalledOnce();
     expect(ctrl.bluetooth.connect).not.toHaveBeenCalled();
   });
 
@@ -651,6 +703,8 @@ describe('useLightbulbControl connect follows the climb (#7001)', () => {
       surface: 'play_drawer',
       boardName: 'moonboard',
       reconnect: false,
+      // The board moved to, not the Kilter still selected (2.7 release watch).
+      boardUuid: 'gym-moon',
     });
   });
 
@@ -783,6 +837,7 @@ describe('useLightbulbControl moveToClimbBoard (#7076)', () => {
       surface: 'move_to_board',
       boardName: 'kilter',
       reconnect: true,
+      boardUuid: 'gym-kilter',
     });
   });
 

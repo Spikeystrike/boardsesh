@@ -136,8 +136,7 @@
         "a11yHasBetaVideo": "has beta video",
         "a11yMirrored": "mirrored",
         "editAction": "Edit entry",
-        "deleteAction": "Delete entry",
-        "moreActions": "More actions"
+        "deleteAction": "Delete entry"
       },
       "day": {
         "today": "Today",
@@ -179,6 +178,7 @@
         "setters_one": "{{count}} setter",
         "setters_other": "{{count}} setters",
         "benchmarks": "Benchmarks",
+        "verified": "Verified",
         "gradeOpenHint": "Shows the grade row",
         "gradeCloseHint": "Hides the grade row",
         "angleOpenHint": "Shows the angle row",
@@ -231,6 +231,8 @@
         "setterAny": "Any",
         "benchmarks": "Benchmarks",
         "onlyBenchmarks": "Only benchmark climbs",
+        "verified": "Verified",
+        "onlyVerified": "Only Verified climbs",
         "sectionSort": "Sort",
         "sortBy": "Sort by",
         "order": "Order",

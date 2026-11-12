@@ -8,6 +8,8 @@ import { readableTextColor } from '../../grade/grade-chip-colors';
 import { useTheme } from '../../../providers/theme-provider';
 import { useDisplayGrade } from '../../../hooks/use-display-grade';
 import { useActiveBoard } from '../../../lib/graphql/use-active-board';
+import { boardHasLights } from '../../../lib/boards/board-lighting';
+import { useSprayWallLedsEnabled } from '../../../lib/spray/use-spray-wall-leds-enabled';
 import { formatRelativeTime } from '../../../lib/format-relative-time';
 import { borderRadius, spacing } from '../../../theme/tokens';
 import type { WallKioskTypeScale } from './wall-kiosk-type';
@@ -47,9 +49,11 @@ function WallStateStripComponent({
   // Read from the active board rather than the Bluetooth context: this memoized
   // leaf re-renders on every glance-line change already, and `useActiveBoard`'s
   // Infinity-staleTime query keeps a stable identity where the Bluetooth context
-  // value churns. Optional-field contract: only an explicit `false` is ledless.
+  // value churns. A wall lit by a wall device, or by this phone's LED setup on a
+  // spray wall, has lights, so it can be dark.
   const { data: activeBoard } = useActiveBoard();
-  const ledless = activeBoard?.hasLeds === false;
+  const sprayLedsEnabled = useSprayWallLedsEnabled(activeBoard?.boardType, activeBoard?.layoutId);
+  const ledless = !boardHasLights(activeBoard) && !sprayLedsEnabled;
 
   const barColor =
     mode === 'live' ? brandColors.live : mode === 'history' ? brandColors.historyFill : systemColors.fill;

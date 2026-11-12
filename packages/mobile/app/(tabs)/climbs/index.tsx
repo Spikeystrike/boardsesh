@@ -5,6 +5,7 @@ import { useHorizontalSafeArea } from '../../../src/hooks/use-horizontal-safe-ar
 import { useListTopOffset } from '../../../src/hooks/use-list-top-offset';
 import { useListChromeClearance } from '../../../src/hooks/use-list-chrome-clearance';
 import { ScrollEdgeListReset, useScrollEdgeBackdrop } from '../../../src/hooks/use-scroll-edge-backdrop';
+import { useHideOnScroll } from '../../../src/hooks/use-hide-on-scroll';
 import { useRefocusCount } from '../../../src/hooks/use-refocus-count';
 import { usePullRefresh } from '../../../src/hooks/use-pull-refresh';
 import { useTabReselect } from '../../../src/hooks/use-tab-reselect';
@@ -163,6 +164,7 @@ import { SprayWallArchivedBanner } from '../../../src/components/spray-wall/Spra
 import { NO_BOARD_PICKER_HREF } from '../../../src/lib/boards/first-board-mode';
 import { FollowedAuthorsUnavailableError } from '../../../src/lib/followed-authors-error';
 import { useActiveBoard, useSetActiveBoard } from '../../../src/lib/graphql/use-active-board';
+import { drivesWithoutBluetooth } from '../../../src/lib/boards/board-lighting';
 import { OnboardingTipBanner } from '../../../src/components/onboarding/OnboardingTipBanner';
 import { FirstConnectCard, useFirstConnectCardExpected } from '../../../src/components/onboarding/FirstConnectCard';
 import {
@@ -172,6 +174,8 @@ import {
   markTipSeen,
 } from '../../../src/lib/onboarding/onboarding-storage';
 import { ONBOARDING_TIP_QUICKACTIONS_KEY } from '@boardsesh/key-value-storage';
+import { setListCardShowing } from '../../../src/lib/onboarding/list-card-presence';
+import { useFirstConnectConfirmationShowing } from '../../../src/lib/onboarding/first-connect-confirmation-presence';
 import { useAuth } from '../../../src/providers/auth-provider';
 import { usePersonalGradesActive } from '../../../src/hooks/use-personal-grades';
 import { ensureBackgroundsCached } from '../../../src/lib/background-image-cache';
@@ -276,8 +280,9 @@ function ClimbListInner() {
   // second board-view shot passes 1 to render myBoards[1].
   // screenshotOpenPreview / screenshotOpenWallPreview land the same first climb
   // in the drawer's two wall-state shots — browsing, and on the wall.
-  // screenshotOpenClimbActions opens the long-press reaction menu over the first
-  // row (the help flow's 11-climb-actions shot).
+  // screenshotOpenClimbActions lifts the first row's climb menu, the same
+  // presentation a hold or its ellipsis opens (the help flow's 11-climb-actions
+  // shot).
   const {
     screenshotOpenFirst,
     screenshotDrive,
@@ -335,7 +340,7 @@ function ClimbListInner() {
   const { t } = useTranslation('climbs');
   const { t: tCommon } = useTranslation('common');
   const { t: tSession } = useTranslation('session');
-  const { openClimbActions, openAddToPlaylist, openBoardSheet, openPlayDrawer } = useDrawerHost();
+  const { getClimbActions, openAddToPlaylist, openBoardSheet, openPlayDrawer } = useDrawerHost();
   // The grade row is hidden until the Grade chip opens it. Then it stays, across
   // opening a climb, search, Filters and app launches, until the chip hides it.
   const [gradeRowShown, setGradeRowShown] = useSetting('gradeRowShown');
@@ -581,9 +586,15 @@ function ClimbListInner() {
   // The connect-step card (#5654, treatment only) goes first: one card at a
   // time, and both one-shot tips below wait until it is gone. Read from the
   // card's own store, so for everyone outside the treatment this is false.
-  const connectCardBoardHasLights = activeBoard != null && activeBoard.hasLeds !== false;
+  // The card offers a Bluetooth connect: not on a wall with no light kit, and not
+  // on one lit by a wall device, where climbers take the wall instead.
+  const connectCardBoardHasLights = activeBoard != null && !drivesWithoutBluetooth(activeBoard);
   const connectCardVisible = useFirstConnectCardExpected(connectCardBoardHasLights);
-  const showRevealTip = revealTipVisible && !!activeBoard && !connectCardVisible;
+  // Connecting from that card hides it, and the "Connected to {{board}}" dialog
+  // lands a moment later: the tips wait through that too, so neither shows
+  // under the dialog (and the quick-actions tip is not used up there).
+  const connectConfirmationShowing = useFirstConnectConfirmationShowing();
+  const showRevealTip = revealTipVisible && !!activeBoard && !connectCardVisible && !connectConfirmationShowing;
 
   // One-shot tip teaching the quick-actions menu (long-press or the ⋯ button).
   // Armed on focus if unseen; held back until the board-reveal banner is gone so
@@ -896,6 +907,9 @@ function ClimbListInner() {
   // Legacy backdrop consumers attach to this store. Native capsules draw their
   // own glass; forwarding its optional callbacks never renders this screen.
   const scrollEdge = useScrollEdgeBackdrop();
+  // The Android nav bar hides as the list scrolls down; chained in front of the
+  // chrome-clearance handler, which forwards every event to it.
+  const hideOnScroll = useHideOnScroll(scrollEdge.list?.listProps.onScroll);
   // The full measured controls include the expanded Grade rail. At the top,
   // disclosure moves results below it; farther down, keep the same rows in place.
   const {
@@ -908,7 +922,7 @@ function ClimbListInner() {
     initialHeight: insets.top + 60,
     topOffset: listTopOffset,
     listRef: climbListRef,
-    onScroll: scrollEdge.list?.listProps.onScroll,
+    onScroll: hideOnScroll,
   });
   // What covers the list's top edge: the native header's inset, plus the filter
   // controls when they sit over the list instead of above its clip.
@@ -952,11 +966,28 @@ function ClimbListInner() {
     armed: quickActionsTipArmed,
     revealTipShowing: showRevealTip,
     connectCardVisible,
+    connectConfirmationShowing,
     climbCount: visibleClimbs.length,
   });
   useEffect(() => {
     if (showQuickActionsTip) void markTipSeen(ONBOARDING_TIP_QUICKACTIONS_KEY);
   }, [showQuickActionsTip]);
+  // The player's preview-first card waits while any of this list's cards is on
+  // screen: on a tablet the player pane sits beside this list. A phone's player
+  // covers the list, which loses focus, so nothing is published then.
+  useEffect(() => {
+    setListCardShowing('firstConnect', isFocused && connectCardVisible);
+    setListCardShowing('boardReveal', isFocused && showRevealTip);
+    setListCardShowing('quickActions', isFocused && showQuickActionsTip);
+  }, [isFocused, connectCardVisible, showRevealTip, showQuickActionsTip]);
+  useEffect(
+    () => () => {
+      setListCardShowing('firstConnect', false);
+      setListCardShowing('boardReveal', false);
+      setListCardShowing('quickActions', false);
+    },
+    [],
+  );
 
   const firstSearchPage = searchPages?.pages[0];
 
@@ -1300,9 +1331,9 @@ function ClimbListInner() {
       // mount and measure, and this render fits inside that.
       requestPlayBoardPrewarm({ boardName: boardName as BoardName, layoutId, sizeId, setIds }, climb.frames);
       // This tap IS the selection, so it is the one moment the swipe track may be
-      // re-derived. Every tap re-captures it, previews included: in a crew, or
-      // with "Light the board when I tap a climb" off, the activation hook
-      // opens a preview seeded with these results, so swipes walk them (#5157).
+      // re-derived. Every tap re-captures it, previews included: outside a
+      // drive, the activation hook opens a preview seeded with these results,
+      // so swipes walk them (#5157).
       searchBasis.capture();
       void activateClimbListClimb.activate(toQueueClimb(climb), readyBoardArt);
     },
@@ -1414,8 +1445,8 @@ function ClimbListInner() {
 
   // Screenshot mode: open the first climb in one of the drawer's two wall-state
   // shots. `screenshotOpenPreview` is the browse latch — the Browsing pill, the
-  // viewfinder brackets and the commit row — which is the same landing as the
-  // "Preview" climb action. `screenshotOpenWallPreview` adds `previewIsWallClimb`
+  // viewfinder brackets and the commit row — which is the same landing as a
+  // deep-link preview. `screenshotOpenWallPreview` adds `previewIsWallClimb`
   // so the drawer says the displayed climb IS the lit one (the On-the-wall pill,
   // no commit to offer). Declared AFTER the wall-seed effect above so the kiosk
   // seed — which publishes this same first climb at index 0 — is already in the
@@ -1453,12 +1484,13 @@ function ClimbListInner() {
     if (!firstClimb) return;
     screenshotPreviewOpenedRef.current = true;
     // The drawer only claims "Browsing" while a swipe genuinely stays view-only,
-    // which for a preview with no suggestion source means lightOnSwipe off. The
-    // capture device is a throwaway simulator, so writing the setting is the
-    // honest way to reach the state — faking the chrome instead would ship a
-    // store screenshot of a promise the app doesn't keep.
+    // which for a preview with no suggestion source means nothing drives the
+    // wall: Always drive the wall off. The capture device is a throwaway
+    // simulator, so writing the setting is the honest way to reach the state —
+    // faking the chrome instead would ship a store screenshot of a promise the
+    // app doesn't keep.
     if (screenshotOpenPreview) {
-      setSetting('lightOnSwipe', false);
+      setSetting('alwaysDrive', false);
       // That same setting is what triggers the one-shot "you're browsing" card.
       // It is real product behaviour on a real first run, but a store screenshot
       // is a portrait of the steady state, not of a climber's first five seconds
@@ -1538,31 +1570,32 @@ function ClimbListInner() {
     handleSheetClearName,
   ]);
 
-  // Screenshot mode: open the long-press reaction menu over the first row. The
-  // gesture behind it is a 400ms `Gesture.LongPress()` on the row itself
-  // (ClimbListRow), and Maestro's accessibility tree on this iOS build doesn't
-  // expose the row at all — there is nothing to long-press — so the deep-link
-  // param is the only route to this screen. Same shape as the preview latch
-  // above: a one-shot ref, gated on the active board plus settled results so the
-  // menu opens over a list that has rows in it rather than skeletons.
-  // Guarded by `isPlaceholderDataRef` the same way every row action is: `searchReady`
-  // only says the filters finished restoring (`hasBoardConfig && restoredKey ===
-  // boardKey`), which is a different signal from React Query's placeholder flag. On
-  // a board or filter swap `visibleClimbs[0]` is still the PREVIOUS board's climb
-  // while placeholder data is showing, and this latch is one-shot — it would open
-  // the menu over the wrong climb and never correct itself. Dead-strips in normal
-  // builds.
-  const screenshotClimbActionsOpenedRef = useRef(false);
+  // Screenshot mode: lift the first row's climb menu. Maestro's accessibility
+  // tree on this iOS build doesn't expose the rows, so there is nothing to hold,
+  // and a coordinate moves with the list header; the param names the row
+  // instead and the row opens its own menu (`ClimbListRow`'s
+  // `screenshotOpenMenu`). Same shape as the preview latch above: one shot,
+  // gated on the active board plus settled results so the menu opens over a
+  // list that has rows in it rather than skeletons. Gated on placeholder data
+  // too: on a board or filter swap `visibleClimbs[0]` is still the PREVIOUS
+  // board's climb while placeholder data shows, and a one-shot latch would lift
+  // the wrong row and never correct itself. Dead-strips in normal builds.
+  const [screenshotMenuClimbUuid, setScreenshotMenuClimbUuid] = useState<string | null>(null);
   useEffect(() => {
     if (process.env.EXPO_PUBLIC_SCREENSHOT_MODE !== '1' || !screenshotOpenClimbActions) return;
     if (screenshotTargetBoard && activeBoard?.uuid !== screenshotTargetBoard.uuid) return;
-    if (!activeBoard || !searchReady || screenshotClimbActionsOpenedRef.current) return;
-    if (isPlaceholderDataRef.current) return;
+    if (!activeBoard || !searchReady || isPlaceholderData || screenshotMenuClimbUuid !== null) return;
     const firstClimb = visibleClimbs[0];
-    if (!firstClimb) return;
-    screenshotClimbActionsOpenedRef.current = true;
-    openClimbActions(firstClimb);
-  }, [screenshotOpenClimbActions, screenshotTargetBoard, activeBoard, searchReady, visibleClimbs, openClimbActions]);
+    if (firstClimb) setScreenshotMenuClimbUuid(firstClimb.uuid);
+  }, [
+    screenshotOpenClimbActions,
+    screenshotTargetBoard,
+    activeBoard,
+    searchReady,
+    isPlaceholderData,
+    screenshotMenuClimbUuid,
+    visibleClimbs,
+  ]);
 
   // Row actions ignore stale placeholder rows, same as handleClimbPress. The
   // right swipe is Play next: the top of Up next, so a climber with a long queue
@@ -1575,12 +1608,16 @@ function ClimbListInner() {
     [playNext],
   );
 
+  // The row builds its menu while it renders, so the stale-row guard runs when
+  // a command is picked, not here: a dep on the placeholder flag would rebuild
+  // every visible row's menu twice per search.
   const handleOpenClimbActions = useCallback(
     (climb: Climb) => {
-      if (isPlaceholderDataRef.current) return;
-      openClimbActions(climb);
+      const target = getClimbActions(climb);
+      if (!target) return target;
+      return { ...target, resolveClimb: async () => (isPlaceholderDataRef.current ? null : climb) };
     },
-    [openClimbActions],
+    [getClimbActions],
   );
 
   const handleOpenAddToPlaylist = useCallback(
@@ -1732,6 +1769,7 @@ function ClimbListInner() {
       getActiveFilterTokens({
         filters,
         boardFilters,
+        boardName,
         grades,
         t,
         formatGradeByDifficultyId: formatBoardGradeByDifficultyId,
@@ -1743,6 +1781,7 @@ function ClimbListInner() {
     [
       filters,
       boardFilters,
+      boardName,
       grades,
       t,
       formatBoardGradeByDifficultyId,
@@ -1814,11 +1853,9 @@ function ClimbListInner() {
   // (onlyFavorited), mutually exclusive: picking one clears the other two.
   const handleChangeCollection = useCallback(
     (value: CollectionFilter) => {
-      const patch = collectionPatch(value, filters);
-      patchBoardFilters(patch.boardFilters);
-      patchFilters(patch.filters);
+      patchFilters(collectionPatch(value, filters).filters);
     },
-    [patchBoardFilters, patchFilters, filters],
+    [patchFilters, filters],
   );
   // --- Tier-2 (opt-in) chip handlers — mirror the filter sheet's own controls so
   // a chip and the sheet never diverge. ---
@@ -1837,6 +1874,10 @@ function ClimbListInner() {
   const handleToggleBeta = useCallback(
     () => patchFilters({ onlyWithBetaVideos: filters.onlyWithBetaVideos ? undefined : true }),
     [patchFilters, filters.onlyWithBetaVideos],
+  );
+  const handleToggleBenchmarks = useCallback(
+    () => patchBoardFilters({ onlyBenchmarks: boardFilters.onlyBenchmarks ? undefined : true }),
+    [patchBoardFilters, boardFilters.onlyBenchmarks],
   );
   // Climb-type single-select derived from the boulders/routes flags — one shared
   // helper with the sheet, so the chip and sheet never show a different pick.
@@ -1979,6 +2020,7 @@ function ClimbListInner() {
     });
     return nameToken ? [nameToken, ...longTailTokens] : longTailTokens;
   }, [filterTokens, chipBackedTokenKeys, showTallChip, showWideChip, filters.sortOrder, nameToken]);
+  const denseChipRow = selectByVariant(variant, { material: true, liquidGlass: false });
   const filterChrome = useMemo(() => {
     if (!showFilterChips) return null;
     return (
@@ -2016,10 +2058,11 @@ function ClimbListInner() {
           progress={flagsToProgress(filters)}
           onChangeProgress={handleChangeProgress}
           canFilterProgress={isAuthenticated}
-          collection={getCollectionFilter(filters, boardFilters)}
+          collection={getCollectionFilter(filters)}
           onChangeCollection={handleChangeCollection}
           canFilterPersonalCollections={isAuthenticated}
           isSprayWall={boardName === SPRAY_BOARD_NAME}
+          boardName={boardName}
           sortBy={filters.sortBy}
           sortActive={sortActive}
           onChangeSort={handleChangeSort}
@@ -2029,12 +2072,18 @@ function ClimbListInner() {
           onChangeClimbType={handleChangeClimbType}
           betaActive={!!filters.onlyWithBetaVideos}
           onToggleBeta={handleToggleBeta}
+          benchmarksActive={!!boardFilters.onlyBenchmarks}
+          onToggleBenchmarks={handleToggleBenchmarks}
+          // The Material Climbs bar's 48dp chip row (ClimbTopChrome).
+          dense={denseChipRow}
         />
-        <FilterTokenRow tokens={sheetOnlyFilterTokens} />
+        {/* Under the dense Material chip row nothing else pads the pills off the list. */}
+        <FilterTokenRow tokens={sheetOnlyFilterTokens} bottomInset={denseChipRow} />
       </>
     );
   }, [
     showFilterChips,
+    denseChipRow,
     gradeUsesPopover,
     grades,
     gradeBound,
@@ -2067,6 +2116,7 @@ function ClimbListInner() {
     climbType,
     handleChangeClimbType,
     handleToggleBeta,
+    handleToggleBenchmarks,
     sheetOnlyFilterTokens,
   ]);
 
@@ -2166,9 +2216,11 @@ function ClimbListInner() {
         showMoreButton
         // Grid cells fill the row height FlashList gives them.
         fillCell={listColumns > 1}
+        screenshotOpenMenu={screenshotMenuClimbUuid !== null && climb.uuid === screenshotMenuClimbUuid}
       />
     ),
     [
+      screenshotMenuClimbUuid,
       listColumns,
       boardName,
       layoutId,

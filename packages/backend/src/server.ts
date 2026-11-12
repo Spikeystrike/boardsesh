@@ -8,6 +8,16 @@ import { roomManager } from './services/room-manager';
 import { redisClientManager } from './redis/client';
 import { eventBroker, NotificationWorker } from './events/index';
 import { initCors, applyCorsHeaders } from './handlers/cors';
+import { rejectApiHostRequest } from './handlers/api-host';
+import {
+  createMalformedRequestRecorder,
+  dropUnfinishedResponse,
+  guardRequestHandler,
+  parseRequestUrl,
+  refuseMalformedRequest,
+} from './handlers/request-guard';
+import { createPartnerAuthHandler } from './handlers/partner-auth';
+import { createPublicApiHandler } from './handlers/public-api/router';
 import { handleDatabaseHealthCheck, handleHealthCheck } from './handlers/health';
 import { recordDbConnectRetry } from './services/db-health';
 import { handleSessionJoin } from './handlers/join';
@@ -26,6 +36,13 @@ import { staticPathToMediaRedirect } from './lib/media-url';
 import { getMediaPublicBaseUrl } from './storage/s3';
 import { handleRobotsTxt } from './handlers/robots';
 import { handleOgClimb } from './handlers/og-climb';
+import {
+  handleOgPlace,
+  handleOgPlaylist,
+  handleOgProfile,
+  handleOgSession,
+  handleOgSetter,
+} from './handlers/og-family';
 import { handleBoardRender, isBoardRenderPath } from './handlers/board-render';
 import { handleBoardGeometry, isBoardGeometryPath } from './handlers/board-geometry';
 import { initBoardRenderer } from './services/board-render';
@@ -64,6 +81,9 @@ import {
   stopRefreshTokenCleanup,
 } from './handlers/native-auth';
 import { handleApnsStats } from './handlers/apns-stats';
+import { handleCurrentStoreWebAuth } from './handlers/current-store-web-auth';
+import { handleCurrentStoreWebOAuth } from './handlers/current-store-web-oauth';
+import { handleCurrentStoreBatchSystemUsers } from './handlers/current-store-batch-system-users';
 import { handleIntegrationOAuthStart, handleIntegrationOAuthCallback } from './handlers/integrations-oauth';
 import { createYogaInstance } from './graphql/yoga';
 import { setupWebSocketServer } from './websocket/setup';
@@ -86,6 +106,7 @@ import { startBackendMemoryMonitoring } from './services/memory-monitor';
 import { startClientUsageReporter, stopClientUsageReporter } from './services/client-usage';
 import { isClientAbortError } from './utils/http-errors';
 import { setDbConnectObserver } from '@boardsesh/db/client';
+import { captureFixedSystemOwnerOrderMode } from '@boardsesh/db/fixed-system-owner-order';
 import { isProductionSentryEnvironment, resolveSentryEnvironment } from '@boardsesh/db/client/config';
 import type { QueueEvent } from '@boardsesh/shared-schema';
 
@@ -117,6 +138,11 @@ async function dispatchLiveActivityForSession(sessionId: string): Promise<void> 
 }
 
 export async function startServer(options: { host?: string } = {}): Promise<ServerResources> {
+  // A typo in this mode would otherwise turn every adopted writer (account
+  // deletion, spray publish, gym merge, stray attach) into a quiet 503, one
+  // request at a time. Refuse to serve instead, so the deploy fails visibly.
+  captureFixedSystemOwnerOrderMode();
+
   // Surface database connect retries. `warn`, not `error`: SentryWinstonTransport
   // is constructed with `level: 'error'` (utils/sentry-transport.ts:80), so a
   // warn stays log-only and cannot double-report alongside the
@@ -344,14 +370,35 @@ export async function startServer(options: { host?: string } = {}): Promise<Serv
   // Create GraphQL Yoga instance
   const yoga = createYogaInstance();
 
+  const malformedRequests = createMalformedRequestRecorder();
+
+  // Both read PARTNER_OAUTH_MODE once. A request can never change it.
+  const handlePartnerAuth = createPartnerAuthHandler();
+  const handlePublicApi = createPublicApiHandler();
+
   /**
    * Custom request handler that routes requests to appropriate handlers
    */
   async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+    const url = parseRequestUrl(req);
+    if (!url) {
+      refuseMalformedRequest(res);
+      malformedRequests.record();
+      return;
+    }
     const pathname = url.pathname;
 
     try {
+      // Partner OAuth's exact routes and the public /v1 API on
+      // api.boardsesh.com. With the mode off, the default, both answer false
+      // for everything.
+      if (await handlePartnerAuth(req, res)) return;
+      if (await handlePublicApi(req, res)) return;
+
+      // api.boardsesh.com answers only its own route list, so this stays ahead
+      // of every route below.
+      if (rejectApiHostRequest(req, res, pathname)) return;
+
       // Health check endpoint
       if (pathname === '/health' && req.method === 'GET') {
         await handleHealthCheck(req, res);
@@ -376,6 +423,33 @@ export async function startServer(options: { host?: string } = {}): Promise<Serv
       // process warms WASM + caches rendered bytes in memory).
       if (pathname === '/og/climb' && (req.method === 'GET' || req.method === 'OPTIONS')) {
         await handleOgClimb(req, res, url);
+        return;
+      }
+
+      // Share-card family: playlist, session, profile and setter cards, rendered through the same
+      // pipeline as the climb card but answered from the database on every request.
+      if (pathname === '/og/playlist' && ['GET', 'HEAD', 'OPTIONS'].includes(req.method || '')) {
+        await handleOgPlaylist(req, res, url);
+        return;
+      }
+
+      if (pathname === '/og/session' && ['GET', 'HEAD', 'OPTIONS'].includes(req.method || '')) {
+        await handleOgSession(req, res, url);
+        return;
+      }
+
+      if (pathname === '/og/profile' && ['GET', 'HEAD', 'OPTIONS'].includes(req.method || '')) {
+        await handleOgProfile(req, res, url);
+        return;
+      }
+
+      if (pathname === '/og/setter' && ['GET', 'HEAD', 'OPTIONS'].includes(req.method || '')) {
+        await handleOgSetter(req, res, url);
+        return;
+      }
+
+      if (pathname === '/og/place' && ['GET', 'HEAD', 'OPTIONS'].includes(req.method || '')) {
+        await handleOgPlace(req, res, url);
         return;
       }
 
@@ -652,6 +726,27 @@ export async function startServer(options: { host?: string } = {}): Promise<Serv
         return;
       }
 
+      // Default-off service commands. Browser cookies do not authorize them.
+      if (pathname.startsWith('/api/internal/auth/current-store/batch-system-users/v1/')) {
+        await handleCurrentStoreBatchSystemUsers(req, res);
+        return;
+      }
+      if (pathname.startsWith('/api/internal/auth/current-store/web-oauth/v1/')) {
+        await handleCurrentStoreWebOAuth(req, res);
+        return;
+      }
+      if (
+        pathname === '/api/internal/auth/current-store/register' ||
+        pathname === '/api/internal/auth/current-store/password' ||
+        pathname === '/api/internal/auth/current-store/verify-email' ||
+        pathname === '/api/internal/auth/current-store/resend-verification' ||
+        pathname === '/api/internal/auth/current-store/forgot-password' ||
+        pathname === '/api/internal/auth/current-store/reset-password'
+      ) {
+        await handleCurrentStoreWebAuth(req, res);
+        return;
+      }
+
       // Native auth endpoints for React Native mobile app
       if (pathname === '/auth/native/exchange' && (req.method === 'POST' || req.method === 'OPTIONS')) {
         await handleNativeAuthExchange(req, res);
@@ -716,6 +811,13 @@ export async function startServer(options: { host?: string } = {}): Promise<Serv
         // Apply CORS for GraphQL requests
         if (!applyCorsHeaders(req, res)) return;
 
+        // Yoga builds its URL as `http://<Host><target>`, which an absolute-form
+        // target turns into an invalid URL and a 500 carrying a stack trace. It
+        // reads `originalUrl` first, so `req.url` stays as sent: the region trust
+        // check in utils/flag-country.ts compares it to the path Cloudflare clears
+        // that header on, and a rewrite would make other forms pass as that path.
+        if (!req.url?.startsWith('/')) Object.assign(req, { originalUrl: url.pathname + url.search });
+
         // Yoga handles the request and writes directly to the response
         await yoga.handle(req, res);
         return;
@@ -733,13 +835,17 @@ export async function startServer(options: { host?: string } = {}): Promise<Serv
         })
       ) {
         logger.info('Request aborted by client', { method: req.method, url: req.url });
+        // An upstream reset carries the same codes, with the client still waiting.
+        dropUnfinishedResponse(res);
         return;
       }
       logger.error('Request handler error:', error);
-      if (!res.headersSent) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Internal server error' }));
+      if (res.headersSent) {
+        dropUnfinishedResponse(res);
+        return;
       }
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal server error' }));
     }
   }
 
@@ -752,15 +858,16 @@ export async function startServer(options: { host?: string } = {}): Promise<Serv
   const certFile = process.env.DEV_HTTPS_CERT_FILE;
   const keyFile = process.env.DEV_HTTPS_KEY_FILE;
   const tlsEnabled = !!(certFile && keyFile);
+  const requestListener = guardRequestHandler(handleRequest);
   const httpServer = tlsEnabled
-    ? createHttpsServer({ cert: readFileSync(certFile!), key: readFileSync(keyFile!) }, handleRequest)
-    : createServer(handleRequest);
+    ? createHttpsServer({ cert: readFileSync(certFile!), key: readFileSync(keyFile!) }, requestListener)
+    : createServer(requestListener);
 
   // Setup WebSocket server for GraphQL subscriptions (includes ping/pong heartbeat)
   const { wss, pingInterval } = setupWebSocketServer(httpServer);
 
   // Track intervals for cleanup
-  const intervals: NodeJS.Timeout[] = [pingInterval];
+  const intervals: NodeJS.Timeout[] = [pingInterval, malformedRequests.flushTimer];
 
   logger.info(`Boardsesh Backend starting on port ${PORT}...`);
   // Whether this process reports to the production Sentry/PostHog projects is

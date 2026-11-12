@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useId } from 'react';
+import { useCallback, useState, useEffect, useId } from 'react';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Typography from '@mui/material/Typography';
@@ -8,14 +8,15 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
-import MuiLink from '@mui/material/Link';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import MuiDivider from '@mui/material/Divider';
 import PersonOutlined from '@mui/icons-material/PersonOutlined';
 import LockOutlined from '@mui/icons-material/LockOutlined';
 import MailOutlined from '@mui/icons-material/MailOutlined';
-import { signIn, useSession } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
+import { signInWithSessionIntent as signIn } from '@/app/lib/auth/web-session-events';
+import { isAuthBackendUnavailable } from '@boardsesh/auth-protocol/client-errors';
 import { useSearchParams } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import { useLocaleRouter, usePathnameWithoutLocale } from '@/app/lib/i18n/use-locale-router';
@@ -29,15 +30,17 @@ import {
   validateLoginFields,
   validateRegisterFields,
   type LoginErrors,
+  type LoginValues,
   type RegisterErrors,
 } from '@/app/components/auth/validate-fields';
+import { PasswordSignInFields } from '@/app/components/auth/password-sign-in-fields';
 import { TabPanel } from '@/app/components/ui/tab-panel';
 import { useSnackbar } from '@/app/components/providers/snackbar-provider';
 import { themeTokens } from '@/app/theme/theme-config';
 import { track, setPersonProperties } from '@/app/lib/analytics';
 import { SHARED_EVENTS } from '@boardsesh/analytics';
 import { authMethodFromError, safeAuthError } from './auth-error-classification';
-import LocaleLink from '@/app/components/i18n/locale-link';
+import { safeCallbackUrl } from '../signout/safe-callback-url';
 
 export default function AuthPageContent() {
   const { t } = useTranslation('auth');
@@ -62,6 +65,19 @@ export default function AuthPageContent() {
   const [activeTab, setActiveTab] = useState('login');
 
   const verified = searchParams.get('verified');
+
+  const updateLoginField = (field: keyof LoginValues, value: string) => {
+    setLoginValues((prev) => ({ ...prev, [field]: value }));
+    if (loginErrors[field]) setLoginErrors((prev) => ({ ...prev, [field]: undefined }));
+    if (loginServerError) setLoginServerError(null);
+  };
+
+  // The page's only client-side navigation to `callbackUrl`. The social buttons
+  // keep the raw value: they POST it to NextAuth, whose redirect callback checks
+  // it, and the phone and Expo web flows need their return URLs intact.
+  const pushCallbackUrl = useCallback(() => {
+    router.push(safeCallbackUrl(callbackUrl, window.location.origin));
+  }, [router, callbackUrl]);
 
   // Surface NextAuth redirect errors (failed OAuth round-trip or credentials
   // redirect) as the login form's inline alert rather than a transient toast —
@@ -100,9 +116,9 @@ export default function AuthPageContent() {
   // Redirect if already authenticated
   useEffect(() => {
     if (status === 'authenticated') {
-      router.push(callbackUrl);
+      pushCallbackUrl();
     }
-  }, [status, router, callbackUrl]);
+  }, [status, pushCallbackUrl]);
 
   const handleLogin = async () => {
     setLoginServerError(null);
@@ -124,7 +140,9 @@ export default function AuthPageContent() {
       });
 
       if (result?.error) {
-        setLoginServerError(t('login.toasts.invalidCredentials'));
+        setLoginServerError(
+          isAuthBackendUnavailable(result.error) ? t('login.toasts.authFailed') : t('login.toasts.invalidCredentials'),
+        );
         track('Login Failed', {
           auth_method: 'credentials',
           failure_reason: safeAuthError(result.error),
@@ -132,7 +150,7 @@ export default function AuthPageContent() {
       } else if (result?.ok) {
         showMessage(t('login.toasts.loggedIn'), 'success');
         track('Login Succeeded', { auth_method: 'credentials' });
-        router.push(callbackUrl);
+        pushCallbackUrl();
       }
     } catch (error) {
       // A thrown signIn (network down, server unreachable) must not leave the
@@ -172,7 +190,11 @@ export default function AuthPageContent() {
       const data = await response.json();
 
       if (!response.ok) {
-        setRegisterServerError(data.error || t('login.toasts.registrationFailed'));
+        setRegisterServerError(
+          isAuthBackendUnavailable(data.error)
+            ? t('login.toasts.authFailed')
+            : data.error || t('login.toasts.registrationFailed'),
+        );
         return;
       }
 
@@ -218,11 +240,12 @@ export default function AuthPageContent() {
           auth_method: 'credentials',
           is_first_login: true,
         });
-        router.push(callbackUrl);
+        pushCallbackUrl();
       } else {
         setActiveTab('login');
         setLoginValues((prev) => ({ ...prev, email: registerValues.email }));
-        showMessage(t('login.toasts.loginAfterCreate'), 'info');
+        if (isAuthBackendUnavailable(loginResult?.error)) setLoginServerError(t('login.toasts.authFailed'));
+        else showMessage(t('login.toasts.loginAfterCreate'), 'info');
       }
     } catch (error) {
       console.error('Registration error:', error);
@@ -307,73 +330,7 @@ export default function AuthPageContent() {
                 error={loginServerError}
                 maxWidth={false}
               >
-                <FormSection>
-                  <FormField label={t('login.fields.email')} error={loginErrors.email}>
-                    {(field) => (
-                      <TextField
-                        id={field.id}
-                        type="email"
-                        autoComplete="username"
-                        placeholder={t('login.placeholders.email')}
-                        fullWidth
-                        value={loginValues.email}
-                        onChange={(e) => {
-                          setLoginValues((prev) => ({ ...prev, email: e.target.value }));
-                          if (loginErrors.email) setLoginErrors((prev) => ({ ...prev, email: undefined }));
-                          if (loginServerError) setLoginServerError(null);
-                        }}
-                        error={Boolean(field.error)}
-                        slotProps={{
-                          input: {
-                            startAdornment: (
-                              <InputAdornment position="start">
-                                <MailOutlined />
-                              </InputAdornment>
-                            ),
-                          },
-                          htmlInput: { autoCapitalize: 'none', 'aria-describedby': field.describedBy },
-                        }}
-                      />
-                    )}
-                  </FormField>
-
-                  <FormField
-                    label={t('login.fields.password')}
-                    error={loginErrors.password}
-                    labelAccessory={
-                      <MuiLink component={LocaleLink} href="/auth/forgot-password" variant="body2">
-                        {t('login.links.forgotPassword')}
-                      </MuiLink>
-                    }
-                  >
-                    {(field) => (
-                      <TextField
-                        id={field.id}
-                        type="password"
-                        autoComplete="current-password"
-                        placeholder={t('login.placeholders.password')}
-                        fullWidth
-                        value={loginValues.password}
-                        onChange={(e) => {
-                          setLoginValues((prev) => ({ ...prev, password: e.target.value }));
-                          if (loginErrors.password) setLoginErrors((prev) => ({ ...prev, password: undefined }));
-                          if (loginServerError) setLoginServerError(null);
-                        }}
-                        error={Boolean(field.error)}
-                        slotProps={{
-                          input: {
-                            startAdornment: (
-                              <InputAdornment position="start">
-                                <LockOutlined />
-                              </InputAdornment>
-                            ),
-                          },
-                          htmlInput: { 'aria-describedby': field.describedBy },
-                        }}
-                      />
-                    )}
-                  </FormField>
-                </FormSection>
+                <PasswordSignInFields values={loginValues} errors={loginErrors} onFieldChange={updateLoginField} />
 
                 <FormActions submitLabel={t('login.submit.signIn')} submitting={loginLoading} layout="stacked" />
               </FormShell>

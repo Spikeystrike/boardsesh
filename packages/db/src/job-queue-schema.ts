@@ -118,6 +118,26 @@ export const POSTHOG_PERSON_DELETION_QUEUE_OPTIONS = {
  */
 export const CRON_JOB_DELETE_AFTER_SECONDS = 24 * 60 * 60;
 
+/**
+ * The backend's hourly partner OAuth retention sweep (docs/integration-platform.md,
+ * "Retention sweep"). Lives here because the migrator creates the queue.
+ */
+export const PARTNER_OAUTH_SWEEP_QUEUE = 'partner-oauth-sweep';
+
+/**
+ * `exclusive`: one run queued or running across every replica. A run stops
+ * starting batches after 30 s, far under this expiry, so pg-boss never starts a
+ * second copy beside a live one (a second copy would still be safe: the sweep
+ * skips every row another transaction holds). A failed run is retried once; the
+ * next hour's run covers anything it left.
+ */
+const PARTNER_OAUTH_SWEEP_QUEUE_OPTIONS = {
+  policy: 'exclusive',
+  expireInSeconds: 600,
+  retryLimit: 1,
+  retryDelay: 300,
+} as const;
+
 type TablePrivilege = 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE';
 
 /** One GRANT on a `public` table, optionally limited to some columns. */
@@ -182,6 +202,10 @@ const PROVIDER_SYNC_GRANTS: readonly WorkerTableGrant[] = [
   { table: 'playlists', privileges: PROVIDER_SYNC_WRITE },
   { table: 'playlist_climbs', privileges: PROVIDER_SYNC_WRITE },
   { table: 'playlist_ownership', privileges: PROVIDER_SYNC_WRITE },
+  // The circuits the climber deleted in Boardsesh, which both circuit writers
+  // skip (#7240). Read only: the backend records them on delete and clears
+  // them on unlink.
+  { table: 'user_deleted_upstream_playlists', privileges: ['SELECT'] },
   // Written by the boardsesh_ticks and playlist* delete triggers (offline sync tombstones).
   { table: 'sync_deletions', privileges: ['INSERT'] },
   // The stats keys a page or flush still owes a recompute: marked (upsert) in
@@ -237,6 +261,9 @@ const ROUTINE_PROVIDER_EXTRA_GRANTS: readonly WorkerTableGrant[] = [
   { table: 'user_boards', privileges: CATALOG_WRITE },
   { table: 'location_sync_gym_sources', privileges: CATALOG_WRITE },
   { table: 'kilter_wall_sources', privileges: CATALOG_WRITE },
+  // Read only: Kilter's Verified pass refuses to run until the frozen Aurora
+  // grades exist. Nothing writes to this table after its migration.
+  { table: 'kilter_aurora_benchmarks', privileges: ['SELECT'] },
   // Read only: the physical gym match weighs a candidate by its claims,
   // members, followers and comments before adopting it.
   { table: 'gym_claims', privileges: ['SELECT'] },
@@ -403,6 +430,42 @@ const USER_DATA_EXPORT_GRANTS: readonly WorkerTableGrant[] = [
  * visibility or public-copy column: the job renders what the backend queued
  * and decides nothing about who may see it.
  */
+/**
+ * What `reclaim-logbook-snapshots` reads and writes: a snapshot's identity and
+ * expiry, claimed `FOR UPDATE SKIP LOCKED` (which needs an UPDATE grant), and
+ * the rows it deletes. Column grants keep a chunk's `ticks` and a snapshot's
+ * binding out of reach; the job never needs them.
+ */
+const LOGBOOK_SNAPSHOT_RECLAIM_GRANTS: readonly WorkerTableGrant[] = [
+  { table: 'logbook_snapshots', privileges: ['SELECT'], columns: ['id', 'expires_at'] },
+  { table: 'logbook_snapshots', privileges: ['UPDATE'], columns: ['expires_at'] },
+  { table: 'logbook_snapshots', privileges: ['DELETE'] },
+  { table: 'logbook_snapshot_chunks', privileges: ['SELECT'], columns: ['snapshot_id', 'chunk_index'] },
+  { table: 'logbook_snapshot_chunks', privileges: ['DELETE'] },
+];
+
+/**
+ * What `prune-logbook-changes` reads and writes: a change row's position and
+ * age, claimed `FOR UPDATE SKIP LOCKED` (which needs UPDATE on one column), the
+ * rows it deletes, and the retention watermark. Never whose logbook a row
+ * belongs to (`user_id`), which tick it names, or the feed generation.
+ */
+const LOGBOOK_CHANGE_PRUNE_GRANTS: readonly WorkerTableGrant[] = [
+  { table: 'logbook_changes', privileges: ['SELECT'], columns: ['seq', 'txid', 'created_at'] },
+  { table: 'logbook_changes', privileges: ['UPDATE'], columns: ['created_at'] },
+  { table: 'logbook_changes', privileges: ['DELETE'] },
+  {
+    table: 'logbook_change_watermark',
+    privileges: ['SELECT'],
+    columns: ['id', 'pruned_through_txid', 'pruned_through_seq'],
+  },
+  {
+    table: 'logbook_change_watermark',
+    privileges: ['UPDATE'],
+    columns: ['pruned_through_txid', 'pruned_through_seq', 'updated_at'],
+  },
+];
+
 const SPRAY_WALL_ART_GRANTS: readonly WorkerTableGrant[] = [
   {
     table: 'spray_walls',
@@ -478,8 +541,15 @@ export const WORKER_ROLE_DATA_GRANTS: Record<BackgroundWorkerRole, readonly Work
   // provider-routine-cycle (a user sync), aurora-shared-sync,
   // kilter-catalog-sync, moonboard-locations-sync.
   'routine-provider': [...PROVIDER_SYNC_GRANTS, ...ROUTINE_PROVIDER_EXTRA_GRANTS],
-  // climb-stats-self-heal, user-data-export, spray-wall-art.
-  'maintenance-delivery': [...CLIMB_STATS_SELF_HEAL_GRANTS, ...USER_DATA_EXPORT_GRANTS, ...SPRAY_WALL_ART_GRANTS],
+  // climb-stats-self-heal, user-data-export, spray-wall-art, reclaim-logbook-snapshots,
+  // prune-logbook-changes.
+  'maintenance-delivery': [
+    ...CLIMB_STATS_SELF_HEAL_GRANTS,
+    ...USER_DATA_EXPORT_GRANTS,
+    ...SPRAY_WALL_ART_GRANTS,
+    ...LOGBOOK_SNAPSHOT_RECLAIM_GRANTS,
+    ...LOGBOOK_CHANGE_PRUNE_GRANTS,
+  ],
   // refresh-recommendations, refresh-hold-features, refresh-climb-grades,
   // refresh-climb-neighbors, export-board-snapshots, spray-wall-health,
   // community-monthly-stats.
@@ -816,6 +886,12 @@ export async function initializeJobQueueSchema(
       ...POSTHOG_PERSON_DELETION_QUEUE_OPTIONS,
     });
     await boss.updateQueue(POSTHOG_PERSON_DELETION_QUEUE, POSTHOG_PERSON_DELETION_QUEUE_OPTIONS);
+    await boss.createQueue(PARTNER_OAUTH_SWEEP_QUEUE, {
+      partition: false,
+      ...PARTNER_OAUTH_SWEEP_QUEUE_OPTIONS,
+    });
+    const { policy: _partnerSweepPolicy, ...mutablePartnerSweepOptions } = PARTNER_OAUTH_SWEEP_QUEUE_OPTIONS;
+    await boss.updateQueue(PARTNER_OAUTH_SWEEP_QUEUE, mutablePartnerSweepOptions);
     // Family queues are stately. A queue created under an earlier policy keeps
     // it (pg-boss cannot change a policy), which is why these are new names
     // rather than the retired `background-probe-<role>` queues.

@@ -7,7 +7,7 @@ import { grantAnalyticsForTest } from '../../../test/consent-fixture';
 import { getConsentSnapshot, updateConsentState } from '../../lib/consent-state';
 import { notifyAnalyticsIdentityChanged } from '../../lib/analytics-identity-events';
 import { createConsentSyncCoordinator } from '@boardsesh/consent';
-import { cancelAuthAnalyticsHandoffs } from '../../lib/auth-analytics-handoff';
+import { cancelAuthAnalyticsHandoffs, createAuthAnalyticsHandoff } from '../../lib/auth-analytics-handoff';
 
 const redirectMock = vi.hoisted(() => vi.fn());
 const platformState = vi.hoisted(() => ({ OS: 'ios' }));
@@ -173,6 +173,7 @@ beforeEach(() => {
   clearSessionCommentDraftMock.mockResolvedValue(undefined);
   clearWorkoutRunMock.mockReset();
   clearWorkoutRunMock.mockResolvedValue(undefined);
+  forgetRememberedBoardsOnSignOutMock.mockClear();
 });
 
 afterEach(() => {
@@ -283,7 +284,15 @@ vi.mock('../../lib/workout-run-store', () => ({
   clearWorkoutRun: (...args: unknown[]) => clearWorkoutRunMock(...args),
 }));
 
+// The boards this phone remembers for Bluetooth reconnects (a hang-up keeps
+// one for 10 minutes): a sign-out forgets them, a signed-out cold start doesn't.
+const forgetRememberedBoardsOnSignOutMock = vi.hoisted(() => vi.fn(async () => {}));
+vi.mock('../../lib/ble/remembered-boards-sign-out', () => ({
+  forgetRememberedBoardsOnSignOut: forgetRememberedBoardsOnSignOutMock,
+}));
+
 vi.mock('../../lib/user-storage-owner', () => ({
+  getCurrentUserStorageOwner: () => userStorageOwnerState.current,
   setCurrentUserStorageOwner: (owner: { userId: string; authSessionId: string } | null) => {
     userStorageOwnerState.set(owner);
   },
@@ -449,6 +458,13 @@ import { GATED_PATHS, READ_ONLY_PATHS } from '../../lib/routing/__tests__/read-o
 // stubbed above), so `getAppEntryHref()` reads what the test wrote.
 import { setSetting } from '../../settings/hooks';
 
+function accountDeletionIntentForCurrentOwner() {
+  const userId = 'deletion-owner';
+  commitVerifiedAuthResult({ userId });
+  getAuthTokenMock.mockResolvedValue(`header.${btoa(JSON.stringify({ sub: userId })).replace(/=/g, '')}.signature`);
+  return { credentialGeneration: captureAuthCredentialGenerationMock(), userId };
+}
+
 describe('AuthProvider loading state', () => {
   beforeEach(() => {
     // A signed-in, fresh-token session so checkAuth flips isLoading false and
@@ -500,6 +516,110 @@ describe('AuthProvider.signOut', () => {
     authSignOutMock.mockResolvedValue(true);
     clearStoredSessionIdMock.mockResolvedValue(undefined);
     clearStoredActiveBoardMock.mockResolvedValue(undefined);
+  });
+
+  it.each([
+    ['superseded generation', 2],
+    ['different owner in the same generation', 1],
+  ] as const)('keeps B untouched for A deletion with %s', async (_scenario, currentGeneration) => {
+    const userId = 'owner-b';
+    const token = `header.${btoa(JSON.stringify({ sub: userId })).replace(/=/g, '')}.signature`;
+    getAuthTokenMock.mockResolvedValue(token);
+    captureAuthCredentialGenerationMock.mockReturnValue(currentGeneration);
+    isAuthCredentialGenerationCurrentMock.mockImplementation((generation: number) => generation === currentGeneration);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(['userPlaylists'], [{ id: 'b-playlist' }]);
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>{children}</AuthProvider>
+      </QueryClientProvider>
+    );
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+    grantAnalyticsForTest();
+    commitVerifiedAuthResult({ userId });
+    const handoff = createAuthAnalyticsHandoff({ credentialCurrent: () => true, identity: null });
+    expect(handoff.isCurrent()).toBe(true);
+    const baseline = {
+      track: trackMock.mock.calls.length,
+      drain: drainMutationQueueMock.mock.calls.length,
+      offline: setOfflineModeMock.mock.calls.length,
+      revoke: authSignOutMock.mock.calls.length,
+      purge: purgeLocalDataForSignOutMock.mock.calls.length,
+      clearSession: clearStoredSessionIdMock.mock.calls.length,
+      tokenReads: getAuthTokenMock.mock.calls.length,
+    };
+    try {
+      await act(async () => {
+        await result.current.signOut('account_deleted', { credentialGeneration: 1, userId: 'owner-a' });
+      });
+      expect(result.current.isAuthenticated).toBe(true);
+      expect(getVerifiedAuthResult()).toEqual({ userId });
+      expect(handoff.isCurrent()).toBe(true);
+      expect(queryClient.getQueryData(['userPlaylists'])).toEqual([{ id: 'b-playlist' }]);
+      expect(trackMock).toHaveBeenCalledTimes(baseline.track);
+      expect(drainMutationQueueMock).toHaveBeenCalledTimes(baseline.drain);
+      expect(setOfflineModeMock).toHaveBeenCalledTimes(baseline.offline);
+      expect(authSignOutMock).toHaveBeenCalledTimes(baseline.revoke);
+      expect(purgeLocalDataForSignOutMock).toHaveBeenCalledTimes(baseline.purge);
+      expect(clearStoredSessionIdMock).toHaveBeenCalledTimes(baseline.clearSession);
+      if (currentGeneration === 2) expect(getAuthTokenMock).toHaveBeenCalledTimes(baseline.tokenReads);
+    } finally {
+      handoff.dispose();
+      commitVerifiedAuthResult(null);
+    }
+  });
+
+  it('keeps B untouched when its login replaces A during the deletion-owner read', async () => {
+    const tokenFor = (userId: string) => `header.${btoa(JSON.stringify({ sub: userId })).replace(/=/g, '')}.signature`;
+    let currentGeneration = 1;
+    captureAuthCredentialGenerationMock.mockImplementation(() => currentGeneration);
+    isAuthCredentialGenerationCurrentMock.mockImplementation((generation: number) => generation === currentGeneration);
+    getAuthTokenMock.mockResolvedValue(tokenFor('owner-a'));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(['userPlaylists'], [{ id: 'b-playlist' }]);
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>{children}</AuthProvider>
+      </QueryClientProvider>
+    );
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+    commitVerifiedAuthResult({ userId: 'owner-a' });
+    let finishRead: (token: string) => void = () => {};
+    getAuthTokenMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishRead = resolve;
+        }),
+    );
+    const pending = result.current.signOut('account_deleted', { credentialGeneration: 1, userId: 'owner-a' });
+    currentGeneration = 2;
+    getAuthTokenMock.mockResolvedValue(tokenFor('owner-b'));
+    grantAnalyticsForTest();
+    commitVerifiedAuthResult({ userId: 'owner-b' });
+    const handoff = createAuthAnalyticsHandoff({ credentialCurrent: () => true, identity: null });
+    const trackCount = trackMock.mock.calls.length;
+    const drainCount = drainMutationQueueMock.mock.calls.length;
+    const revokeCount = authSignOutMock.mock.calls.length;
+    try {
+      await act(async () => {
+        finishRead(tokenFor('owner-a'));
+        await pending;
+      });
+      expect(result.current.isAuthenticated).toBe(true);
+      expect(getVerifiedAuthResult()).toEqual({ userId: 'owner-b' });
+      expect(handoff.isCurrent()).toBe(true);
+      expect(trackMock).toHaveBeenCalledTimes(trackCount);
+      expect(drainMutationQueueMock).toHaveBeenCalledTimes(drainCount);
+      expect(authSignOutMock).toHaveBeenCalledTimes(revokeCount);
+      expect(queryClient.getQueryData(['userPlaylists'])).toEqual([{ id: 'b-playlist' }]);
+    } finally {
+      finishRead(tokenFor('owner-a'));
+      await pending;
+      handoff.dispose();
+      commitVerifiedAuthResult(null);
+    }
   });
 
   it('clears every cached React Query so cached data does not bleed into the next user', async () => {
@@ -569,6 +689,8 @@ describe('AuthProvider.signOut', () => {
     expect(clearSessionCommentDraftMock).not.toHaveBeenCalled();
     // The workout stage map is new (#5379), so it is cleared on every platform.
     expect(clearWorkoutRunMock).toHaveBeenCalledTimes(1);
+    // The next account's first bulb tap opens the board list, not this one's box.
+    expect(forgetRememberedBoardsOnSignOutMock).toHaveBeenCalledTimes(1);
     expect(resetHttpClientMock).toHaveBeenCalledTimes(1);
     expect(disposeWsClientMock).toHaveBeenCalledTimes(1);
     // Offline mode gates the backend, so a phone left signed out with the switch
@@ -661,7 +783,7 @@ describe('AuthProvider.signOut', () => {
     let caughtError: unknown;
     await act(async () => {
       try {
-        await result.current.signOut('account_deleted');
+        await result.current.signOut('account_deleted', accountDeletionIntentForCurrentOwner());
       } catch (error) {
         caughtError = error;
       }
@@ -2027,11 +2149,50 @@ describe('AuthProvider sign-out offline data wipe', () => {
     const result = await renderSignedIn();
 
     await act(async () => {
-      await result.current.signOut('account_deleted');
+      await result.current.signOut('account_deleted', accountDeletionIntentForCurrentOwner());
     });
 
     expect(purgeLocalDataForSignOutMock).toHaveBeenCalledTimes(1);
     expect(clearUserDataMock).not.toHaveBeenCalled();
+  });
+
+  // The server closes a deleted account's socket within a second, so a forced
+  // sign-out can land while the deletion's own cleanup is still running.
+  it('still wipes the downloaded catalogs when a forced sign-out interrupts a deletion', async () => {
+    let finishDeactivation = () => {};
+    const { deactivateNotificationDevice } = await import('../../notifications/device-registration');
+    vi.mocked(deactivateNotificationDevice).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishDeactivation = resolve;
+        }),
+    );
+    const result = await renderSignedIn();
+    await waitFor(() => expect(setOnForcedSignOutMock).toHaveBeenCalled());
+    const forceSignOut = setOnForcedSignOutMock.mock.calls.at(-1)?.[0] as (() => void) | undefined;
+    const trackCallsBefore = trackMock.mock.calls.length;
+
+    let deletion: Promise<void> | undefined;
+    await act(async () => {
+      deletion = result.current.signOut('account_deleted', accountDeletionIntentForCurrentOwner());
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(deactivateNotificationDevice).toHaveBeenCalled());
+    await act(async () => {
+      // The real interceptor advances the generation before it notifies the provider.
+      isAuthCredentialGenerationCurrentMock.mockReturnValue(false);
+      forceSignOut?.();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      finishDeactivation();
+      await deletion;
+    });
+
+    await waitFor(() => expect(purgeLocalDataForSignOutMock).toHaveBeenCalledTimes(1));
+    expect(clearUserDataMock).not.toHaveBeenCalled();
+    const logoutEvents = trackMock.mock.calls.slice(trackCallsBefore).filter(([name]) => name === 'Logout');
+    expect(logoutEvents.length).toBe(1);
   });
 
   // The guard that matters most: a failed token refresh is not a decision the user
@@ -2739,6 +2900,8 @@ describe('AuthProvider.checkAuth signed-out cleanup', () => {
     expect(clearUserDataExportDownloadsMock).toHaveBeenCalledWith(1);
     expect(resetHttpClientMock).not.toHaveBeenCalled();
     expect(disposeWsClientMock).not.toHaveBeenCalled();
+    // An anonymous climber's remembered board survives a relaunch (#3609).
+    expect(forgetRememberedBoardsOnSignOutMock).not.toHaveBeenCalled();
   });
 
   // The identity split. A signed-out cold start used to reset analytics, and it

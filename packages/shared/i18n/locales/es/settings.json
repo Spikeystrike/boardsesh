@@ -160,6 +160,7 @@
       "nameLabel": "Nombre del controlador (opcional)",
       "namePlaceholder": "Ej.: Plafón del salón",
       "boardLabel": "Tipo de plafón",
+      "boardSpray": "Spraywall",
       "layoutLabel": "Diseño",
       "sizeLabel": "Tamaño",
       "setsLabel": "Conjuntos de presas",
@@ -454,7 +455,12 @@
     "noDevicesFound": "No se encontraron plafones cercanos",
     "differentBoardType": "Estos parecen plafones distintos a tu configuración de {{board}}.",
     "troubleshootTitle": "¿No ves tu plafón?",
-    "troubleshootTips": "Asegúrate de que esté encendido y activo. Solo un teléfono puede conectarse a un plafón a la vez, así que desconecta otros dispositivos. Acércate o apaga y enciende el Bluetooth.",
+    "scanTipPower": "Comprueba que el plafón esté encendido y activo.",
+    "scanTipCloser": "Acércate al plafón.",
+    "scanTipBluetooth": "Apaga el Bluetooth y vuelve a encenderlo.",
+    "scanTipOtherPhone": "Solo un teléfono puede conectarse a la vez. Si hay otro conectado, desconéctalo allí primero.",
+    "scanTipOtherPhoneMoonBoard": "Si hay otro teléfono conectado, desconéctalo allí primero. Un controlador de MoonBoard antiguo puede necesitar que lo apagues y lo enciendas antes de que se conecte el siguiente teléfono.",
+    "browseForNow": "Explorar mientras tanto",
     "locationHintTitle": "Android necesita la ubicación para ver plafones",
     "locationHintBody": "En Android 12 y versiones posteriores, los resultados del escaneo Bluetooth quedan ocultos hasta que permitas el acceso a la ubicación. Boardsesh no usa tu ubicación para encontrar plafones, y una próxima actualización eliminará este requisito para siempre.",
     "locationHintGrant": "Permitir ubicación",
@@ -466,34 +472,38 @@
     "cancel": "Cancelar",
     "connectBoard": "Conectar plafón",
     "relightBoard": "Reiluminar plafón",
-    "sectionTitle": "Bluetooth",
-    "autoDisconnect": {
-      "description": "Desconecta del plafón cuando no se ha mostrado ningún bloque durante el tiempo elegido.",
-      "enabledLabel": "Desconexión automática",
-      "enabledDescription": "Permite que otros escaladores se conecten cuando termine el temporizador.",
-      "timeoutLabel": "Desconectar después de",
-      "toggleTitle": "Desconexión automática",
-      "toggleSubtitle": "Desconectar después de {{timeout}} de inactividad",
-      "timeoutOptions": {
-        "10": "10 segundos",
-        "15": "15 segundos",
-        "30": "30 segundos",
-        "45": "45 segundos",
-        "60": "1 minuto",
-        "120": "2 minutos",
-        "300": "5 minutos",
-        "600": "10 minutos"
-      }
-    },
     "lighting": {
       "title": "Iluminación del plafón",
-      "description": "Elige qué enciende el plafón conectado automáticamente.",
-      "onSwipeLabel": "Iluminar el plafón al deslizar",
-      "onSwipeDescription": "Solo cuando ya hay un bloque en el muro. Una vista previa nunca enciende el plafón al deslizar.",
-      "onTapLabel": "Iluminar el plafón al tocar un bloque",
-      "onTapDescription": "Tocar un bloque en cualquier lista lo pone en el muro. Si lo desactivas, se abre una vista previa.",
+      "keep": {
+        "label": "Dejar el mando tras",
+        "off": "Enseguida",
+        "options": {
+          "30": "30 segundos",
+          "45": "45 segundos",
+          "60": "1 minuto",
+          "120": "2 minutos",
+          "300": "5 minutos"
+        },
+        "untilStopped": "Hasta que pare",
+        "inSessionLabel": "También en una sesión",
+        "inSessionAccessibilityLabel": "Poner en el plafón y Siempre al mando del plafón también se aplican en una sesión",
+        "inSessionDescription": "Cuando tu teléfono tiene el plafón de tu crew. Si lo desactivas, los bloques que elijas en una sesión se quedan en vista previa.",
+        "inSessionOffReason": "Cambia Dejar el mando tras a algo distinto de Enseguida para usar esto.",
+        "alwaysDriveReason": "Siempre al mando del plafón está activado, así que esto no se aplica.",
+        "footer": "Poner en el plafón enciende el bloque y quedas al mando del plafón: cada bloque que elijas también se enciende, y cada uno reinicia el reloj. Cuando se acaba el tiempo, el siguiente bloque que elijas se abre como vista previa.",
+        "footerUntilStopped": "Poner en el plafón enciende el bloque y quedas al mando del plafón: cada bloque que elijas también se enciende, hasta que toques Estás al mando del plafón.",
+        "footerOff": "Poner en el plafón enciende el bloque que tienes abierto. El siguiente bloque que elijas se abre como vista previa."
+      },
+      "drivingEnds": {
+        "label": "Desconectar el Bluetooth al dejar el mando",
+        "description": "Cuando se acaba tu turno al mando, tu teléfono suelta el plafón para que el siguiente escalador pueda conectarse: al pararlo tú o apagar todas las luces, al acabarse el tiempo, o cuando alguien de tu crew pone un bloque mientras tu mando tiene límite de tiempo. Poner en el plafón vuelve a conectar."
+      },
+      "drivingHelp": "Cómo funciona el mando del plafón",
+      "alwaysDriveLabel": "Siempre al mando del plafón",
+      "alwaysDriveDescription": "Cada bloque que elijas se enciende mientras este teléfono tenga el plafón. En una sesión necesita También en una sesión.",
+      "alwaysDriveFooter": "Toca Estás al mando del plafón para parar. Los bloques que elijas se abren en vista previa hasta que te desconectes o pulses Poner en el plafón.",
       "playlistTapLoadsQueueLabel": "Al tocar una playlist, cargarla en mi cola",
-      "playlistTapLoadsQueueDescription": "Tocar un bloque de una playlist, de Para ti o de la página de un setter sustituye tu cola por esa lista. Si Iluminar el plafón al tocar un bloque está desactivado, usa Reproducir para cargarla."
+      "playlistTapLoadsQueueDescription": "Tocar un bloque de una playlist, de Para ti o de la página de un setter carga esa lista. Si estás al mando del plafón, la lista sustituye tu cola y el bloque que tocaste se enciende. Si no, la lista desde el bloque que tocaste pasa a A continuación y ese bloque se abre en vista previa, mientras el plafón conserva su bloque hasta que pulses Poner en el plafón. En una sesión, la lista nunca entra en la cola compartida."
     },
     "holdForControls": "Mantén pulsado para los controles",
     "boardControls": "Controles del plafón",
@@ -501,6 +511,7 @@
     "connectionFailedTitle": "No se pudo conectar",
     "permissionRequired": "Permiso de Bluetooth necesario",
     "errorPermissionDenied": "Permite los permisos de Bluetooth para conectar un plafón.",
+    "tryAgain": "Reintentar",
     "blockedTitle": "Boardsesh no tiene permiso de Bluetooth",
     "blockedBody": "Permite el Bluetooth para Boardsesh en Ajustes para iluminar bloques en tu plafón.",
     "blockedBodyNearbyDevices": "Permite «Dispositivos cercanos» para Boardsesh en Ajustes para iluminar bloques en tu plafón.",
@@ -528,10 +539,13 @@
       "wallHeldWithClimb": "Tienes el muro: {{name}}, {{grade}}",
       "wallHeldHint": "Libera el muro",
       "wallOpenLabel": "El muro está libre",
-      "wallOpenHint": "Toma el muro"
+      "wallOpenHint": "Toma el muro",
+      "drivingValue": "Estás al mando del plafón",
+      "stopDrivingLabel": "Dejar el mando",
+      "stopDrivingHint": "Los siguientes bloques que elijas se abren en vista previa"
     },
     "relayToWall": "Poner tu bloque en el plafón",
-    "peerDrivingBoard": "Otra persona está controlando el plafón"
+    "peerDrivingBoard": "Otra persona tiene el plafón"
   },
   "integrations": {
     "title": "Aplicaciones conectadas",
@@ -563,6 +577,40 @@
     },
     "garmin": {
       "title": "Garmin"
+    },
+    "partnerApps": {
+      "title": "Apps con acceso",
+      "empty": "Aún no hay apps conectadas. Las apps que conectes a tu cuenta de Boardsesh aparecen aquí.",
+      "footer": "Una app desconectada deja de leer nada nuevo. Lo que ya copió se queda en esa app.",
+      "gone": "Esta app ya no está conectada.",
+      "loadFailed": "No se pudo cargar esta app. Revisa tu conexión e inténtalo de nuevo.",
+      "retry": "Reintentar",
+      "scopesHeading": "Qué puede ver {{app}}",
+      "unnamedApp": "App sin nombre",
+      "publisher": "De {{publisher}}",
+      "connected": "Conectada el {{date}}",
+      "lastUsed": "Último uso {{time}}",
+      "lastUsedRecently": "Usada en la última hora",
+      "notUsedYet": "Aún sin usar",
+      "suspended": "Boardsesh pausó esta app. Ahora mismo no puede leer nada.",
+      "suspendedShort": "Pausada por Boardsesh",
+      "scopes": {
+        "logbookRead": "Ve todos los registros de tu logbook, en todos los plafones",
+        "logbookOnlyMe": "Incluidos los registros que tienes en «Solo yo»",
+        "logbookUnlisted": "Incluidos los bloques no listados y los borradores de otros setters que hayas registrado",
+        "logbookSpraywall": "Los bloques del Spraywall «Privado» o «Solo con enlace» de otra persona llegan sin su nombre",
+        "profileRead": "Ve tu nombre y tu foto de perfil",
+        "offlineAccess": "Mantiene este acceso hasta que la desconectes",
+        "other": "Otro acceso: {{scope}}"
+      },
+      "disconnect": "Desconectar",
+      "disconnectA11y": "Desconectar {{app}}",
+      "disconnectConfirmTitle": "¿Desconectar {{app}}?",
+      "disconnectConfirmBody": "{{app}} deja de ver tu cuenta al instante. Lo que ya copió se queda en la app. Para volver a usarla, conéctala desde la app.",
+      "disconnected": "{{app}} desconectada",
+      "disconnectFailed": "No se pudo desconectar {{app}}. Inténtalo de nuevo.",
+      "cancel": "Cancelar",
+      "close": "Cerrar"
     }
   },
   "watchPairing": {

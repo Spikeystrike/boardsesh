@@ -16,7 +16,7 @@ import {
   visibleActivityUserIds,
 } from '../../../services/privacy';
 import { v4 as uuidv4 } from 'uuid';
-import { eq, ne, and, count, isNull, isNotNull, sql, ilike, or, asc, desc, inArray, like } from 'drizzle-orm';
+import { eq, ne, and, count, isNull, isNotNull, sql, ilike, or, asc, desc, inArray, like, type SQL } from 'drizzle-orm';
 import { GraphQLError } from 'graphql';
 import type { ConnectionContext } from '@boardsesh/shared-schema';
 import { normaliseSetIds } from '@boardsesh/board-config';
@@ -574,6 +574,7 @@ async function enrichBoard(
     angle: Number(board.angle),
     isAngleAdjustable: board.isAngleAdjustable,
     hasLeds: board.hasLeds,
+    litByWallDevice: board.litByWallDevice,
     createdAt: board.createdAt.toISOString(),
     // Computed name fields (TODO: resolve from board-specific layout/size/set tables if needed)
     layoutName: null,
@@ -610,10 +611,21 @@ async function enrichBoard(
 export async function enrichBoards(
   boards: Array<{ board: typeof dbSchema.userBoards.$inferSelect; distanceMeters?: number | null }>,
   authenticatedUserId?: string,
-  options: { allowUnlistedLink?: boolean } = {},
+  options: {
+    allowUnlistedLink?: boolean;
+    /**
+     * Who the ACCESS filter reads as, when that differs from the viewer: a wall
+     * device's key reads its owner's private board (`readViewerIdForBoard`), yet
+     * every viewer-projected field below (canEdit, follows, pins, location,
+     * owner identity, spray import) stays on `authenticatedUserId`. Defaults to
+     * `authenticatedUserId`.
+     */
+    accessUserId?: string;
+  } = {},
 ) {
   const checkAccess = options.allowUnlistedLink === false ? canAccessResourceWithoutLink : canAccessResource;
-  const access = await Promise.all(boards.map(({ board }) => checkAccess('board', board.uuid, authenticatedUserId)));
+  const accessUserId = options.accessUserId ?? authenticatedUserId;
+  const access = await Promise.all(boards.map(({ board }) => checkAccess('board', board.uuid, accessUserId)));
   boards = boards.filter((_, index) => access[index]);
   if (boards.length === 0) return [];
 
@@ -823,6 +835,7 @@ export async function enrichBoards(
         angle: Number(board.angle),
         isAngleAdjustable: board.isAngleAdjustable,
         hasLeds: board.hasLeds,
+        litByWallDevice: board.litByWallDevice,
         createdAt: board.createdAt.toISOString(),
         layoutName: null,
         sizeName: null,
@@ -886,6 +899,7 @@ async function projectAnonymousSerialBoards(boards: Array<typeof dbSchema.userBo
       angle: Number(board.angle),
       isAngleAdjustable: board.isAngleAdjustable,
       hasLeds: board.hasLeds,
+      litByWallDevice: board.litByWallDevice,
       createdAt: board.createdAt.toISOString(),
       layoutName: null,
       sizeName: null,
@@ -915,6 +929,50 @@ async function projectAnonymousSerialBoards(boards: Array<typeof dbSchema.userBo
 // ============================================
 // Queries
 // ============================================
+
+/**
+ * Which of a gym's boards a viewer may see listed, shared by `gymBoards` and the
+ * gym share card so a card can never name a board the gym page would not.
+ * The caller adds which gym.
+ */
+function gymBoardListingConditions(viewerId: string | undefined, canEdit: boolean): SQL[] {
+  const conditions: SQL[] = [
+    isNull(dbSchema.userBoards.deletedAt),
+    // Enumerating a gym is not possession of each unlisted board's link.
+    // Board owners and explicit grants still pass this independent gate.
+    resourceAccessCondition('board', dbSchema.userBoards.uuid, viewerId, { allowUnlistedLink: false }),
+    // A spray wall with nothing published yet is a board nobody can climb on —
+    // not even for the gym's admins, who do see the private rows below. Its
+    // owner sees it, so they can go and finish it (SW-14).
+    listableSprayWallCondition(viewerId),
+  ];
+  // Non-editors (including anonymous) only see the gym's publicly LISTED
+  // boards — isPublic AND NOT isUnlisted, mirroring searchBoards (unlisted =
+  // reachable by direct link only, never enumerated). The leaderboard embed
+  // relies on this to enumerate boards without auth.
+  if (!canEdit) {
+    conditions.push(eq(dbSchema.userBoards.isPublic, true));
+    conditions.push(eq(dbSchema.userBoards.isUnlisted, false));
+  }
+  return conditions;
+}
+
+/** Most distinct (type, angle) pairs a gym card reads. More than a card could name. */
+const GYM_CARD_BOARD_VARIANTS_LIMIT = 40;
+
+/**
+ * The boards a stranger can see at this gym, as distinct (type, angle) pairs. What
+ * `gymBoards` lists anonymously, without its rate-limit bucket or board enrichment.
+ */
+export async function readGymBoardsForStranger(gymUuid: string): Promise<{ boardType: string; angle: number }[]> {
+  return db
+    .selectDistinct({ boardType: dbSchema.userBoards.boardType, angle: dbSchema.userBoards.angle })
+    .from(dbSchema.userBoards)
+    .innerJoin(dbSchema.gyms, eq(dbSchema.gyms.id, dbSchema.userBoards.gymId))
+    .where(and(eq(dbSchema.gyms.uuid, gymUuid), ...gymBoardListingConditions(undefined, false)))
+    .orderBy(dbSchema.userBoards.boardType, dbSchema.userBoards.angle)
+    .limit(GYM_CARD_BOARD_VARIANTS_LIMIT);
+}
 
 export const socialBoardQueries = {
   /**
@@ -1047,25 +1105,7 @@ export const socialBoardQueries = {
       throw new GraphQLError('Gym not found', { extensions: { code: 'NOT_FOUND' } });
     }
 
-    const conditions = [
-      eq(dbSchema.userBoards.gymId, gym.id),
-      isNull(dbSchema.userBoards.deletedAt),
-      // Enumerating a gym is not possession of each unlisted board's link.
-      // Board owners and explicit grants still pass this independent gate.
-      resourceAccessCondition('board', dbSchema.userBoards.uuid, viewerId, { allowUnlistedLink: false }),
-      // A spray wall with nothing published yet is a board nobody can climb on —
-      // not even for the gym's admins, who do see the private rows below. Its
-      // owner sees it, so they can go and finish it (SW-14).
-      listableSprayWallCondition(viewerId),
-    ];
-    // Non-editors (including anonymous) only see the gym's publicly LISTED
-    // boards — isPublic AND NOT isUnlisted, mirroring searchBoards (unlisted =
-    // reachable by direct link only, never enumerated). The leaderboard embed
-    // relies on this to enumerate boards without auth.
-    if (!canEdit) {
-      conditions.push(eq(dbSchema.userBoards.isPublic, true));
-      conditions.push(eq(dbSchema.userBoards.isUnlisted, false));
-    }
+    const conditions = [eq(dbSchema.userBoards.gymId, gym.id), ...gymBoardListingConditions(viewerId, canEdit)];
 
     const boards = await db
       .select()
@@ -1965,6 +2005,9 @@ export async function updateBoardRecord(
   if (validatedInput.angle !== undefined) updateValues.angle = validatedInput.angle;
   if (validatedInput.isAngleAdjustable !== undefined) updateValues.isAngleAdjustable = validatedInput.isAngleAdjustable;
   if (validatedInput.hasLeds !== undefined) updateValues.hasLeds = validatedInput.hasLeds;
+  // Not a spray-wall hardware lie like `hasLeds`: a laser projector lights a
+  // photographed wall as well as a catalogue board, so a wall may carry it.
+  if (validatedInput.litByWallDevice !== undefined) updateValues.litByWallDevice = validatedInput.litByWallDevice;
   if (validatedInput.serialNumber !== undefined) updateValues.serialNumber = validatedInput.serialNumber;
   if (validatedInput.timerName !== undefined) updateValues.timerName = validatedInput.timerName;
 
@@ -2619,6 +2662,7 @@ export const socialBoardMutations = {
       angle: validatedInput.angle ?? 40,
       isAngleAdjustable: validatedInput.isAngleAdjustable ?? true,
       hasLeds: validatedInput.hasLeds ?? true,
+      litByWallDevice: validatedInput.litByWallDevice ?? false,
       serialNumber: validatedInput.serialNumber ?? null,
       timerName: validatedInput.timerName ?? null,
     };

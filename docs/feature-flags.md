@@ -8,7 +8,7 @@ Two kinds, and they fail in different ways.
 
 **Server flags** (`SERVER_FEATURE_FLAG_KEYS`) resolve during SSR via `getServerFeatureFlag` and decide whether a route renders at all — with one off, its route is a plain `notFound()`. A client-resolved flag could not do this: by the time the browser knows the answer the HTML has already shipped.
 
-The registry is **empty today**. `gyms-directory` was the only server flag; `/gyms` and its three facet routes now render for everyone and the flag is gone. The machinery below stays for the next route that needs it — and the diagnostics endpoint still answers any key you name.
+The registry holds one key today: `developer-console`, which gates the partner developer console at `/developers/apps` (signed-in only; a signed-out visitor is sent to sign in before the flag is asked). `gyms-directory` was the previous one; `/gyms` and its three facet routes now render for everyone and that flag is gone. The diagnostics endpoint answers any key you name.
 
 ## How a server flag resolves
 
@@ -190,9 +190,23 @@ diagnostic) applies on native. The whole surface lives in three files:
   `stale-current-hold-kill` is a kill switch (read through
   `useStaleCurrentHoldEnabled`, unresolved = enabled) for the #4979 hold: when
   the climb on the wall has not changed for 4 h, connecting a board keeps it
-  dark and the player offers Put on the wall with "Last on the wall …". With it
-  on, connecting lights that climb as before and the line never shows. See
-  `docs/current-climb-outside-queue.md`, section 6.
+  dark and the wall button reads Put on board. With it on, connecting lights
+  that climb as before. See `docs/current-climb-outside-queue.md`, section 6.
+  `wall-swipe-to-drive` is a POSITIVE flag (read through
+  `wallSwipeToDriveOffered`: unresolved or off means off in a store build; dev
+  builds read it as on unless it is set to off; screenshot mode ignores it). It
+  gates more than the swipe: the ‹‹ chevrons and the one-time peek, the Light
+  every climb action and sheet row, since 2.7 Put on board's timed drive, and
+  since 2026-11 **Always drive the wall**'s always-on drive (`alwaysDriveApplies`).
+  The first-connect confirmation and the player's preview-first card read it
+  too. Turned off, Put on board lights one climb and starts no drive, and
+  nothing drives the wall: Always drive the wall's running drive ends keeping the
+  link (`always_off`), and every pick is a preview until the flag is back. Check its rollout in PostHog before reading any
+  driving metric.
+  `shared-session-browse` is a POSITIVE flag (read `=== true`, unresolved =
+  off) that decides whether a crew's swipes and list taps preview instead of
+  writing the shared queue and lighting the wall; off, every gesture lights the
+  wall as before 2.7. `docs/climb-lists-and-queue.md` records its rollout.
   `active-board-follow-heal-kill` is a kill switch (read through
   `useActiveBoardFollowHealEnabled`, unresolved = enabled) for the silent
   launch follow of the active board (#5654, `use-active-board-follow-heal.ts`).
@@ -200,6 +214,11 @@ diagnostic) applies on native. The whole surface lives in three files:
   because the heal is a one-shot server write at launch: acting on the
   unresolved first frame would send the follow before a set switch could stop
   it.
+  `tab-bar-hide-on-scroll-kill` is a kill switch (read through
+  `useTabBarHideOnScrollEnabled`, unresolved = enabled) for the Android phone
+  nav bar's hide-on-scroll and the overlay bar it needs. On, the bar
+  sits opaque below every screen and never moves, as before; it is also the QA
+  switch for comparing the two.
   Three more kill switches cover the launch surfaces #5654 woke up. From 2.2.0
   until that fix, all of them sat behind a `ready` prop frozen at `false` under
   `DatabaseProvider` (expo-sqlite's memo'd provider never re-renders its
@@ -237,7 +256,25 @@ diagnostic) applies on native. The whole surface lives in three files:
   no new account is enrolled, and every enrolled one stops seeing the Climbs
   card and the first-connect confirmation. (The play view's "Light it on the
   board" pill went in #7000: the player's wall button (Put on board) does that job
-  in both arms.) The test deliberately assigns arms WITHOUT a PostHog flag: a
+  in both arms.) The confirmation ("Connected to {{board}}") shows at every
+  enrolled account's first connect on the phone, in both arms, whatever **Light
+  the board when I tap a climb** says. Until 2.7 it showed only with that switch
+  on, and 2.7 turns it off by default, so it would have reached almost nobody.
+  Its body now says what lights from there, read the way Always drive the wall and
+  Put on board read it (`firstConnectConfirmationCopy`): every pick, while **Light
+  automatically** drives there (`firstConnectAlwaysDrives`: the switch on, and in a
+  crew In a session too on, on every board; it replaced the two switches in
+  2026-11), Put on board's timed drive (30 or 45 seconds, or whole minutes from 1
+  minute up), until the climber stops it (Until I stop), or the one climb
+  Put on board lights (Stop driving after set to Right away, a crew with In a
+  session too off, or `wall-swipe-to-drive` off) (`resolveKeepLightingReach`, the
+  same rule the player's preview-first card reads). The Climbs card's body follows
+  Always drive the wall and the crew the same way.
+  The host announces the confirmation (`first-connect-confirmation-presence.ts`)
+  before it records the connect, since that record hides the Climbs card: from
+  then until the dialog closes the Climbs list's board-reveal and quick-actions
+  tips and the player's one-shot preview-first card wait, so none of them shows
+  under the dialog. The test deliberately assigns arms WITHOUT a PostHog flag: a
   first launch has no cached flags, so a flag-driven arm could change under a
   climber the moment it resolved. The arm is
   `murmurHash3_32(concat(user_id, ':first-connect-cta-v1')) % 2` (1 =

@@ -326,9 +326,10 @@ rest of the hour-long entry.
 | knob                      | default        | meaning                                                                                  |
 | ------------------------- | -------------- | ---------------------------------------------------------------------------------------- |
 | `DB_READ_DEADLINE_MS`     | 6000           | web front door: wall clock for one _request's_ reads (queue wait + connect + execute)    |
-| `DB_POOL_MAX`             | 5 (Vercel: 3)  | postgres.js `max`, clamped to a floor of 2                                               |
+| `DB_POOL_MAX`             | 5 (Vercel: 3)  | postgres.js `max`, clamped to a floor of 2 and, with a warning, a ceiling of 100        |
 | `DB_POOL_IDLE_TIMEOUT_S`  | 30 (Vercel: 5) | seconds an idle connection is held open; `0` means "never close one" and is not clamped  |
 | `DB_STATEMENT_TIMEOUT_MS` | unset          | emits a `statement_timeout` startup parameter — **off by default**, see the hazard below |
+| `DB_IDLE_IN_TRANSACTION_TIMEOUT_MS` | unset (60000 in the backend server and the web server) | emits an `idle_in_transaction_session_timeout` startup parameter: 1000 to 2147483647 ms, or `0` for off; any other value stops the process at boot. See "Idle transactions end after 60 s on request pools" below |
 
 6000 sits deliberately below `DB_CONNECT_RETRY_BUDGET_MS` (10000): during a
 brownout the front door should shed load rather than spend a second and third
@@ -374,6 +375,330 @@ forwards it to PostgreSQL there. Check the host and port in the URL instead.
 none, so during a web-pool incident `/health/db` stays green and says nothing
 about the surface that is actually failing. That gap is not filled here.
 
+## Idle transactions end after 60 s on request pools
+
+The partner logbook feed serves only changes below the oldest write
+transaction still open, cluster-wide ([integration-platform.md](./integration-platform.md),
+"Incremental sync"). One session left idle inside a transaction holds every
+app's feed back until it ends. Before this, ending such sessions was an owner
+step (`ALTER ROLE ... SET idle_in_transaction_session_timeout`), which the
+migration role cannot run ("Why the migration cannot apply in production" below).
+It is now a startup parameter on the pools that serve requests.
+
+### Which pools send it
+
+`applyRequestPoolDefaults()` (`packages/db/src/client/postgres.ts`) sets
+`DB_IDLE_IN_TRANSACTION_TIMEOUT_MS` to 60000 unless it is already set, so every
+postgres.js pool the process builds afterwards sends
+`idle_in_transaction_session_timeout`. Two processes call it, before their first pool:
+
+| process | where | pools covered |
+| --- | --- | --- |
+| backend HTTP/GraphQL server | `src/index.ts` imports `src/request-pool-defaults.ts` straight after `./instrument` | shared primary, read replica, admission pool (60 s); partner and logbook snapshot pools (10 s, see below); a `createDedicatedPool` added later inherits 60 s unless it passes its own value |
+| web server | `app/lib/db/db.ts`, the only module that builds the web's pools | shared primary and read replica |
+
+The partner and logbook snapshot pools pass 10 s (`partnerPoolOverrides()`), the
+same limit partner transactions and snapshot chunk transactions already set for
+themselves with `set_config(..., true)`, so a transaction opened on those pools any
+other way gets it too. A transaction-local `set_config` always beats the startup
+parameter.
+
+The backend server also runs pg-boss consumers in the same process (push
+delivery, spray detection and background-job maintenance, the popularity, grade
+summary and popular-config refreshes, PostHog person deletion). They use the same
+`db` pool, so they are covered too.
+
+If the import order is ever wrong, the process will not start:
+`applyRequestPoolDefaults()` throws when a shared pool was already built without
+the setting, instead of letting the server run uncovered. The one process that
+loads backend and web code together, the App Router test harness
+(`app-router-harness.ts`), sets `DB_IDLE_IN_TRANSACTION_TIMEOUT_MS=0` for that reason.
+
+### What is not covered, and why
+
+| pool | why it is left at the server default (off) |
+| --- | --- |
+| background workers (`workers/index.ts`) | `export-board-snapshots` holds one REPEATABLE READ transaction for the whole export while it writes SQLite between cursor batches |
+| Aurora and Kilter sync daemons, hold detector | own processes and own pools; the daemons are disabled in production since the routine cutover |
+| pg-boss pools | the `pg` driver, configured in `job-queue-client.ts`; worker pools already carry `statement_timeout` and `query_timeout` (#6683) |
+| migrations (`packages/db/scripts/migrate.ts`), `drizzle-kit`, every script | one-off processes that never call `applyRequestPoolDefaults()`; the MoonBoard catalog import holds a session advisory lock on one connection for its whole run |
+| `boardsesh_readonly` | people and dashboards, outside the app |
+
+Those can still hold the feed back, so the alert on the oldest running write
+transaction ([integration-platform.md](./integration-platform.md),
+"Observability") stays.
+
+### Why 60 s
+
+The timeout ends only a session that sits idle inside an open transaction: the
+transaction has sent a statement, got the answer, and the app has not sent the
+next one. A long statement is not idle (`statement_timeout` bounds those), and a
+connection idle between transactions is not affected. So what matters is the
+longest the app can await something else while a transaction is open.
+
+An audit of every transaction reachable from the backend server and the web
+server on 2026-11-10 found these, longest first:
+
+| path | what the transaction waits on | bound |
+| --- | --- | --- |
+| `getStoredKilterAccessToken` (`kilter-sync/src/api/stored-token.ts`), called by the backend's Kilter live sync | the Keycloak refresh, with the credential row `FOR UPDATE` | 30 s (`AbortSignal.timeout` in `keycloak.ts`) |
+| push delivery (`spray-detection-notifications.ts`) | a second transaction on another pool connection, then the Expo push call | 15 s for the push, plus the pool and wall-lock wait |
+| `updateSessionBoardPathIfChanged` (`session-discovery.ts`) | Redis reads, with the `sessions` row `FOR UPDATE` | milliseconds; none while Redis stalls |
+| Kilter live import (`kilter-live-import.ts`) | two Redis reads | 1 s each |
+| `boss.send` inside a transaction | pg-boss's queue cache on its own pool, only for a queue created after boot | 10 s connect timeout |
+
+Every web transaction is database-only. 30 s would race the Keycloak refresh: if
+Keycloak rotates the refresh token and the session ends before the new token is
+written, the stored token is dead and the climber has to relink Kilter. 60 s is
+twice that bound. Going higher only lengthens how long one stuck session holds
+every partner's feed and its row locks. The two waits with no bound of their own,
+a stalled Redis and an exhausted pool, are cases where ending the session is the
+better outcome: each holds a row or advisory lock that other requests queue behind.
+
+A new transaction that awaits a network call must stay well under 60 s, or move
+the call out of the transaction.
+
+### What an affected request sees
+
+Postgres logs `FATAL: terminating connection due to idle-in-transaction timeout`
+(SQLSTATE 25P03) and closes the socket. Nothing in that transaction commits. No
+statement is in flight, so the driver reports `CONNECTION_CLOSED`, and the
+patched driver ("Socket disconnects and transaction cleanup" above) rejects the
+transaction the moment the socket closes, not on its next statement. That is not
+retried ("What is NOT retried" above). GraphQL counts it as a database outage and
+answers HTTP 503 (`isDatabaseUnavailableCode` in `graphql/mask-error.ts`); the
+mobile app then probes `/health/db`, which stays green. The pool opens a fresh
+connection for the next caller, so only the request that idled fails.
+
+The transaction's callback is not stopped. It finishes whatever it was awaiting,
+and every statement it sends after that is rejected, but work outside the
+database still happens. The one place that matters today is push delivery: if
+its inner transaction waits past the timeout for a pool slot or the wall lock,
+the job fails and is retried, the Expo push it then sends still goes out, and the
+ticket write is rejected, so the retry sends that push a second time. That needs
+the inner wait and the push together to pass 60 s (the push is capped at 15 s).
+Both sends carry the delivery's `collapseId` and `tag`, so the phone replaces the
+first notification with the second rather than showing two.
+
+`packages/backend/src/__tests__/idle-in-transaction-timeout.test.ts` checks this
+against the test Postgres: a covered pool loses the session after a 1 s timeout
+and the next statement fails with `CONNECTION_CLOSED` while the pool keeps
+serving, the transaction settles before its callback's wait ends, and the
+callback's next statement is rejected; an uncovered pool's transaction survives
+the same idle time; a fresh
+process that imports `request-pool-defaults.ts` reports `1min`, and one that does
+not reports `0`.
+
+### Changing it
+
+Set `DB_IDLE_IN_TRANSACTION_TIMEOUT_MS` on the Railway service (`boardsesh-backend`
+or `boardsesh-web`). It takes whole milliseconds from 1000 to 2147483647, which
+replace 60000, or `0`. Unset or empty gets the 60 s default. Anything else stops
+the process at boot with a message naming the variable: `60` would be 60 ms and
+end nearly every transaction, `99999999999` is past PostgreSQL's ceiling and
+would fail every connection, and `60s` has no reading worth guessing. A variable
+change redeploys the service; connections opened before it keep their old value
+until they close, which a deploy does.
+
+`0` turns off the process-wide 60 s, and only that. It sends no parameter, so:
+
+- the partner and logbook snapshot pools still send 10 s (`partnerPoolOverrides()`
+  does not read the variable), and their transactions still set 10 s with
+  `set_config(..., true)`;
+- a role-level `ALTER ROLE ... SET idle_in_transaction_session_timeout` from
+  earlier would apply again. None should exist (see the check in
+  [integration-platform.md](./integration-platform.md), "Idle transactions").
+
+Do not put `idle_in_transaction_session_timeout` in `DATABASE_URL` or
+`READ_REPLICA_URL`: postgres.js lets a URL parameter beat the option on the
+shared pools. The startup parameter has the PgBouncer hazard described for
+`statement_timeout` above, on the replica URL as much as the primary: behind a
+transaction-mode pooler, move it onto the role instead.
+
+## Admission reads have their own pool
+
+Every authenticated request reads the primary to learn whether the account
+still exists (#7350), with a 1,000 ms deadline. The statement is cheap: 115,616
+executions with a 13.7 ms maximum in `pg_stat_statements`. The wait was never
+the statement. It queued in the same 5-connection pool per replica as search
+and count transactions that run 3–26 s (`withSerialPlan` holds a connection for
+the whole transaction), and because `prepare: false` keeps parameterised
+queries from pipelining, it waited in the driver's FIFO behind them. When the
+pool stayed full for a second the climber got a 503 instead of a slow 200.
+
+Admission reads now run on `createDedicatedPool` (`auth/admission-pool.ts`), two
+connections per backend replica, used for nothing else:
+
+- **Primary, never a replica.** A lagging read must not decide admission.
+- **Lazy.** Connected on the first read. Workers, the scheduler and `packages/web`
+  never run one, so they pay nothing (`workers/index.ts` does not even import the path).
+- **`statement_timeout` of 1,000 ms**, set as a startup parameter on this pool only
+  (`application_name` is `boardsesh-auth-admission`, so the connection-count query
+  below sees it). It replaces `DB_STATEMENT_TIMEOUT_MS`, which is 45 s on the backend,
+  and it also beats a `statement_timeout` or `application_name` in `DATABASE_URL`:
+  postgres.js lets URL parameters win over options, so `createDedicatedPool` drops
+  the ones its caller overrides from that pool's URL and leaves the rest. The clock
+  starts when the statement reaches the server, so a read that queued first can
+  outlast its caller's deadline by as long as it queued; the timeout bounds how long
+  a connection is held, not how long a caller waits. It has the same PgBouncer hazard
+  as that knob ("The `statement_timeout` hazard" above): if a transaction-mode pooler
+  ever fronts the backend, this pool must keep a direct URL or move the timeout onto
+  a role.
+- **A watchdog on each read, at 2,000 ms.** The statement timeout needs a server that
+  is still answering, and `max: 2` stops a third connection opening. A read with no
+  reply this long after reaching a connection fails. If no other read on the pool has
+  answered since it began, the pool is severed and replaced. If one has, the stalled
+  read may be waiting on a slow dial: postgres.js opens the second connection only
+  when the first is busy, so that read outlives the watchdog while the first
+  connection keeps answering, and severing then would cut both. A dial settles
+  within the connect timeout plus the statement timeout, so the read gets until 7 s
+  (4 + 1 + 2 s to spare). Still unsettled then, it is on a dead socket beside a
+  healthy one, and the pool is replaced with 1 s of grace so reads on the healthy
+  connection finish. Before that rule a pool with one frozen connection kept it for
+  good: at a 400 ms statement, 20.7% of requests failed and the pool was never
+  replaced. Now it is replaced at 7.0 s, and nothing fails after 10 s. An event-loop
+  stall of 2 s or more can also fire the watchdog; that costs one reconnect, and
+  those reads were past their deadline anyway.
+- **Replacements back off: 5 s, then 10 s, then 20 s** between them for as long as
+  reads keep stalling. The schedule starts again at 5 s only after a whole gap with
+  no stalled read. An answered read does not restart it, and neither does a
+  connection that opens: a server whose new connections answer for a moment and
+  then hang does both, and restarting on answers kept the gap at 5 s there (7
+  replacements in 40 s, 16 backends on the server). Now it is 4 replacements at 2.5,
+  8.8, 19.0 and 39.0 s, with 10 backends. Each replacement can leave two hung
+  backends until they die; at a fixed 5 s gap one replica left 22 in a minute, and
+  two replicas at that rate would fill the roughly 28 free slots in about 40 s, after
+  which every client's reconnect fails with `53300`. 20 s is the cap because it is
+  also the longest a path that has healed can wait behind a pool that hung before it
+  healed: a 60 s step refused every request for 50.1 s after such a heal, and the
+  cap brings that to 10.1 s, at most 20 s plus the watchdog.
+- **`connect_timeout` of 4 s**, against the shared 30 s. It has to be longer than the
+  watchdog, or a primary that takes more than 2 s to open a connection can never be
+  reached: at 2 s, 492 of 492 requests failed for as long as opens were slow. It has
+  to be shorter than the first 5 s gap between replacements, so a dial ends before
+  the next replacement could cut it off. The cost is the other side of the same
+  number: a dial swallowed by a dead path holds its slot for up to 4 s after the path
+  heals. It is passed to `createDedicatedPool`, because postgres.js copies it when it
+  builds each connection and writing `pool.options` afterwards has no effect.
+- **A dial that timed out is not retried.** `withConnectRetry` gets a 1,000 ms budget
+  on this pool, the caller's deadline: a refused or unresolved connect, which fails
+  in milliseconds, is still retried while the caller waits, but a timed-out dial is
+  already past the deadline and a retry only adds dials to a struggling primary.
+- **Closed last in graceful shutdown**, after the main pools, bounded at 2 s.
+
+Before and after with the main pool held full by five transactions: the same
+read through the main pool misses every time at 1,001–1,003 ms; through its own
+pool it answers in a median of 0.7 ms, 20.9 ms at worst, over 500 reads.
+
+Recovery from a lost path, measured at 30 requests/s against the test Postgres
+through a TCP proxy:
+
+| fault | before the watchdog and connect timeout | now |
+| --- | --- | --- |
+| `SIGSTOP` on both admission backends, Postgres otherwise healthy | every request failed for the full 75 s measured | last failure 2.0 s after the stop |
+| both connections severed and new connections swallowed for 5 s | every request failed for 25.0 s after the path healed | last failure 1.0 s after it healed |
+| both connections severed and every new connection taking 2.5 s to open, for 18 s | every request failed while opens stayed slow, 492 of 492 (with a 2 s `connect_timeout`) | first success 4.6 s in, no failures after 4.1 s |
+| the same with 3.5 s opens | not measured | first success 5.6 s in, no failures after 5.1 s |
+
+The `connect_timeout` choice, measured with the same three faults:
+
+| `connect_timeout` | 2.5 s opens | 3.5 s opens | black hole, last failure after heal |
+| --- | --- | --- | --- |
+| 3 s | served from 4.6 s | failed until the opens sped up | 0.03 s |
+| 4 s | served from 4.6 s | served from 5.6 s | 1.0 s |
+| 5 s | served from 4.6 s | served from 5.6 s | not clean: the test process paused during that run |
+
+The black-hole number depends on where in its timeout the swallowed dial was when
+the path healed, so the worst case is the `connect_timeout` itself.
+
+### The read returns generations too (BA-04 PR 2)
+
+The same statement now also selects `auth_subject_cutoffs.generation` and
+`native_generation` from the row it already joined for `deleted_at`, so readers
+can decide credential cutoffs (docs/better-auth-migration.md, "Credential
+cutoffs"). Still one statement per coalesced read: the mounted test counts one
+admission-pool statement and no main-pool select for one validation, and one
+for a same-tick burst of 80 validations across 40 accounts.
+
+Measured on the local test Postgres with 10,000 users, 4,000 interleaved runs of
+each exact statement on one connection, `prepare: false` (milliseconds,
+median / p99):
+
+| cutoff rows | users per read | before | after |
+| --- | ---: | ---: | ---: |
+| none (production today) | 1 | 0.237 / 0.435 | 0.240 / 0.406 |
+| none | 128 | 1.011 / 1.276 | 1.026 / 1.296 |
+| 5% of accounts | 1 | 0.231 / 0.278 | 0.233 / 0.284 |
+| 5% of accounts | 128 | 1.015 / 1.350 | 1.028 / 1.359 |
+
+`EXPLAIN (ANALYZE, BUFFERS)` gives the same plan and the same shared-buffer hits
+before and after in all four cells (3, 164, 6 and 173).
+
+### How much can queue on two connections
+
+At most two coalesced reads and one sweep batch compete for the two connections
+(`MAX_CONCURRENT_COALESCED_ADMISSION_READS` 2, `MAX_SWEEP_BATCHES_PER_ROUND` 1;
+`MAX_UNSETTLED_AUTH_ADMISSION_READS` stays 8). Coalesced callers past the two reads
+wait in the coalescer, where one that outlives the deadline is refused before any
+read starts, instead of queueing on a connection and using up the deadline there.
+
+When four coalesced reads and up to four sweep batches shared the two connections,
+75.6% of requests failed at a 250 ms statement with a 4-batch sweep, and 92.9% at
+400 ms with a 1-batch sweep. Failure rate at 30 requests/s now, 8 s per cell,
+statement timed with `pg_sleep`:
+
+| statement | one sweep batch per second | no sweep |
+| --- | --- | --- |
+| 100 ms | 0% | not run |
+| 250 ms | 0% | 0% |
+| 400 ms | 0% | 0% |
+| 500 ms | 0% | 0% |
+| 800 ms | 79.6% | 0% |
+
+The longest statement seen in production is 13.7 ms.
+
+**The sweep takes one second per 128 connected users on a replica**, because a round
+is one batch and rounds are a second apart: 1,280 users were all reached in 10.0 s
+(8 s for 1,000, 40 s for 5,000). A failed read still leaves the socket open.
+
+### The admission read log
+
+Reads queue in front of the driver rather than inside it, so `waitMs` is exact.
+`auth/admission-read-diagnostics.ts` writes only what a 503 needs explained, at
+`warn`, with numbers and fixed labels and never a user ID, email or token:
+
+| `outcome`         | when                                      |
+| ----------------- | ----------------------------------------- |
+| `slow`            | answered, in 250 ms or more               |
+| `deadline_missed` | no answer before the 1,000 ms deadline    |
+| `failed`          | the read itself errored (`errorCode`)     |
+| `refused`         | all eight read slots were taken           |
+
+`waitMs` is time before the read got a connection, `executeMs` is time on one,
+including opening it when none was open. The line for a read that missed the
+deadline is written at the deadline, with the numbers so far. `executeMs: 0` at
+`waitMs: 1000` means it never reached a connection; `waitMs: 2` at `executeMs: 998`
+means the statement itself, or the path to Postgres, took the second.
+
+Each kind logs once per 10 s window with a totals line (`suppressedReads`,
+`maxWaitMs`, `maxExecuteMs`) when the window saw more, so a stall costs at most
+two lines per kind per window per replica. Read it for the bursts that were
+never explained: if they continue, this line says whether the wait was here or
+on the server. If they stop, the main pool was the cause.
+
+A pool replaced by the watchdog logs `[auth-admission] replaced the pool after a
+read stopped answering`, one line per replacement.
+
+### Dedicated pools
+
+Every `createDedicatedPool` caller, and what it costs. A new one adds a row here and
+a row to the budget table in "Pool budgets and pg-boss timers" below. Its steady cost
+is 2 × its size (two backend replicas) and 4 × its size while an old fleet drains.
+
+| pool | connections per replica | opens | budget row |
+| --- | --- | --- | --- |
+| `auth/admission-pool.ts` (`boardsesh-auth-admission`) | 2 | first admission read | "backend admission pool" |
+
 ## Where the retry is wired
 
 `createDb()` / `createReadDb()` hand drizzle a retry-wrapped view of the pool
@@ -393,7 +718,8 @@ Not covered:
   going through `@boardsesh/db/client`. They are background jobs that already
   retry at the job level; routing them through the shared builder is a separate
   change (it would also add `ssl: 'require'`, which their local runs do not
-  currently use).
+  currently use). They do take their pool size from the shared
+  `resolvePoolMax()`, so `DB_POOL_MAX` caps them.
 
 ## PgBouncer: parked
 
@@ -427,17 +753,24 @@ ORDER BY 3 DESC;
 The following are projections after the code defaults in this change are
 deployed. They are not a live production measurement. The web service currently
 sets `DB_POOL_MAX=10` explicitly, so the new default does not affect it until
-the separate operator cap is applied. The Aurora and Kilter sync runners also
-construct raw postgres.js clients with `max: 5`; they do not read
-`DB_POOL_MAX`. Capping those daemons at 3 needs a separate code change. The
-hold detector's `createDb()` pool uses the shared default of 5 (or honors an
+the separate operator cap is applied. The Aurora and Kilter sync runners build
+their own postgres.js pools rather than calling `createDb()`, and size them with
+the same `resolvePoolMax()` (`packages/db/src/client/postgres.ts`): 5 when
+`DB_POOL_MAX` is unset, the variable when it is set, never below 2 or above 100. Capping the
+daemons at 3 is therefore a variable change, with no code change. The hold
+detector's `createDb()` pool uses the shared default of 5 (or honors an
 explicit `DB_POOL_MAX`), and its separate pg-boss pool is fixed at 3. No
 three-connection hold-detector override is part of these source defaults, so
-the projection below counts both pools as 5 + 3.
+the projection below counts both pools as 5 + 3. (The homelab compose in
+blackheathdc-ansible, `roles/boardsesh_detector`, sets `DB_POOL_MAX: "3"`, so
+the detector holds 3 + 3 there.)
 
-| client                                   | code defaults (web still 10) | after web cap 4 | after separate daemon cap 3 |
+| client                                   | code defaults (web still 10) | after web cap 4 | after web cap 4 and daemon cap 3 |
 | ---------------------------------------- | ---------------------------: | --------------: | --------------------------: |
 | backend postgres.js, 2 replicas          |                       2 x 5 |          2 x 5 |                      2 x 5 |
+| backend admission pool, 2 replicas       |                       2 x 2 |          2 x 2 |                      2 x 2 |
+| backend partner OAuth pool, 2 replicas   |                       2 x 3 |          2 x 3 |                      2 x 3 |
+| backend logbook snapshot pool, 2 replicas |                      2 x 2 |          2 x 2 |                      2 x 2 |
 | backend pg-boss, 2 replicas              |                       2 x 2 |          2 x 2 |                      2 x 2 |
 | web postgres.js (explicit env)           |                          10 |             4 |                         4 |
 | hold detector                            |                           8 |             8 |                         8 |
@@ -445,27 +778,89 @@ the projection below counts both pools as 5 + 3.
 | background workers, 4 roles              |                   4 x (2+1) |      4 x (2+1) |                  4 x (2+1) |
 | `boardsesh_readonly` (role cap)          |                         <=5 |           <=5 |                       <=5 |
 | migrator, during a deploy                |                           1 |             1 |                         1 |
-| **steady ceiling (one migrator counted)**|                     **<=65** |       **<=59** |                   **<=53** |
-| **+ old backend fleet draining (15 s)**  |                     **<=79** |       **<=73** |                   **<=67** |
+| **steady ceiling (one migrator counted)**|                     **<=79** |       **<=73** |                   **<=67** |
+| **+ old backend fleet draining (15 s)**  |                    **<=107** |      **<=101** |                   **<=95** |
 
-The code-only budget uses the unchanged web setting of 10. The web cap to 4 is
-an operator step after this change deploys. The daemon cap column is a later
-source change, because those runners currently ignore `DB_POOL_MAX`. Do not
-lower `max_connections` to 60 while the drain projection is 67 or higher: 60
-leaves 57 application slots, below even the later-cap projection. The original
-C15 order still applies — cap every client, watch a week of deploy peaks under
-45, then consider the restart-window change. If those conditions are not met,
-keep `max_connections=100`.
+The code-only budget uses the unchanged web setting of 10. Both caps are
+operator steps, and each is one variable:
+
+| service | where it runs | variable | value |
+| --- | --- | --- | --- |
+| `boardsesh-web` | Railway, production environment | `DB_POOL_MAX` | `4` |
+| `kilter-sync` and `aurora-sync` daemons | homelab host `boardsesh-sync`, docker compose, not Railway | `DB_POOL_MAX` in `sync.env` (blackheathdc-ansible `roles/boardsesh_sync/templates/sync.env.j2`) | `3` |
+
+The two daemon containers share that one `env_file`, so one line caps both.
+The daemon cap takes effect once the host runs a `boardsesh-sync` image built
+from this change or later; an older image ignores the variable. The daemon row
+counts three pools, which is conservative: the sync host runs two daemon
+containers, and production has had both disabled since the routine cutover
+(`boardsesh_sync_daemon_disabled: true`, see
+[background-workers.md](./background-workers.md), "Routine cutover"), so they exit
+before opening a pool. The row matters again if that cutover is rolled back. The
+admission pool adds 2 per backend replica, 4 at steady state and 8 while an old
+fleet drains ("Admission reads have their own pool" above); production had 43
+of 100 in use when it was added. Do not lower `max_connections` to 60 while the
+drain projection is 75 or higher (95 with partner OAuth on): 60 leaves 57
+application slots, below even the later-cap projection. The original C15 order still applies — cap every
+client, watch a week of deploy peaks under 45, then consider the restart-window
+change. If those conditions are not met, keep `max_connections=100`.
+
+### Dedicated pools
+
+Every `createDedicatedPool` caller, and what it costs. A new one adds a row here and
+a row to the budget table above. Its steady cost is 2 × its size (two backend
+replicas) and 4 × its size while an old fleet drains. Both partner pools are built
+only when `PARTNER_OAUTH_MODE` is not `off`, and postgres.js connects on first use,
+so with the mode `off`, the default, neither costs anything.
+
+| pool | connections per replica | opens | steady / draining |
+| --- | --- | --- | --- |
+| `auth/partner/authority.ts` (`PARTNER_POOL_MAX`) | 3 | first partner OAuth or `/v1` request | 6 / 12 |
+| `auth/partner/logbook-access.ts` (`LOGBOOK_SNAPSHOT_POOL_MAX`) | 2 | first logbook snapshot start, build or page read | 4 / 8 |
+
+The partner OAuth pool serves the OAuth routes and the `/v1` API together,
+including logbook feed pages and single ticks, which are short indexed reads run
+inside the `/v1` admission permit the token check already holds.
+
+The logbook snapshot pool (L4) keeps the bootstrap's build off every other pool:
+a fully cold build chunk can take the whole 5 s statement timeout. Two connections
+per replica, because one may build and one serves snapshot starts and page reads,
+so a build never queues a page read. The two cluster-wide build slots
+(`LOGBOOK_SNAPSHOT_BUILD_SLOTS`) still both get used, one per replica. A request
+never waits for a build permit (it answers an empty page instead), and a start or
+page read waits at most 1 s in a queue of 8, then answers `503`.
+
+With partner OAuth on, the two pools add 10 at steady state and 20 while a fleet
+drains, so with the mode `off` every total above is that much lower: 69 and 87 at
+code defaults. The table above already counts the auth admission pool (2 per
+replica, #7381), so the drain is 107 at code defaults, 101 with the web cap to 4
+and 95 with the daemon cap to 3.
+
+Against the 97 application slots, and an admission connection refused with
+`53300` is not retried. Before leaving mode `off`, do one of these: apply both
+the web cap to 4 and the daemon cap to 3 (drain 95), or lower
+`LOGBOOK_SNAPSHOT_POOL_MAX` to 1 (drain 97 with only the web cap: then a cold
+build on a replica makes that replica's snapshot page reads wait, and answer
+`503` after 1 s), or lower `PARTNER_POOL_MAX` to 2 (another 4 off the drain, but
+the authorize, `/v1` and token lanes then share two connections), or raise
+`max_connections`. The two pool sizes are code constants, not settings:
+`LOGBOOK_SNAPSHOT_POOL_MAX` in `packages/backend/src/auth/partner/logbook-access.ts`
+and `PARTNER_POOL_MAX` in `packages/backend/src/auth/partner/transaction.ts`, so
+either option is a source change and a deploy, not an operator step. The drain-97
+option uses every one of the 97 application slots and leaves no headroom, so
+prefer the drain-95 option or raising `max_connections`.
 
 ### If PgBouncer is revisited
 
 PgBouncer remains parked as described above. If the backend and web are later
 moved behind its 45-server cap, the code defaults make them 18 clients at
-steady state (web 4 plus backend 14) or 32 during a backend deploy. The direct
-clients (hold detector, sync daemons, background workers, `boardsesh_readonly`,
-and migrator) total at most 41 while the daemons remain at 5. This projected
-split fits under the 97 application slots; it is not evidence that PgBouncer
-has been deployed or that its TLS prerequisites are complete.
+steady state (web 4 plus backend 14) or 32 during a backend deploy, plus 10 and 20
+with partner OAuth on (its two dedicated pools). The direct
+clients (hold detector, sync daemons, background workers, the backend's two
+admission pools, `boardsesh_readonly`, and migrator) total at most 45 while the
+daemons remain at 5, and 39 with `DB_POOL_MAX=3` on the daemons. This projected split fits under the 97 application slots; it
+is not evidence that PgBouncer has been deployed or that its TLS prerequisites
+are complete.
 
 ### pg-boss timers
 

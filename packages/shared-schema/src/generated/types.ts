@@ -231,6 +231,7 @@ export type AdminBoard = {
   isUnlisted: Scalars['Boolean']['output'];
   latitude?: Maybe<Scalars['Float']['output']>;
   layoutId: Scalars['Int']['output'];
+  litByWallDevice: Scalars['Boolean']['output'];
   locationName?: Maybe<Scalars['String']['output']>;
   longitude?: Maybe<Scalars['Float']['output']>;
   name: Scalars['String']['output'];
@@ -422,6 +423,8 @@ export type AscentFeedInput = {
   boardTypes?: InputMaybe<Array<Scalars['String']['input']>>;
   /** Optional climb name search (case-insensitive partial match) */
   climbName?: InputMaybe<Scalars['String']['input']>;
+  /** Leave out ascents of climbs the community has hidden. For surfaces that headline one ascent; the logbook itself keeps them. */
+  excludeHiddenClimbs?: InputMaybe<Scalars['Boolean']['input']>;
   /** When true, only include flashes within the selected status mode */
   flashOnly?: InputMaybe<Scalars['Boolean']['input']>;
   /** Optional start of the date range, inclusive. Either a calendar day (YYYY-MM-DD, from that UTC day's midnight) or an ISO 8601 instant with Z or an offset (from exactly that instant). */
@@ -477,6 +480,8 @@ export type AscentFeedItem = {
   boardseshConfidence?: Maybe<Scalars['String']['output']>;
   /** Boardsesh grade on the shared difficulty scale (COALESCE of the cross-board universal grade and the within-board local grade) for this ascent's climb at its angle. Null when no grade row exists. Use boardseshConfidence to distinguish trusted, setter-only, and projected values. */
   boardseshDifficulty?: Maybe<Scalars['Float']['output']>;
+  /** Structured climb characteristics (e.g. 'no_match', 'method_footless'). Decode with @boardsesh/shared-schema helpers (isNoMatch / getMoonBoardMethod). */
+  characteristics?: Maybe<Array<Scalars['String']['output']>>;
   /**
    * Always null. Revision history was retired, so no log is marked as made on an earlier version.
    * @deprecated Climb revision history was retired. Always null.
@@ -1959,6 +1964,43 @@ export type CommunityStats = {
   litLast30Days: Scalars['Int']['output'];
 };
 
+/** An app the signed-in climber connected to their account (docs/integration-platform.md, Connected apps). */
+export type ConnectedApp = {
+  __typename?: 'ConnectedApp';
+  /** ISO 8601. When the app first used its access, or first used it again after a reconnect. */
+  connectedAt: Scalars['String']['output'];
+  /** Pass to disconnectApp. */
+  connectionId: Scalars['ID']['output'];
+  /** ISO 8601. The app's latest call to the API, to within an hour. Null until it makes one. */
+  lastUsedAt?: Maybe<Scalars['String']['output']>;
+  /** The app's registered name. Null when it has none. */
+  name?: Maybe<Scalars['String']['output']>;
+  /**
+   * Who makes the app, as its developer registered it. Null until apps carry a
+   * publisher name, and never the developer account's own name.
+   */
+  publisherName?: Maybe<Scalars['String']['output']>;
+  /**
+   * What the climber allowed, as OAuth scope strings (profile:read, logbook:read,
+   * offline_access, or one added later). Clients word them in the climber's language.
+   */
+  scopes: Array<Scalars['String']['output']>;
+  /** True while Boardsesh has suspended the app. It reads nothing until it is restored. */
+  suspended: Scalars['Boolean']['output'];
+};
+
+export type ConnectedApps = {
+  __typename?: 'ConnectedApps';
+  /** Live connections, the most recently connected first. */
+  apps: Array<ConnectedApp>;
+  /**
+   * False while partner apps are switched off (PARTNER_OAUTH_MODE off): no app can
+   * connect, though connections made before still list here and can be disconnected.
+   * A hold is a short pause and counts as on.
+   */
+  partnerAppsEnabled: Scalars['Boolean']['output'];
+};
+
 /**
  * Whether this visitor is asked before analytics runs, from the Cloudflare
  * country of the request. See docs/analytics-consent.md.
@@ -1971,6 +2013,30 @@ export type ConsentRegion = {
   globalPrivacyControl: Scalars['Boolean']['output'];
   /** True in the EU, EEA, UK, Switzerland and the other prompt regions, and whenever the country is unknown. */
   promptRequired: Scalars['Boolean']['output'];
+};
+
+/**
+ * One board owned by the account a controller API key belongs to, for a wall
+ * device's setup screen (`controllerBoards`). Read-only identity and config.
+ */
+export type ControllerBoard = {
+  __typename?: 'ControllerBoard';
+  /** Board angle in degrees */
+  angle: Scalars['Int']['output'];
+  /** Numeric board-presence channel id (userBoards.id). Feeds boardNowPlaying(boardId). */
+  boardId: Scalars['Int']['output'];
+  /** kilter, tension, moonboard, spray, ... */
+  boardType: Scalars['String']['output'];
+  /** False for a board with no lights (every spray wall) */
+  hasLeds: Scalars['Boolean']['output'];
+  layoutId: Scalars['Int']['output'];
+  /** What the owner calls the board */
+  name: Scalars['String']['output'];
+  /** Comma-separated hold set ids */
+  setIds: Scalars['String']['output'];
+  sizeId: Scalars['Int']['output'];
+  /** The board's uuid. A spray wall's uuid is also its sprayWall(uuid) key. */
+  uuid: Scalars['ID']['output'];
 };
 
 export type ControllerEvent = ControllerPing | ControllerQueueSync | LedUpdate;
@@ -2092,6 +2158,8 @@ export type CreateBoardInput = {
   latitude?: InputMaybe<Scalars['Float']['input']>;
   /** Layout ID */
   layoutId: Scalars['Int']['input'];
+  /** Whether a wall device lights this wall from the board feed (default false) */
+  litByWallDevice?: InputMaybe<Scalars['Boolean']['input']>;
   locationAudience?: InputMaybe<PrivacyLocationAudience>;
   /** Location name */
   locationName?: InputMaybe<Scalars['String']['input']>;
@@ -2152,6 +2220,23 @@ export type CreateGymKioskInput = {
   name: Scalars['String']['input'];
   /** Optional URL slug (lowercase alphanumeric + hyphens, 3–60 chars). Derived from name when omitted. */
   slug?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type CreateOAuthClientInput = {
+  /** The developer terms version the developer accepted. Must equal the current version, or registration is refused. */
+  acceptedTermsVersion: Scalars['String']['input'];
+  applicationType: OAuthClientApplicationType;
+  /** https:// only. */
+  homepageUrl?: InputMaybe<Scalars['String']['input']>;
+  /** 3 to 50 characters. Names of Boardsesh, Aurora and board brands are refused. */
+  name: Scalars['String']['input'];
+  /** https:// only. */
+  privacyPolicyUrl: Scalars['String']['input'];
+  /** The person or company that makes the app. Same rules as name. */
+  publisherName: Scalars['String']['input'];
+  /** 1 to 10. */
+  redirectUris: Array<Scalars['String']['input']>;
+  tokenEndpointAuthMethod: OAuthClientAuthMethod;
 };
 
 /** Input for creating a playlist. */
@@ -3147,6 +3232,8 @@ export type GroupedAscentFeedItem = {
   bestQuality?: Maybe<Scalars['Int']['output']>;
   /** Board type */
   boardType: Scalars['String']['output'];
+  /** Structured climb characteristics (e.g. 'no_match', 'method_footless'). Decode with @boardsesh/shared-schema helpers (isNoMatch / getMoonBoardMethod). */
+  characteristics?: Maybe<Array<Scalars['String']['output']>>;
   /** Name of the climb */
   climbName: Scalars['String']['output'];
   /** UUID of the climb */
@@ -3206,6 +3293,13 @@ export type GroupedNotification = {
    * climbs that carry no angle; clients fall back to the reader's own board.
    */
   climbAngle?: Maybe<Scalars['Int']['output']>;
+  /**
+   * Structured climb characteristics (e.g. 'no_match', 'method_footless').
+   * Decode with @boardsesh/shared-schema helpers (isNoMatch / getMoonBoardMethod).
+   * Drives the Woods matching/feet rules line and the no-match glyph elsewhere
+   * when a notification opens the play drawer directly, without a climb refetch.
+   */
+  climbCharacteristics?: Maybe<Array<Scalars['String']['output']>>;
   /**
    * Sizes the climb fits. Boards whose sizes number holds independently (Woods)
    * render a COMPLETELY different climb on the layout's default size, so a client
@@ -4322,6 +4416,8 @@ export type Mutation = {
    * history. Requires authentication.
    */
   createIntegrationOAuthHandoff: Scalars['String']['output'];
+  /** Register an app. Returns its client ID and, for a confidential app, a secret shown once. */
+  createOAuthClient: OAuthClientCredentials;
   /** Create a new playlist. */
   createPlaylist: Playlist;
   /** Create a proposal for a climb grade/classic/benchmark change. */
@@ -4387,6 +4483,8 @@ export type Mutation = {
    * nothing to remove.
    */
   deleteHoldOutlineOverride: Scalars['Boolean']['output'];
+  /** Delete the signed-in developer's app and end every climber connection to it. False when there was no such app. */
+  deleteOAuthClient: Scalars['Boolean']['output'];
   /** Delete a playlist (owner only). */
   deletePlaylist: Scalars['Boolean']['output'];
   /** Delete an accepted proposal and revert its effects (admin/leader only). */
@@ -4415,6 +4513,15 @@ export type Mutation = {
    * reference its work. Owner only.
    */
   discardSprayWallVersion: Scalars['Boolean']['output'];
+  /**
+   * End the signed-in climber's connection to an app, with the same effect as the
+   * app calling DELETE /v1/connection: every token and the remembered consent go,
+   * and connecting again needs a fresh approval. Works in every PARTNER_OAUTH_MODE,
+   * so a climber can always end a connection. True once the connection is ended,
+   * also when it already was. NOT_FOUND when the id is not one of the climber's
+   * connections.
+   */
+  disconnectApp: Scalars['Boolean']['output'];
   /**
    * Unlink an external platform integration. Revokes the token on the
    * provider's side (best-effort) and deletes the stored credentials.
@@ -4773,6 +4880,8 @@ export type Mutation = {
   revokeResourceAccess: Scalars['Boolean']['output'];
   /** Revoke a community role from a user (admin only). */
   revokeRole: Scalars['Boolean']['output'];
+  /** Replace a confidential app's secret. The old secret stops working at once. */
+  rotateOAuthClientSecret: OAuthClientCredentials;
   /**
    * Save Aurora climbing credentials.
    * Validates with Aurora API before saving.
@@ -4782,6 +4891,12 @@ export type Mutation = {
   saveClimb: SaveClimbResult;
   /** Save a new MoonBoard climb. */
   saveMoonBoardClimb: SaveClimbResult;
+  /**
+   * Save part of a spray wall's LED setup. Owner only: this value reaches every
+   * climber's phone at the wall. Refuses an address that is not on a local network
+   * and a layout outside the shared caps.
+   */
+  saveSprayWallLedSetup: SprayWallLedSetup;
   /** Save a new tick (climb attempt record). */
   saveTick: Tick;
   sendDeviceLogs: SendDeviceLogsResponse;
@@ -4968,6 +5083,8 @@ export type Mutation = {
    * and linked to this kiosk's gym.
    */
   updateGymKiosk: GymKiosk;
+  /** Edit the signed-in developer's app. */
+  updateOAuthClient: OAuthClient;
   /** Update playlist metadata. */
   updatePlaylist: Playlist;
   /** Update only lastAccessedAt for a playlist (does not update updatedAt). */
@@ -5128,6 +5245,11 @@ export type MutationCreateIntegrationOAuthHandoffArgs = {
 };
 
 /** Root mutation type for all write operations. */
+export type MutationCreateOAuthClientArgs = {
+  input: CreateOAuthClientInput;
+};
+
+/** Root mutation type for all write operations. */
 export type MutationCreatePlaylistArgs = {
   input: CreatePlaylistInput;
 };
@@ -5210,6 +5332,11 @@ export type MutationDeleteHoldOutlineOverrideArgs = {
 };
 
 /** Root mutation type for all write operations. */
+export type MutationDeleteOAuthClientArgs = {
+  clientId: Scalars['ID']['input'];
+};
+
+/** Root mutation type for all write operations. */
 export type MutationDeletePlaylistArgs = {
   playlistId: Scalars['ID']['input'];
 };
@@ -5237,6 +5364,11 @@ export type MutationDetachBoardFromGymArgs = {
 /** Root mutation type for all write operations. */
 export type MutationDiscardSprayWallVersionArgs = {
   input: PublishSprayWallVersionInput;
+};
+
+/** Root mutation type for all write operations. */
+export type MutationDisconnectAppArgs = {
+  connectionId: Scalars['ID']['input'];
 };
 
 /** Root mutation type for all write operations. */
@@ -5623,6 +5755,11 @@ export type MutationRevokeRoleArgs = {
 };
 
 /** Root mutation type for all write operations. */
+export type MutationRotateOAuthClientSecretArgs = {
+  clientId: Scalars['ID']['input'];
+};
+
+/** Root mutation type for all write operations. */
 export type MutationSaveAuroraCredentialArgs = {
   input: SaveAuroraCredentialInput;
 };
@@ -5635,6 +5772,11 @@ export type MutationSaveClimbArgs = {
 /** Root mutation type for all write operations. */
 export type MutationSaveMoonBoardClimbArgs = {
   input: SaveMoonBoardClimbInput;
+};
+
+/** Root mutation type for all write operations. */
+export type MutationSaveSprayWallLedSetupArgs = {
+  input: SaveSprayWallLedSetupInput;
 };
 
 /** Root mutation type for all write operations. */
@@ -5847,6 +5989,11 @@ export type MutationUpdateGymArgs = {
 /** Root mutation type for all write operations. */
 export type MutationUpdateGymKioskArgs = {
   input: UpdateGymKioskInput;
+};
+
+/** Root mutation type for all write operations. */
+export type MutationUpdateOAuthClientArgs = {
+  input: UpdateOAuthClientInput;
 };
 
 /** Root mutation type for all write operations. */
@@ -6109,6 +6256,56 @@ export type NotificationType =
   | 'vote_on_comment'
   | 'vote_on_tick';
 
+/** An app a developer registered for the Boardsesh API. Never carries its secret. */
+export type OAuthClient = {
+  __typename?: 'OAuthClient';
+  /** Climbers connected now. Deleting the app disconnects every one of them. */
+  activeConnections: Scalars['Int']['output'];
+  applicationType: OAuthClientApplicationType;
+  clientId: Scalars['ID']['output'];
+  /** ISO 8601. */
+  createdAt: Scalars['String']['output'];
+  homepageUrl?: Maybe<Scalars['String']['output']>;
+  /** Most climbers connected at once. */
+  maxActiveConnections: Scalars['Int']['output'];
+  /** Most new climber connections per day. */
+  maxNewConnectionsPerDay: Scalars['Int']['output'];
+  /** Shown on the consent screen. */
+  name: Scalars['String']['output'];
+  privacyPolicyUrl: Scalars['String']['output'];
+  /** Who makes the app: the consent screen's Made by line. Null only for an app registered before publishers were recorded. */
+  publisherName?: Maybe<Scalars['String']['output']>;
+  /** Matched as exact strings, except the port of a loopback redirect. */
+  redirectUris: Array<Scalars['String']['output']>;
+  /** ISO 8601 when Boardsesh suspended the app, otherwise null. A suspended app gets no tokens. */
+  suspendedAt?: Maybe<Scalars['String']['output']>;
+  /** Why the app was suspended, written for the developer. */
+  suspensionReason?: Maybe<Scalars['String']['output']>;
+  tokenEndpointAuthMethod: OAuthClientAuthMethod;
+};
+
+/**
+ * Where an app's OAuth redirect lands. WEB apps use https:// redirect URIs only;
+ * NATIVE apps may also use http://127.0.0.1 or http://[::1] and private-use
+ * schemes such as com.example.app:/oauth/boardsesh. See docs/partner-api.md.
+ */
+export type OAuthClientApplicationType = 'NATIVE' | 'WEB';
+
+/**
+ * How an app authenticates at the token endpoint. NONE is a public app (no
+ * secret, PKCE protects the code); the other two are confidential apps that send
+ * a client secret by HTTP Basic or in the form body.
+ */
+export type OAuthClientAuthMethod = 'CLIENT_SECRET_BASIC' | 'CLIENT_SECRET_POST' | 'NONE';
+
+/** An app with a secret that is shown this once and can never be read again. */
+export type OAuthClientCredentials = {
+  __typename?: 'OAuthClientCredentials';
+  client: OAuthClient;
+  /** Null for a public app. */
+  clientSecret?: Maybe<Scalars['String']['output']>;
+};
+
 export type ObservedBoardSerialInput = {
   boardType: Scalars['String']['input'];
   observedSerialNumber: Scalars['String']['input'];
@@ -6295,6 +6492,8 @@ export type Playlist = {
   description?: Maybe<Scalars['String']['output']>;
   /** Number of users following this playlist */
   followerCount: Scalars['Int']['output'];
+  /** Grade spread of the playlist's climbs. Null when none of its climbs has a grade yet. */
+  gradeSummary?: Maybe<PlaylistGradeSummary>;
   /** Display icon */
   icon?: Maybe<Scalars['String']['output']>;
   /** Database ID */
@@ -6890,6 +7089,12 @@ export type Query = {
    */
   auroraCredentials: Array<AuroraCredentialStatus>;
   /**
+   * Immutable identity admitted from this request's presented credential.
+   * Returns UNAUTHENTICATED when the credential cannot authorize the request.
+   * Authority failures return SERVICE_UNAVAILABLE instead of an identity.
+   */
+  authenticatedUserId: Scalars['ID']['output'];
+  /**
    * Live preview metadata for a shared Instagram/TikTok URL, before it's
    * attached. Powers the mobile share flow: shows the post thumbnail/caption and
    * lets the client auto-match the climb from the caption. Best-effort — returns
@@ -7094,6 +7299,13 @@ export type Query = {
   /** Whether this request comes from a region where the analytics prompt is shown. No sign-in needed. */
   consentRegion: ConsentRegion;
   contentAudience: PrivacyContentAudience;
+  /**
+   * The boards the controller API key's owner owns (home boards and spray walls,
+   * deleted and archived ones left out), so a wall device can let its owner pick
+   * one. Requires a WebSocket connected with `connectionParams.controllerApiKey`;
+   * without one it fails UNAUTHENTICATED, signed in or not.
+   */
+  controllerBoards: Array<ControllerBoard>;
   /** Read a gym's device configuration using a registered gym owner/admin's controller API key. */
   controllerGymManifest: ControllerGymManifest;
   /** Sessions and the last 30 days of published climbs from followed authors. */
@@ -7289,6 +7501,8 @@ export type Query = {
    * Requires authentication.
    */
   myBoards: UserBoardConnection;
+  /** The signed-in climber's connected apps, in every PARTNER_OAUTH_MODE. */
+  myConnectedApps: ConnectedApps;
   myControllers: Array<ControllerInfo>;
   /**
    * Get current user's gyms (owned + optionally followed).
@@ -7300,6 +7514,11 @@ export type Query = {
    * Requires authentication.
    */
   myNewClimbSubscriptions: Array<NewClimbSubscription>;
+  /**
+   * The signed-in developer's apps. Developer apps answer NOT_FOUND while partner
+   * OAuth is off, and only allowlisted developers may use them.
+   */
+  myOAuthClients: Array<OAuthClient>;
   /**
    * Get the authenticated user's pinned playlists, ordered by most recently pinned.
    * Capped server-side (small grid surface). Requires authentication.
@@ -7345,6 +7564,12 @@ export type Query = {
    * audit list (admin only). List-only; no bulk action.
    */
   orphanGyms: OrphanGymConnection;
+  /**
+   * Whether partner apps are switched on (any PARTNER_OAUTH_MODE but off), the same
+   * value as ConnectedApps.partnerAppsEnabled. Screens that only need to know whether
+   * to mention connected apps read this. It changes only with a deploy.
+   */
+  partnerAppsEnabled: Scalars['Boolean']['output'];
   /** List pending gym ownership claims for the admin review queue (admin only). */
   pendingGymClaims: GymClaimConnection;
   /**
@@ -7572,6 +7797,13 @@ export type Query = {
    */
   sprayWallHoldUsage: Array<SprayWallHoldUsage>;
   sprayWallImportProgress: Array<SprayWallImportProgress>;
+  /**
+   * A spray wall's LED setup, for lighting it from this phone. Anyone who can read
+   * the wall gets it, with the same rules as `sprayWall`; null when the wall does
+   * not exist, is deleted, or this viewer may not see it. `setup` is null when the
+   * wall has no saved setup yet.
+   */
+  sprayWallLedSetup?: Maybe<SprayWallLedSetupView>;
   /**
    * Everything needed to render a wall at one version: the photo, the homography
    * and the holds alive at that version. Omit `version` for the published one.
@@ -8450,6 +8682,11 @@ export type QuerySprayWallImportProgressArgs = {
 };
 
 /** Root query type for all read operations. */
+export type QuerySprayWallLedSetupArgs = {
+  boardUuid: Scalars['ID']['input'];
+};
+
+/** Root query type for all read operations. */
 export type QuerySprayWallRenderDataArgs = {
   uuid: Scalars['ID']['input'];
   version?: InputMaybe<Scalars['Int']['input']>;
@@ -9198,6 +9435,20 @@ export type SaveMoonBoardClimbInput = {
   userGrade?: InputMaybe<Scalars['String']['input']>;
 };
 
+/**
+ * Save part of a wall's LED setup. A field left out (or null) keeps its stored
+ * value, so the settings and the layout save from separate code paths without
+ * overwriting each other.
+ */
+export type SaveSprayWallLedSetupInput = {
+  boardUuid: Scalars['ID']['input'];
+  controllerType?: InputMaybe<Scalars['String']['input']>;
+  /** Local-network addresses only: the server refuses anything else. */
+  controllerUrl?: InputMaybe<Scalars['String']['input']>;
+  enabled?: InputMaybe<Scalars['Boolean']['input']>;
+  layout?: InputMaybe<Scalars['JSON']['input']>;
+};
+
 /** Input for recording a climb attempt. */
 export type SaveTickInput = {
   /** Board angle */
@@ -9458,6 +9709,8 @@ export type SessionDetailTick = {
   boardseshConfidence?: Maybe<Scalars['String']['output']>;
   /** Boardsesh grade on the shared difficulty scale for this tick's climb at its angle. Null when no grade row exists. Use boardseshConfidence to distinguish trusted, setter-only, and projected values. */
   boardseshDifficulty?: Maybe<Scalars['Float']['output']>;
+  /** Structured climb characteristics (e.g. 'no_match', 'method_footless'). Decode with @boardsesh/shared-schema helpers (isNoMatch / getMoonBoardMethod). */
+  characteristics?: Maybe<Array<Scalars['String']['output']>>;
   climbName?: Maybe<Scalars['String']['output']>;
   climbUuid: Scalars['String']['output'];
   climbedAt: Scalars['String']['output'];
@@ -9573,6 +9826,8 @@ export type SessionFeedTickHighlight = {
   boardseshConfidence?: Maybe<Scalars['String']['output']>;
   /** Boardsesh grade on the shared difficulty scale for this tick's climb at its angle. Null when no grade row exists. Use boardseshConfidence to distinguish trusted, setter-only, and projected values. */
   boardseshDifficulty?: Maybe<Scalars['Float']['output']>;
+  /** Structured climb characteristics (e.g. 'no_match', 'method_footless'). Decode with @boardsesh/shared-schema helpers (isNoMatch / getMoonBoardMethod). */
+  characteristics?: Maybe<Array<Scalars['String']['output']>>;
   climbName?: Maybe<Scalars['String']['output']>;
   climbUuid: Scalars['String']['output'];
   climbedAt: Scalars['String']['output'];
@@ -10303,6 +10558,8 @@ export type SetterProfile = {
   linkedUserDisplayName?: Maybe<Scalars['String']['output']>;
   /** Linked Boardsesh user ID (if setter has a Boardsesh account) */
   linkedUserId?: Maybe<Scalars['ID']['output']>;
+  /** Sends across this setter's listable climbs, summing each climb's best angle so a climber who sent it at two angles counts once. Includes imported Aurora ascents. */
+  totalAscents: Scalars['Int']['output'];
   /** The setter's Aurora username */
   username: Scalars['String']['output'];
 };
@@ -11118,6 +11375,40 @@ export type SprayWallKeptDecisionInput = {
   holdId: Scalars['Int']['input'];
 };
 
+/**
+ * The LED setup of one spray wall: which controller drives it, whether it is on,
+ * and the hole, LED and cable layout that maps holds to physical LEDs.
+ *
+ * Lives on the board, so every climber at the wall can light it from their own
+ * phone. The phone talks to the controller directly over the local network; the
+ * server only stores the setup and never contacts the address.
+ */
+export type SprayWallLedSetup = {
+  __typename?: 'SprayWallLedSetup';
+  boardUuid: Scalars['ID']['output'];
+  /** The driver for this controller. `wled` is the only one today. */
+  controllerType: Scalars['String']['output'];
+  /** A local-network base address, or empty until the owner confirms one. */
+  controllerUrl: Scalars['String']['output'];
+  enabled: Scalars['Boolean']['output'];
+  /** A saved T-nut layout. Null until the setup screen has saved one. */
+  layout?: Maybe<Scalars['JSON']['output']>;
+  /** When this setup last changed, ISO 8601. */
+  updatedAt: Scalars['String']['output'];
+};
+
+/**
+ * A wall's LED setup as this viewer may use it. Null at the query, not here, when
+ * the viewer cannot read the wall: the same answer `sprayWall(uuid)` gives.
+ */
+export type SprayWallLedSetupView = {
+  __typename?: 'SprayWallLedSetupView';
+  /** Null when nobody has saved a setup for this wall yet. */
+  setup?: Maybe<SprayWallLedSetup>;
+  /** Whether this viewer may save changes: the wall's owner, on a wall still in use. */
+  viewerCanEdit: Scalars['Boolean']['output'];
+};
+
 /** The outcome of the admin switch, thin on purpose: a moderation tool, not a wall read. */
 export type SprayWallModerationResult = {
   __typename?: 'SprayWallModerationResult';
@@ -11841,6 +12132,8 @@ export type UpdateBoardInput = {
   latitude?: InputMaybe<Scalars['Float']['input']>;
   /** New layout ID (authorized editors only; existing ticks are preserved untouched) */
   layoutId?: InputMaybe<Scalars['Int']['input']>;
+  /** New wall device flag */
+  litByWallDevice?: InputMaybe<Scalars['Boolean']['input']>;
   /** New location name */
   locationName?: InputMaybe<Scalars['String']['input']>;
   /** New GPS longitude */
@@ -11992,6 +12285,16 @@ export type UpdateGymKioskInput = {
   name?: InputMaybe<Scalars['String']['input']>;
   /** New URL slug (lowercase alphanumeric + hyphens, 3–60 chars; unique per gym). */
   slug?: InputMaybe<Scalars['String']['input']>;
+};
+
+/** Fields left out keep their value. A null homepageUrl removes it; publisherName can change but never be removed. The app type and auth method never change. */
+export type UpdateOAuthClientInput = {
+  clientId: Scalars['ID']['input'];
+  homepageUrl?: InputMaybe<Scalars['String']['input']>;
+  name?: InputMaybe<Scalars['String']['input']>;
+  privacyPolicyUrl?: InputMaybe<Scalars['String']['input']>;
+  publisherName?: InputMaybe<Scalars['String']['input']>;
+  redirectUris?: InputMaybe<Array<Scalars['String']['input']>>;
 };
 
 /** Input for updating a playlist. */
@@ -12223,6 +12526,12 @@ export type UserBoard = {
   layoutId: Scalars['Int']['output'];
   /** Human-readable layout name */
   layoutName?: Maybe<Scalars['String']['output']>;
+  /**
+   * Whether an internet-connected wall device (a laser projector, an LED
+   * controller) lights this wall from the board feed. Climbers take the wall
+   * with no Bluetooth link.
+   */
+  litByWallDevice: Scalars['Boolean']['output'];
   /** Location name */
   locationName?: Maybe<Scalars['String']['output']>;
   /** GPS longitude */
@@ -12713,7 +13022,10 @@ export type ResolversTypes = ResolversObject<{
   CommunityRoleType: CommunityRoleType;
   CommunitySetting: ResolverTypeWrapper<CommunitySetting>;
   CommunityStats: ResolverTypeWrapper<CommunityStats>;
+  ConnectedApp: ResolverTypeWrapper<ConnectedApp>;
+  ConnectedApps: ResolverTypeWrapper<ConnectedApps>;
   ConsentRegion: ResolverTypeWrapper<ConsentRegion>;
+  ControllerBoard: ResolverTypeWrapper<ControllerBoard>;
   ControllerEvent: ResolverTypeWrapper<ResolversUnionTypes<ResolversTypes>['ControllerEvent']>;
   ControllerGymBoard: ResolverTypeWrapper<ControllerGymBoard>;
   ControllerGymManifest: ResolverTypeWrapper<ControllerGymManifest>;
@@ -12726,6 +13038,7 @@ export type ResolversTypes = ResolversObject<{
   CreateBoardInput: CreateBoardInput;
   CreateGymInput: CreateGymInput;
   CreateGymKioskInput: CreateGymKioskInput;
+  CreateOAuthClientInput: CreateOAuthClientInput;
   CreatePlaylistInput: CreatePlaylistInput;
   CreateProposalInput: CreateProposalInput;
   CreateSessionInput: CreateSessionInput;
@@ -12893,6 +13206,10 @@ export type ResolversTypes = ResolversObject<{
   NotificationConnection: ResolverTypeWrapper<NotificationConnection>;
   NotificationEvent: ResolverTypeWrapper<NotificationEvent>;
   NotificationType: NotificationType;
+  OAuthClient: ResolverTypeWrapper<OAuthClient>;
+  OAuthClientApplicationType: OAuthClientApplicationType;
+  OAuthClientAuthMethod: OAuthClientAuthMethod;
+  OAuthClientCredentials: ResolverTypeWrapper<OAuthClientCredentials>;
   ObservedBoardSerialInput: ObservedBoardSerialInput;
   ObservedBoardSerialMatch: ResolverTypeWrapper<ObservedBoardSerialMatch>;
   OrphanGym: ResolverTypeWrapper<OrphanGym>;
@@ -12995,6 +13312,7 @@ export type ResolversTypes = ResolversObject<{
   SaveClimbInput: SaveClimbInput;
   SaveClimbResult: ResolverTypeWrapper<SaveClimbResult>;
   SaveMoonBoardClimbInput: SaveMoonBoardClimbInput;
+  SaveSprayWallLedSetupInput: SaveSprayWallLedSetupInput;
   SaveTickInput: SaveTickInput;
   SearchBoardsInput: SearchBoardsInput;
   SearchGymsInput: SearchGymsInput;
@@ -13101,6 +13419,8 @@ export type ResolversTypes = ResolversObject<{
   SprayWallHoldUsage: ResolverTypeWrapper<SprayWallHoldUsage>;
   SprayWallImportProgress: ResolverTypeWrapper<SprayWallImportProgress>;
   SprayWallKeptDecisionInput: SprayWallKeptDecisionInput;
+  SprayWallLedSetup: ResolverTypeWrapper<SprayWallLedSetup>;
+  SprayWallLedSetupView: ResolverTypeWrapper<SprayWallLedSetupView>;
   SprayWallModerationResult: ResolverTypeWrapper<SprayWallModerationResult>;
   SprayWallMoveSuggestion: ResolverTypeWrapper<SprayWallMoveSuggestion>;
   SprayWallPhoto: ResolverTypeWrapper<SprayWallPhoto>;
@@ -13147,6 +13467,7 @@ export type ResolversTypes = ResolversObject<{
   UpdateCommentInput: UpdateCommentInput;
   UpdateGymInput: UpdateGymInput;
   UpdateGymKioskInput: UpdateGymKioskInput;
+  UpdateOAuthClientInput: UpdateOAuthClientInput;
   UpdatePlaylistInput: UpdatePlaylistInput;
   UpdatePrivacySettingsInput: UpdatePrivacySettingsInput;
   UpdateProfileInput: UpdateProfileInput;
@@ -13284,7 +13605,10 @@ export type ResolversParentTypes = ResolversObject<{
   CommunityRoleAssignment: CommunityRoleAssignment;
   CommunitySetting: CommunitySetting;
   CommunityStats: CommunityStats;
+  ConnectedApp: ConnectedApp;
+  ConnectedApps: ConnectedApps;
   ConsentRegion: ConsentRegion;
+  ControllerBoard: ControllerBoard;
   ControllerEvent: ResolversUnionTypes<ResolversParentTypes>['ControllerEvent'];
   ControllerGymBoard: ControllerGymBoard;
   ControllerGymManifest: ControllerGymManifest;
@@ -13297,6 +13621,7 @@ export type ResolversParentTypes = ResolversObject<{
   CreateBoardInput: CreateBoardInput;
   CreateGymInput: CreateGymInput;
   CreateGymKioskInput: CreateGymKioskInput;
+  CreateOAuthClientInput: CreateOAuthClientInput;
   CreatePlaylistInput: CreatePlaylistInput;
   CreateProposalInput: CreateProposalInput;
   CreateSessionInput: CreateSessionInput;
@@ -13443,6 +13768,8 @@ export type ResolversParentTypes = ResolversObject<{
   NotificationActorsInput: NotificationActorsInput;
   NotificationConnection: NotificationConnection;
   NotificationEvent: NotificationEvent;
+  OAuthClient: OAuthClient;
+  OAuthClientCredentials: OAuthClientCredentials;
   ObservedBoardSerialInput: ObservedBoardSerialInput;
   ObservedBoardSerialMatch: ObservedBoardSerialMatch;
   OrphanGym: OrphanGym;
@@ -13531,6 +13858,7 @@ export type ResolversParentTypes = ResolversObject<{
   SaveClimbInput: SaveClimbInput;
   SaveClimbResult: SaveClimbResult;
   SaveMoonBoardClimbInput: SaveMoonBoardClimbInput;
+  SaveSprayWallLedSetupInput: SaveSprayWallLedSetupInput;
   SaveTickInput: SaveTickInput;
   SearchBoardsInput: SearchBoardsInput;
   SearchGymsInput: SearchGymsInput;
@@ -13620,6 +13948,8 @@ export type ResolversParentTypes = ResolversObject<{
   SprayWallHoldUsage: SprayWallHoldUsage;
   SprayWallImportProgress: SprayWallImportProgress;
   SprayWallKeptDecisionInput: SprayWallKeptDecisionInput;
+  SprayWallLedSetup: SprayWallLedSetup;
+  SprayWallLedSetupView: SprayWallLedSetupView;
   SprayWallModerationResult: SprayWallModerationResult;
   SprayWallMoveSuggestion: SprayWallMoveSuggestion;
   SprayWallPhoto: SprayWallPhoto;
@@ -13658,6 +13988,7 @@ export type ResolversParentTypes = ResolversObject<{
   UpdateCommentInput: UpdateCommentInput;
   UpdateGymInput: UpdateGymInput;
   UpdateGymKioskInput: UpdateGymKioskInput;
+  UpdateOAuthClientInput: UpdateOAuthClientInput;
   UpdatePlaylistInput: UpdatePlaylistInput;
   UpdatePrivacySettingsInput: UpdatePrivacySettingsInput;
   UpdateProfileInput: UpdateProfileInput;
@@ -13800,6 +14131,7 @@ export type AdminBoardResolvers<
   isUnlisted?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   latitude?: Resolver<Maybe<ResolversTypes['Float']>, ParentType, ContextType>;
   layoutId?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  litByWallDevice?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   locationName?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   longitude?: Resolver<Maybe<ResolversTypes['Float']>, ParentType, ContextType>;
   name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
@@ -13954,6 +14286,7 @@ export type AscentFeedItemResolvers<
   boardType?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   boardseshConfidence?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   boardseshDifficulty?: Resolver<Maybe<ResolversTypes['Float']>, ParentType, ContextType>;
+  characteristics?: Resolver<Maybe<Array<ResolversTypes['String']>>, ParentType, ContextType>;
   climbCurrentRevision?: Resolver<Maybe<ResolversTypes['Int']>, ParentType, ContextType>;
   climbName?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   climbRevision?: Resolver<Maybe<ResolversTypes['Int']>, ParentType, ContextType>;
@@ -14762,6 +15095,29 @@ export type CommunityStatsResolvers<
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 }>;
 
+export type ConnectedAppResolvers<
+  ContextType = ConnectionContext,
+  ParentType extends ResolversParentTypes['ConnectedApp'] = ResolversParentTypes['ConnectedApp'],
+> = ResolversObject<{
+  connectedAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  connectionId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  lastUsedAt?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  name?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  publisherName?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  scopes?: Resolver<Array<ResolversTypes['String']>, ParentType, ContextType>;
+  suspended?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type ConnectedAppsResolvers<
+  ContextType = ConnectionContext,
+  ParentType extends ResolversParentTypes['ConnectedApps'] = ResolversParentTypes['ConnectedApps'],
+> = ResolversObject<{
+  apps?: Resolver<Array<ResolversTypes['ConnectedApp']>, ParentType, ContextType>;
+  partnerAppsEnabled?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
 export type ConsentRegionResolvers<
   ContextType = ConnectionContext,
   ParentType extends ResolversParentTypes['ConsentRegion'] = ResolversParentTypes['ConsentRegion'],
@@ -14769,6 +15125,22 @@ export type ConsentRegionResolvers<
   countryCode?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   globalPrivacyControl?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   promptRequired?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type ControllerBoardResolvers<
+  ContextType = ConnectionContext,
+  ParentType extends ResolversParentTypes['ControllerBoard'] = ResolversParentTypes['ControllerBoard'],
+> = ResolversObject<{
+  angle?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  boardId?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  boardType?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  hasLeds?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  layoutId?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  setIds?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  sizeId?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  uuid?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 }>;
 
@@ -15257,6 +15629,7 @@ export type GroupedAscentFeedItemResolvers<
   attemptCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   bestQuality?: Resolver<Maybe<ResolversTypes['Int']>, ParentType, ContextType>;
   boardType?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  characteristics?: Resolver<Maybe<Array<ResolversTypes['String']>>, ParentType, ContextType>;
   climbName?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   climbUuid?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   date?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
@@ -15294,6 +15667,7 @@ export type GroupedNotificationResolvers<
   actors?: Resolver<Array<ResolversTypes['GroupedNotificationActor']>, ParentType, ContextType>;
   boardType?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   climbAngle?: Resolver<Maybe<ResolversTypes['Int']>, ParentType, ContextType>;
+  climbCharacteristics?: Resolver<Maybe<Array<ResolversTypes['String']>>, ParentType, ContextType>;
   climbCompatibleSizeIds?: Resolver<Maybe<Array<ResolversTypes['Int']>>, ParentType, ContextType>;
   climbFrames?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   climbLayoutId?: Resolver<Maybe<ResolversTypes['Int']>, ParentType, ContextType>;
@@ -16005,6 +16379,12 @@ export type MutationResolvers<
     ContextType,
     RequireFields<MutationCreateIntegrationOAuthHandoffArgs, 'provider'>
   >;
+  createOAuthClient?: Resolver<
+    ResolversTypes['OAuthClientCredentials'],
+    ParentType,
+    ContextType,
+    RequireFields<MutationCreateOAuthClientArgs, 'input'>
+  >;
   createPlaylist?: Resolver<
     ResolversTypes['Playlist'],
     ParentType,
@@ -16101,6 +16481,12 @@ export type MutationResolvers<
     ContextType,
     RequireFields<MutationDeleteHoldOutlineOverrideArgs, 'input'>
   >;
+  deleteOAuthClient?: Resolver<
+    ResolversTypes['Boolean'],
+    ParentType,
+    ContextType,
+    RequireFields<MutationDeleteOAuthClientArgs, 'clientId'>
+  >;
   deletePlaylist?: Resolver<
     ResolversTypes['Boolean'],
     ParentType,
@@ -16136,6 +16522,12 @@ export type MutationResolvers<
     ParentType,
     ContextType,
     RequireFields<MutationDiscardSprayWallVersionArgs, 'input'>
+  >;
+  disconnectApp?: Resolver<
+    ResolversTypes['Boolean'],
+    ParentType,
+    ContextType,
+    RequireFields<MutationDisconnectAppArgs, 'connectionId'>
   >;
   disconnectIntegration?: Resolver<
     ResolversTypes['Boolean'],
@@ -16548,6 +16940,12 @@ export type MutationResolvers<
     ContextType,
     RequireFields<MutationRevokeRoleArgs, 'input'>
   >;
+  rotateOAuthClientSecret?: Resolver<
+    ResolversTypes['OAuthClientCredentials'],
+    ParentType,
+    ContextType,
+    RequireFields<MutationRotateOAuthClientSecretArgs, 'clientId'>
+  >;
   saveAuroraCredential?: Resolver<
     ResolversTypes['AuroraCredentialStatus'],
     ParentType,
@@ -16565,6 +16963,12 @@ export type MutationResolvers<
     ParentType,
     ContextType,
     RequireFields<MutationSaveMoonBoardClimbArgs, 'input'>
+  >;
+  saveSprayWallLedSetup?: Resolver<
+    ResolversTypes['SprayWallLedSetup'],
+    ParentType,
+    ContextType,
+    RequireFields<MutationSaveSprayWallLedSetupArgs, 'input'>
   >;
   saveTick?: Resolver<ResolversTypes['Tick'], ParentType, ContextType, RequireFields<MutationSaveTickArgs, 'input'>>;
   sendDeviceLogs?: Resolver<
@@ -16796,6 +17200,12 @@ export type MutationResolvers<
     ContextType,
     RequireFields<MutationUpdateGymKioskArgs, 'input'>
   >;
+  updateOAuthClient?: Resolver<
+    ResolversTypes['OAuthClient'],
+    ParentType,
+    ContextType,
+    RequireFields<MutationUpdateOAuthClientArgs, 'input'>
+  >;
   updatePlaylist?: Resolver<
     ResolversTypes['Playlist'],
     ParentType,
@@ -16975,6 +17385,36 @@ export type NotificationEventResolvers<
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 }>;
 
+export type OAuthClientResolvers<
+  ContextType = ConnectionContext,
+  ParentType extends ResolversParentTypes['OAuthClient'] = ResolversParentTypes['OAuthClient'],
+> = ResolversObject<{
+  activeConnections?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  applicationType?: Resolver<ResolversTypes['OAuthClientApplicationType'], ParentType, ContextType>;
+  clientId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  createdAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  homepageUrl?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  maxActiveConnections?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  maxNewConnectionsPerDay?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  privacyPolicyUrl?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  publisherName?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  redirectUris?: Resolver<Array<ResolversTypes['String']>, ParentType, ContextType>;
+  suspendedAt?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  suspensionReason?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  tokenEndpointAuthMethod?: Resolver<ResolversTypes['OAuthClientAuthMethod'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type OAuthClientCredentialsResolvers<
+  ContextType = ConnectionContext,
+  ParentType extends ResolversParentTypes['OAuthClientCredentials'] = ResolversParentTypes['OAuthClientCredentials'],
+> = ResolversObject<{
+  client?: Resolver<ResolversTypes['OAuthClient'], ParentType, ContextType>;
+  clientSecret?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
 export type ObservedBoardSerialMatchResolvers<
   ContextType = ConnectionContext,
   ParentType extends ResolversParentTypes['ObservedBoardSerialMatch'] =
@@ -17073,6 +17513,7 @@ export type PlaylistResolvers<
   createdAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   followerCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  gradeSummary?: Resolver<Maybe<ResolversTypes['PlaylistGradeSummary']>, ParentType, ContextType>;
   icon?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   isFollowedByMe?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
@@ -17431,6 +17872,7 @@ export type QueryResolvers<
     RequireFields<QueryAuroraCredentialArgs, 'boardType'>
   >;
   auroraCredentials?: Resolver<Array<ResolversTypes['AuroraCredentialStatus']>, ParentType, ContextType>;
+  authenticatedUserId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   betaLinkPreview?: Resolver<
     ResolversTypes['BetaLinkPreview'],
     ParentType,
@@ -17655,6 +18097,7 @@ export type QueryResolvers<
     ContextType,
     RequireFields<QueryContentAudienceArgs, 'entityId' | 'entityType'>
   >;
+  controllerBoards?: Resolver<Array<ResolversTypes['ControllerBoard']>, ParentType, ContextType>;
   controllerGymManifest?: Resolver<
     ResolversTypes['ControllerGymManifest'],
     ParentType,
@@ -17839,9 +18282,11 @@ export type QueryResolvers<
     RequireFields<QueryMyBoardSerialConfigsArgs, 'serialNumbers'>
   >;
   myBoards?: Resolver<ResolversTypes['UserBoardConnection'], ParentType, ContextType, Partial<QueryMyBoardsArgs>>;
+  myConnectedApps?: Resolver<ResolversTypes['ConnectedApps'], ParentType, ContextType>;
   myControllers?: Resolver<Array<ResolversTypes['ControllerInfo']>, ParentType, ContextType>;
   myGyms?: Resolver<ResolversTypes['GymConnection'], ParentType, ContextType, Partial<QueryMyGymsArgs>>;
   myNewClimbSubscriptions?: Resolver<Array<ResolversTypes['NewClimbSubscription']>, ParentType, ContextType>;
+  myOAuthClients?: Resolver<Array<ResolversTypes['OAuthClient']>, ParentType, ContextType>;
   myPinnedPlaylists?: Resolver<
     Array<ResolversTypes['Playlist']>,
     ParentType,
@@ -17883,6 +18328,7 @@ export type QueryResolvers<
     RequireFields<QueryObservedBoardSerialMatchesArgs, 'input'>
   >;
   orphanGyms?: Resolver<ResolversTypes['OrphanGymConnection'], ParentType, ContextType, Partial<QueryOrphanGymsArgs>>;
+  partnerAppsEnabled?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   pendingGymClaims?: Resolver<
     ResolversTypes['GymClaimConnection'],
     ParentType,
@@ -18160,6 +18606,12 @@ export type QueryResolvers<
     ParentType,
     ContextType,
     RequireFields<QuerySprayWallImportProgressArgs, 'wallUuids'>
+  >;
+  sprayWallLedSetup?: Resolver<
+    Maybe<ResolversTypes['SprayWallLedSetupView']>,
+    ParentType,
+    ContextType,
+    RequireFields<QuerySprayWallLedSetupArgs, 'boardUuid'>
   >;
   sprayWallRenderData?: Resolver<
     Maybe<ResolversTypes['SprayWallRenderData']>,
@@ -18690,6 +19142,7 @@ export type SessionDetailTickResolvers<
   boardType?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   boardseshConfidence?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   boardseshDifficulty?: Resolver<Maybe<ResolversTypes['Float']>, ParentType, ContextType>;
+  characteristics?: Resolver<Maybe<Array<ResolversTypes['String']>>, ParentType, ContextType>;
   climbName?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   climbUuid?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   climbedAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
@@ -18820,6 +19273,7 @@ export type SessionFeedTickHighlightResolvers<
   boardType?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   boardseshConfidence?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   boardseshDifficulty?: Resolver<Maybe<ResolversTypes['Float']>, ParentType, ContextType>;
+  characteristics?: Resolver<Maybe<Array<ResolversTypes['String']>>, ParentType, ContextType>;
   climbName?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   climbUuid?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   climbedAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
@@ -19150,6 +19604,7 @@ export type SetterProfileResolvers<
   linkedUserAvatarUrl?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   linkedUserDisplayName?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   linkedUserId?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
+  totalAscents?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   username?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 }>;
@@ -19510,6 +19965,28 @@ export type SprayWallImportProgressResolvers<
   stage?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   versionId?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
   wallUuid?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type SprayWallLedSetupResolvers<
+  ContextType = ConnectionContext,
+  ParentType extends ResolversParentTypes['SprayWallLedSetup'] = ResolversParentTypes['SprayWallLedSetup'],
+> = ResolversObject<{
+  boardUuid?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  controllerType?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  controllerUrl?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  enabled?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  layout?: Resolver<Maybe<ResolversTypes['JSON']>, ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type SprayWallLedSetupViewResolvers<
+  ContextType = ConnectionContext,
+  ParentType extends ResolversParentTypes['SprayWallLedSetupView'] = ResolversParentTypes['SprayWallLedSetupView'],
+> = ResolversObject<{
+  setup?: Resolver<Maybe<ResolversTypes['SprayWallLedSetup']>, ParentType, ContextType>;
+  viewerCanEdit?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 }>;
 
@@ -19959,6 +20436,7 @@ export type UserBoardResolvers<
   latitude?: Resolver<Maybe<ResolversTypes['Float']>, ParentType, ContextType>;
   layoutId?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   layoutName?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  litByWallDevice?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   locationName?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   longitude?: Resolver<Maybe<ResolversTypes['Float']>, ParentType, ContextType>;
   name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
@@ -20207,7 +20685,10 @@ export type Resolvers<ContextType = ConnectionContext> = ResolversObject<{
   CommunityRoleAssignment?: CommunityRoleAssignmentResolvers<ContextType>;
   CommunitySetting?: CommunitySettingResolvers<ContextType>;
   CommunityStats?: CommunityStatsResolvers<ContextType>;
+  ConnectedApp?: ConnectedAppResolvers<ContextType>;
+  ConnectedApps?: ConnectedAppsResolvers<ContextType>;
   ConsentRegion?: ConsentRegionResolvers<ContextType>;
+  ControllerBoard?: ControllerBoardResolvers<ContextType>;
   ControllerEvent?: ControllerEventResolvers<ContextType>;
   ControllerGymBoard?: ControllerGymBoardResolvers<ContextType>;
   ControllerGymManifest?: ControllerGymManifestResolvers<ContextType>;
@@ -20302,6 +20783,8 @@ export type Resolvers<ContextType = ConnectionContext> = ResolversObject<{
   Notification?: NotificationResolvers<ContextType>;
   NotificationConnection?: NotificationConnectionResolvers<ContextType>;
   NotificationEvent?: NotificationEventResolvers<ContextType>;
+  OAuthClient?: OAuthClientResolvers<ContextType>;
+  OAuthClientCredentials?: OAuthClientCredentialsResolvers<ContextType>;
   ObservedBoardSerialMatch?: ObservedBoardSerialMatchResolvers<ContextType>;
   OrphanGym?: OrphanGymResolvers<ContextType>;
   OrphanGymConnection?: OrphanGymConnectionResolvers<ContextType>;
@@ -20413,6 +20896,8 @@ export type Resolvers<ContextType = ConnectionContext> = ResolversObject<{
   SprayWallHold?: SprayWallHoldResolvers<ContextType>;
   SprayWallHoldUsage?: SprayWallHoldUsageResolvers<ContextType>;
   SprayWallImportProgress?: SprayWallImportProgressResolvers<ContextType>;
+  SprayWallLedSetup?: SprayWallLedSetupResolvers<ContextType>;
+  SprayWallLedSetupView?: SprayWallLedSetupViewResolvers<ContextType>;
   SprayWallModerationResult?: SprayWallModerationResultResolvers<ContextType>;
   SprayWallMoveSuggestion?: SprayWallMoveSuggestionResolvers<ContextType>;
   SprayWallPhoto?: SprayWallPhotoResolvers<ContextType>;

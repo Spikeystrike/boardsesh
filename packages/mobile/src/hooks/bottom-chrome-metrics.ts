@@ -4,7 +4,7 @@ import type { UiVariant } from '../theme/resolve-ui-variant';
 // this module's pure, react-native-free unit test. select-by-variant is type-only.
 import { selectByVariant } from '../theme/variants/select-by-variant';
 import {
-  MATERIAL_ACTIVE_CONTEXT_BAR_HEIGHT,
+  MATERIAL_MINI_PLAYER_CARD_RESERVE,
   MATERIAL_TAB_BAR_HEIGHT,
   NATIVE_BOTTOM_ACCESSORY_HEIGHT,
   REST_TIMER_RESERVE,
@@ -193,6 +193,14 @@ export type BottomChromeInputs = {
    */
   measuredTabContentInsetLeft?: number | null;
   measuredTabContentInsetRight?: number | null;
+  /**
+   * The Android phone nav bar with hide-on-scroll on (`resolveHideOnScrollTabBar`:
+   * Android, not a tablet, flag on). On a tab root that bar is drawn over the
+   * content (opaque, with a fade above it) so it can slide away; everywhere else it stays in flow.
+   * Platform-keyed, not variant-keyed: an Android dev or screenshot build on
+   * Liquid Glass draws the same JS bar.
+   */
+  hideOnScrollTabBar?: boolean;
 };
 
 export type BottomChromeMetrics = {
@@ -293,6 +301,15 @@ export type BottomChromeMetrics = {
    * and its reserve come and go together (see `shouldRenderRestTimerPill`).
    */
   restTimerPillHiddenOnRoute: boolean;
+  /**
+   * The JS nav bar is drawn over the screen (position absolute) instead of
+   * below it: the Android phone bar on a top-level tab root (and under the
+   * player, which keeps the tab-root geometry). `MaterialTabBar` reads this to
+   * pick its layout, so the bar and the reserves can never disagree. The
+   * metrics describe the SHOWN bar; hiding it on scroll moves chrome by a
+   * transform and leaves every number here alone, as iOS does.
+   */
+  jsBarOverlaysContent: boolean;
 };
 
 /** What {@link trackExpandedTabContentInset} remembers between renders. */
@@ -392,6 +409,7 @@ export function computeBottomChromeMetrics({
   expandedTabContentInsetBottom = null,
   measuredTabContentInsetLeft = null,
   measuredTabContentInsetRight = null,
+  hideOnScrollTabBar = false,
 }: BottomChromeInputs): BottomChromeMetrics {
   // The Session page keeps an idle pill off screen; a counting one comes back.
   const restTimerPillHiddenOnRoute = restTimerIdleHiddenRoute && !restTimerCounting;
@@ -431,6 +449,7 @@ export function computeBottomChromeMetrics({
       contentColumnLeft: 0,
       contentColumnRight: 0,
       restTimerPillHiddenOnRoute,
+      jsBarOverlaysContent: false,
     };
   }
 
@@ -459,12 +478,15 @@ export function computeBottomChromeMetrics({
   // synthetic "sidebar + native tab signal" call must not consume the in-tab
   // measurement or its reconstruction — hence the `!usesSidebar` term.
   const tabBarOverlaysContent = insideTabs && usesNativeTabBar && !usesSidebar;
-  // The Material bar reserves its full height even though it's tucked ~2px into the
-  // tab bar (MATERIAL_TABBAR_OVERLAP in persistent-queue-bar), so its visible height
-  // above the tab bar is ~2px less. The resulting 2px of extra scroll padding is
-  // intentional slack — imperceptible, and not worth threading the overlap through
-  // this pure arbitration. Don't "fix" it by subtracting the overlap here.
-  const jsQueueToolbarReserve = uiVariant === 'material' ? MATERIAL_ACTIVE_CONTEXT_BAR_HEIGHT : TOOLBAR_RESERVE;
+  // The Android phone bar overlays its tab roots so it can hide on scroll. It is
+  // absolute only there: on a pushed sub-route it sits in flow, opaque, and never
+  // hides. Same height as in flow, so `tabBarBottom` is unchanged; only the
+  // screen's floor moves down to the window bottom (`contentInsetBottom`).
+  const jsBarOverlaysContent =
+    hideOnScrollTabBar && insideTabs && !usesNativeTabBar && !usesSidebar && tabBarAtBottom && onAccessorySurface;
+  // The Material MiniPlayer card floats one gap above the in-flow tab bar, so it
+  // takes its height plus that gap (`FloatingMiniPlayerCard`).
+  const jsQueueToolbarReserve = uiVariant === 'material' ? MATERIAL_MINI_PLAYER_CARD_RESERVE : TOOLBAR_RESERVE;
   const jsQueueReserve = jsQueueToolbarVisible ? jsQueueToolbarReserve : 0;
   // A native accessory is UIKit-owned and already folded into `insetsBottom` on
   // the real NativeTabs path. Keep this field as an *additional* reserve so every
@@ -554,7 +576,7 @@ export function computeBottomChromeMetrics({
   // 10pt above the pill's top edge instead of on it.
   const queueChromeBottom = tabBarBottom + activeQueueChromeReserve;
   const restTimerBottom = queueChromeBottom + (restTimerShows ? TOOLBAR_GAP_ABOVE_TABBAR : 0);
-  const contentInsetBottom = tabBarOverlaysContent || !insideTabs ? tabBarBottom : 0;
+  const contentInsetBottom = tabBarOverlaysContent || jsBarOverlaysContent || !insideTabs ? tabBarBottom : 0;
   // A fixed footer docks exactly where the pill floats (on the native-overlay
   // path `contentInsetBottom + activeQueueChromeReserve` IS `restTimerBottom`;
   // on the in-flow JS bar the screen floor makes up the difference), so it has to
@@ -597,7 +619,10 @@ export function computeBottomChromeMetrics({
     // adding it twice would leave a 54pt dead band under every Material session.
     inSessionListBottom: selectByVariant(uiVariant, {
       material: fixedFooterBottom,
-      liquidGlass: (tabBarOverlaysContent ? tabBarBottom : insetsBottom) + jsQueueReserve + restTimerReserve,
+      liquidGlass:
+        (tabBarOverlaysContent || jsBarOverlaysContent ? tabBarBottom : insetsBottom) +
+        jsQueueReserve +
+        restTimerReserve,
     }),
     // Keep this branch identical to `inSessionListBottom`: the JS queue tray is an
     // overlay outside the safe area, so the Start capsule only clears it when the
@@ -605,10 +630,14 @@ export function computeBottomChromeMetrics({
     // rest pill — it floats over both surfaces, so both clear it or neither does.
     preSessionFooterBottom: selectByVariant(uiVariant, {
       material: fixedFooterBottom,
-      liquidGlass: (tabBarOverlaysContent ? tabBarBottom : insetsBottom) + jsQueueReserve + restTimerReserve,
+      liquidGlass:
+        (tabBarOverlaysContent || jsBarOverlaysContent ? tabBarBottom : insetsBottom) +
+        jsQueueReserve +
+        restTimerReserve,
     }),
     contentColumnLeft,
     contentColumnRight,
     restTimerPillHiddenOnRoute,
+    jsBarOverlaysContent,
   };
 }

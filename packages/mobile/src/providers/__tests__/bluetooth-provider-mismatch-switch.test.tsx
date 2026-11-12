@@ -83,6 +83,8 @@ type PickerSheetProps = {
   targetBoard?: { boardUuid: string; boardName: string };
   showAllBoards?: boolean;
   onSearchAnyBoard?: () => void;
+  onSeen?: (seen: 'target_not_listed' | 'tips') => void;
+  onBrowseForNow?: () => void;
 };
 
 const pickerSheet = vi.hoisted(() => ({
@@ -113,7 +115,7 @@ vi.mock('react-native', () => ({
 }));
 
 vi.mock('../../settings', () => ({
-  useSetting: (key: string) => (key === 'autoDisconnectBle' ? [false, vi.fn()] : [30, vi.fn()]),
+  useSetting: () => [30, vi.fn()],
 }));
 
 vi.mock('@boardsesh/play-view', () => ({
@@ -223,6 +225,7 @@ vi.mock('../../lib/climb-to-queue-item', () => ({
 
 import { BluetoothProvider, useBluetoothContext } from '../bluetooth-provider';
 import { DevicePickerSheetHost } from '../../components/ble/DevicePickerSheetHost';
+import { resetBoardConnectTapsForTests, trackBoardConnectTapped } from '../../lib/analytics-board-connect';
 import { invalidateCredentialSnapshots } from '../../lib/privacy/privacy-cache';
 
 let capturedBluetooth: ReturnType<typeof useBluetoothContext> | null = null;
@@ -444,7 +447,11 @@ describe('BluetoothProvider mismatch switch', () => {
     expect(bluetooth.state.connect).not.toHaveBeenCalled();
 
     rerender(createElement(BluetoothProvider, { ...KILTER_PROPS, boardUuid: savedBoard.uuid, children: null }));
-    await waitFor(() => expect(bluetooth.state.connect).toHaveBeenCalledWith(undefined, undefined, '99000001'));
+    await waitFor(() =>
+      expect(bluetooth.state.connect).toHaveBeenCalledWith(undefined, undefined, '99000001', undefined, {
+        afterBoardSwitch: true,
+      }),
+    );
   });
 
   it.each(['dismissed', 'reopened', 'board_changed', 'credentials_changed'] as const)(
@@ -557,7 +564,11 @@ describe('BluetoothProvider mismatch switch', () => {
     pickerSheet.props?.onSelect('device-2');
     await act(async () => lastAlertButtons()[2]?.onPress?.());
     expect(pickerState.handleCancel).toHaveBeenCalledOnce();
-    await waitFor(() => expect(bluetooth.state.connect).toHaveBeenCalledWith(undefined, undefined, 'SN-2'));
+    await waitFor(() =>
+      expect(bluetooth.state.connect).toHaveBeenCalledWith(undefined, undefined, 'SN-2', undefined, {
+        afterBoardSwitch: true,
+      }),
+    );
   });
 
   it.each([1, 2])('ignores mismatch alert action %s after the active board changes', async (buttonIndex) => {
@@ -660,7 +671,9 @@ describe('BluetoothProvider mismatch switch', () => {
     );
 
     await waitFor(() => {
-      expect(bluetooth.state.connect).toHaveBeenCalledWith(undefined, undefined, 'SN-2');
+      expect(bluetooth.state.connect).toHaveBeenCalledWith(undefined, undefined, 'SN-2', undefined, {
+        afterBoardSwitch: true,
+      });
     });
     expect(bluetooth.state.connect).toHaveBeenCalledOnce();
 
@@ -729,7 +742,9 @@ describe('BluetoothProvider mismatch switch', () => {
       createElement(BluetoothProvider, { ...currentProps, boardUuid: 'wall-a', children: createElement('div') }),
     );
     expect(bluetooth.state.connect).toBe(stableConnect);
-    await waitFor(() => expect(stableConnect).toHaveBeenCalledWith(undefined, undefined, 'SN-2'));
+    await waitFor(() =>
+      expect(stableConnect).toHaveBeenCalledWith(undefined, undefined, 'SN-2', undefined, { afterBoardSwitch: true }),
+    );
     rerender(
       createElement(BluetoothProvider, { ...currentProps, boardUuid: 'wall-a', children: createElement('div') }),
     );
@@ -799,7 +814,11 @@ describe('BluetoothProvider mismatch switch', () => {
         children: createElement('div'),
       }),
     );
-    await waitFor(() => expect(bluetooth.state.connect).toHaveBeenCalledWith(undefined, undefined, 'SN-2'));
+    await waitFor(() =>
+      expect(bluetooth.state.connect).toHaveBeenCalledWith(undefined, undefined, 'SN-2', undefined, {
+        afterBoardSwitch: true,
+      }),
+    );
     expect(bluetooth.state.connect).toHaveBeenCalledOnce();
   });
 
@@ -826,7 +845,11 @@ describe('BluetoothProvider mismatch switch', () => {
     expect(bluetooth.state.connect).not.toHaveBeenCalled();
 
     rerender(createElement(BluetoothProvider, { ...currentProps, setIds: '7,1', children: createElement('div') }));
-    await waitFor(() => expect(bluetooth.state.connect).toHaveBeenCalledWith(undefined, undefined, 'SN-2'));
+    await waitFor(() =>
+      expect(bluetooth.state.connect).toHaveBeenCalledWith(undefined, undefined, 'SN-2', undefined, {
+        afterBoardSwitch: true,
+      }),
+    );
     expect(bluetooth.state.connect).toHaveBeenCalledOnce();
   });
 
@@ -858,7 +881,9 @@ describe('BluetoothProvider mismatch switch', () => {
       }),
     );
     await waitFor(() => {
-      expect(bluetooth.state.connect).toHaveBeenCalledWith(undefined, undefined, 'SN-2');
+      expect(bluetooth.state.connect).toHaveBeenCalledWith(undefined, undefined, 'SN-2', undefined, {
+        afterBoardSwitch: true,
+      });
     });
 
     bluetooth.state.isConnected = true;
@@ -1023,6 +1048,161 @@ describe('BluetoothProvider mismatch switch', () => {
     expect(analytics.track.mock.calls.filter(([name]) => name === 'BLE Picker Devices Resolved')).toHaveLength(1);
   });
 
+  // 2.7 release watch: props on the same one event per session, never a new event.
+  describe('release-watch props', () => {
+    const NOW = Date.parse('2026-11-02T10:00:00Z');
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'], now: NOW });
+      resetBoardConnectTapsForTests();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+      resetBoardConnectTapsForTests();
+    });
+    const resolvedCalls = () => analytics.track.mock.calls.filter(([name]) => name === 'BLE Picker Devices Resolved');
+    const closePicker = (rerender: (ui: ReturnType<typeof createElement>) => void) => {
+      bluetooth.state.pickerState = null;
+      rerender(createElement(BluetoothProvider, { ...KILTER_PROPS, children: createElement('div', null) }));
+    };
+
+    it('says how the list was filtered, searched, what it showed and saw, how long, and the tap behind it', () => {
+      trackBoardConnectTapped({ surface: 'put_on_wall', boardName: 'kilter', reconnect: false });
+      const filtered: PickerState = {
+        ...makeMismatchingPickerState(),
+        targetBoard: { boardUuid: 'board-kilter', boardName: 'kilter' },
+      };
+      bluetooth.state.pickerState = filtered;
+      const { rerender } = renderProvider(KILTER_PROPS);
+      // The Tension box found is not the gym's Kilter: the sheet says so.
+      act(() => pickerSheet.props?.onSeen?.('target_not_listed'));
+      vi.setSystemTime(NOW + 8_000);
+      bluetooth.state.pickerState = { ...filtered, showAllBoards: true };
+      rerender(createElement(BluetoothProvider, { ...KILTER_PROPS, children: createElement('div', null) }));
+      vi.setSystemTime(NOW + 12_400);
+      closePicker(rerender);
+
+      expect(resolvedCalls()).toHaveLength(1);
+      expect(resolvedCalls()[0]?.[1]).toMatchObject({
+        devicesTotal: 1,
+        targetFiltered: true,
+        searchedAnyBoard: true,
+        // Every board found, once Search for any board showed them all.
+        listedCount: 1,
+        targetNotListedSeen: true,
+        tipsSeen: false,
+        tipsShownAtMs: null,
+        browsedForNow: false,
+        secondsOpen: 12,
+        entrySurface: 'put_on_wall',
+        // The phone's history hasn't loaded in this test.
+        phoneNeverConnected: null,
+      });
+    });
+
+    it('counts only the target board while filtered, and starts the next session clean', () => {
+      const filtered: PickerState = {
+        ...makeMismatchingPickerState(),
+        targetBoard: { boardUuid: 'board-kilter', boardName: 'kilter' },
+      };
+      bluetooth.state.pickerState = filtered;
+      const { rerender } = renderProvider(KILTER_PROPS);
+      act(() => pickerSheet.props?.onSeen?.('tips'));
+      closePicker(rerender);
+      expect(resolvedCalls()[0]?.[1]).toMatchObject({
+        targetFiltered: true,
+        searchedAnyBoard: false,
+        listedCount: 0,
+        targetNotListedSeen: false,
+        tipsSeen: true,
+        entrySurface: null,
+      });
+
+      bluetooth.state.pickerState = { ...makeMismatchingPickerState(), sessionId: 2 };
+      rerender(createElement(BluetoothProvider, { ...KILTER_PROPS, children: createElement('div', null) }));
+      closePicker(rerender);
+      expect(resolvedCalls()).toHaveLength(2);
+      expect(resolvedCalls()[1]?.[1]).toMatchObject({
+        targetFiltered: false,
+        listedCount: 1,
+        targetNotListedSeen: false,
+        tipsSeen: false,
+      });
+    });
+
+    it('times the tips from the list showing, and says the climber browsed on', () => {
+      bluetooth.state.pickerState = makeMismatchingPickerState();
+      const { rerender } = renderProvider(KILTER_PROPS);
+      vi.setSystemTime(NOW + 5_000);
+      act(() => pickerSheet.props?.onSeen?.('tips'));
+      // The tips went (a board turned up) and came back: the first time counts.
+      vi.setSystemTime(NOW + 9_000);
+      act(() => pickerSheet.props?.onSeen?.('tips'));
+      // The sheet records Browse for now, then cancels the picker.
+      act(() => pickerSheet.props?.onBrowseForNow?.());
+      closePicker(rerender);
+
+      expect(resolvedCalls()).toHaveLength(1);
+      expect(resolvedCalls()[0]?.[1]).toMatchObject({ tipsSeen: true, tipsShownAtMs: 5_000, browsedForNow: true });
+
+      // The next session starts clean.
+      bluetooth.state.pickerState = { ...makeMismatchingPickerState(), sessionId: 2 };
+      rerender(createElement(BluetoothProvider, { ...KILTER_PROPS, children: createElement('div', null) }));
+      closePicker(rerender);
+      expect(resolvedCalls()[1]?.[1]).toMatchObject({ tipsSeen: false, tipsShownAtMs: null, browsedForNow: false });
+    });
+
+    it('forgets what a picker that never listed anything saw', () => {
+      bluetooth.state.pickerState = { ...makeMismatchingPickerState(), mode: 'searching', devices: [] };
+      const { rerender } = renderProvider(KILTER_PROPS);
+      act(() => pickerSheet.props?.onSeen?.('tips'));
+      closePicker(rerender);
+      bluetooth.state.pickerState = { ...makeMismatchingPickerState(), sessionId: 2 };
+      rerender(createElement(BluetoothProvider, { ...KILTER_PROPS, children: createElement('div', null) }));
+      closePicker(rerender);
+      expect(resolvedCalls()).toHaveLength(1);
+      expect(resolvedCalls()[0]?.[1]).toMatchObject({ tipsSeen: false });
+    });
+
+    it('names the board a connect tap is for', () => {
+      renderProvider(KILTER_PROPS);
+      trackBoardConnectTapped({ surface: 'play_drawer', boardName: 'kilter', reconnect: false });
+      expect(analytics.track).toHaveBeenCalledWith(
+        'Board Connect Tapped',
+        expect.objectContaining({ surface: 'play_drawer', boardUuid: 'board-kilter' }),
+      );
+    });
+  });
+
+  it('flushes the picker groups for a picker opened for a known board (#7125)', () => {
+    bluetooth.state.pickerState = {
+      ...makeMismatchingPickerState(),
+      targetBoard: { boardUuid: 'qa-kilter', boardName: 'kilter' },
+      devices: [
+        { deviceId: 'device-2', name: 'Tension Board#SN-2@2', rssi: -50 },
+        { deviceId: 'bare-kilter', name: 'Kilter Board', rssi: -60 },
+      ],
+    };
+    resolvedBoards.value = new Map();
+    const { rerender } = renderProvider(KILTER_PROPS);
+
+    bluetooth.state.pickerState = null;
+    rerender(
+      createElement(BluetoothProvider, {
+        ...KILTER_PROPS,
+        children: createElement('div', null),
+      }),
+    );
+
+    const statsCalls = analytics.track.mock.calls.filter(([name]) => name === 'BLE Picker Devices Resolved');
+    expect(statsCalls).toHaveLength(1);
+    expect(statsCalls[0]?.[1]).toMatchObject({
+      devicesTotal: 2,
+      targetMatchedDevices: 0,
+      targetUnknownDevices: 1,
+      targetOtherDevices: 1,
+    });
+  });
+
   it('flushes no resolution-stats event for a picker that never left its searching state (#5658)', async () => {
     // The saved board was found (or the climber cancelled) while the sheet was
     // still "searching": it never listed anything, so there is nothing to summarise.
@@ -1150,6 +1330,15 @@ describe('BluetoothProvider external picker host stacking (#5868)', () => {
       onSearchAnyBoard: handleSearchAnyBoard,
     });
   });
+
+  it('hands both the root and a route-hosted sheet the same Browse for now', () => {
+    bluetooth.state.pickerState = makeMismatchingPickerState();
+    const { rerender } = render(renderHosts([]));
+    const rootBrowse = pickerSheet.props?.onBrowseForNow;
+    expect(rootBrowse).toBeTypeOf('function');
+    rerender(renderHosts(['play']));
+    expect(pickerSheet.props?.onBrowseForNow).toBe(rootBrowse);
+  });
 });
 
 function makeBoardItem(uuid: string, boardType: string | undefined, layoutId: number | undefined): ClimbQueueItem {
@@ -1230,12 +1419,16 @@ describe('BluetoothProvider picker Scan again', () => {
       surface: 'picker_scan_again',
       boardName: 'kilter',
       reconnect: false,
+      // 2.7: the board the connect is for, from the provider's own board.
+      boardUuid: 'board-kilter',
     });
 
     rerenderSettled(rerender, KILTER_PROPS);
 
     await waitFor(() => {
-      expect(bluetooth.state.connect).toHaveBeenCalledWith(undefined, undefined, undefined);
+      expect(bluetooth.state.connect).toHaveBeenCalledWith(undefined, undefined, undefined, undefined, {
+        afterBoardSwitch: false,
+      });
     });
     expect(bluetooth.state.connect).toHaveBeenCalledOnce();
   });
@@ -1281,7 +1474,9 @@ describe('BluetoothProvider picker Scan again', () => {
       rerenderSettled(rerender, props);
 
       await waitFor(() => {
-        expect(bluetooth.state.connect).toHaveBeenCalledWith(undefined, undefined, undefined);
+        expect(bluetooth.state.connect).toHaveBeenCalledWith(undefined, undefined, undefined, undefined, {
+          afterBoardSwitch: false,
+        });
       });
       expect(analytics.track).toHaveBeenCalledWith(
         'Board Connect Tapped',
@@ -1357,7 +1552,9 @@ describe('BluetoothProvider connectAfterBoardSwitch (#7001)', () => {
     rerenderOn(rerender, MOON_PROPS);
 
     await waitFor(() => {
-      expect(bluetooth.state.connect).toHaveBeenCalledWith(undefined, undefined, undefined, 'moon-device');
+      expect(bluetooth.state.connect).toHaveBeenCalledWith(undefined, undefined, undefined, 'moon-device', {
+        afterBoardSwitch: true,
+      });
     });
     expect(bluetooth.state.connect).toHaveBeenCalledOnce();
     await expect(connected).resolves.toBe(true);
@@ -1380,7 +1577,9 @@ describe('BluetoothProvider connectAfterBoardSwitch (#7001)', () => {
 
     await expect(connected).resolves.toBe(false);
     // Nothing remembered for the MoonBoard: the picker opens for it.
-    expect(bluetooth.state.connect).toHaveBeenCalledWith(undefined, undefined, undefined, undefined);
+    expect(bluetooth.state.connect).toHaveBeenCalledWith(undefined, undefined, undefined, undefined, {
+      afterBoardSwitch: true,
+    });
   });
 
   it('resolves false and never connects when the switch never reaches the provider', async () => {
@@ -1628,4 +1827,8 @@ describe('BluetoothProvider spill skip', () => {
       expect.objectContaining({ sendSource: 'auto', climbUuid: 'lit' }),
     );
   });
+});
+vi.mock('../../lib/spray/use-spray-led-route-sender', () => {
+  const sender = { send: async () => null, release: () => undefined };
+  return { useSprayLedRouteSender: () => sender };
 });

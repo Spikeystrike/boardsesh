@@ -17,6 +17,7 @@ import type { ConnectionContext } from '@boardsesh/shared-schema';
 import { boardQueries } from './board/queries';
 import { holdOutlineMutations, holdOutlineQueries } from './board/hold-outline-overrides';
 import { sprayWallMutations, sprayWallQueries } from './board/spray-walls';
+import { sprayWallLedSetupMutations, sprayWallLedSetupQueries } from './board/spray-wall-led-setup';
 import { sprayDetectionMutations, sprayDetectionQueries } from './board/spray-detection';
 import { sprayWallModerationMutations, sprayWallModerationQueries } from './board/spray-wall-moderation';
 import { sprayTrainingMutations, sprayTrainingQueries } from './board/spray-training';
@@ -37,7 +38,7 @@ import { climbFieldResolvers } from './climbs/field-resolvers';
 import { favoriteQueries } from './favorites/queries';
 import { favoriteClimbsQuery } from './favorites/favorite-climbs-query';
 import { favoriteMutations } from './favorites/mutations';
-import { playlistQueries } from './playlists/queries';
+import { playlistFieldResolvers, playlistQueries } from './playlists/queries';
 import { playlistMutations } from './playlists/mutations';
 import { sessionQueries } from './sessions/queries';
 import { liveSessionQueries } from './sessions/live-sessions';
@@ -53,7 +54,7 @@ import { controllerMutations } from './controller/mutations';
 import { controllerSubscriptions, controllerEventResolver } from './controller/subscriptions';
 import { socialFollowQueries, socialFollowMutations } from './social/follows';
 import { socialSearchQueries } from './social/search';
-import { setterFollowQueries, setterFollowMutations } from './social/setter-follows';
+import { setterFollowQueries, setterFollowMutations, setterProfileFieldResolvers } from './social/setter-follows';
 import { socialFeedQueries } from './social/feed';
 import { climbLogsQueries } from './social/climb-logs';
 import { activityFeedQueries } from './social/activity-feed';
@@ -99,6 +100,8 @@ import { qaMutations } from './qa/mutations';
 import { qaQueries } from './qa/queries';
 import { integrationQueries } from './integrations/queries';
 import { integrationMutations } from './integrations/mutations';
+import { oauthClientMutations, oauthClientQueries } from './oauth-clients/partner-registration';
+import { connectedAppsMutations, connectedAppsQueries } from './connected-apps/connected-apps';
 import { betaLinkQueries } from './beta-videos/queries';
 import { instagramBetaImportQueries } from './beta-videos/instagram-beta-import';
 import { syncQueries } from './sync/queries';
@@ -120,6 +123,7 @@ export const resolvers = {
     ...boardQueries,
     ...holdOutlineQueries,
     ...sprayWallQueries,
+    ...sprayWallLedSetupQueries,
     ...sprayDetectionQueries,
     ...sprayWallModerationQueries,
     ...sprayTrainingQueries,
@@ -169,6 +173,8 @@ export const resolvers = {
     ...instagramBetaImportQueries,
     ...boardPresenceResolvers.Query,
     ...integrationQueries,
+    ...oauthClientQueries,
+    ...connectedAppsQueries,
     ...syncQueries,
     ...feedbackQueries,
     ...qaQueries,
@@ -180,6 +186,7 @@ export const resolvers = {
     ...sessionMutations,
     ...holdOutlineMutations,
     ...sprayWallMutations,
+    ...sprayWallLedSetupMutations,
     ...sprayDetectionMutations,
     ...sprayWallModerationMutations,
     ...sprayTrainingMutations,
@@ -223,6 +230,8 @@ export const resolvers = {
     ...qaMutations,
     ...boardPresenceResolvers.Mutation,
     ...integrationMutations,
+    ...oauthClientMutations,
+    ...connectedAppsMutations,
   },
 
   Subscription: {
@@ -239,6 +248,8 @@ export const resolvers = {
 
   ...boardSessionPrivacyResolvers,
   PublicUserProfile: privacyProfileFields,
+  SetterProfile: setterProfileFieldResolvers,
+  Playlist: playlistFieldResolvers,
   PrivacySettings: privacySettingsFields,
 
   // Field-level resolvers

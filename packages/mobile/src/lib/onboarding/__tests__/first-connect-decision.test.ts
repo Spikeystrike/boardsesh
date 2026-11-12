@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { assignConnectStepArm } from '../connect-step-arm';
+import { DEFAULT_KEEP_LIGHTING } from '../../keep-lighting';
 import {
   CONNECT_STEP_MIN_NATIVE_VERSION,
   EMPTY_FIRST_CONNECT_DEVICE_STATE,
@@ -7,6 +8,8 @@ import {
   decideConnectStepEnrolment,
   isConnectStepTreatmentLive,
   localDayKey,
+  firstConnectAlwaysDrives,
+  firstConnectConfirmationCopy,
   shouldConfirmFirstConnect,
   shouldShowFirstConnectCard,
   type ConnectStepEnrolment,
@@ -235,7 +238,7 @@ describe('shouldShowFirstConnectCard', () => {
 });
 
 describe('shouldConfirmFirstConnect', () => {
-  const base = { enrolment: enrolment(), enabled: true, device: device(), lightOnClimbTap: true };
+  const base = { enrolment: enrolment(), enabled: true, device: device() };
 
   it('confirms the first connect of an enrolled account, in either arm', () => {
     expect(shouldConfirmFirstConnect(base)).toBe(true);
@@ -247,9 +250,111 @@ describe('shouldConfirmFirstConnect', () => {
     ['the kill switch on', { enabled: false }],
     ['a phone that connected before', { device: device({ connectedAt: 1 }) }],
     ['a confirmation already shown', { device: device({ confirmationShownAt: 1 }) }],
-    ['lightOnClimbTap off, since the copy would be wrong', { lightOnClimbTap: false }],
   ] as const)('stays quiet with %s', (_label, overrides) => {
     expect(shouldConfirmFirstConnect({ ...base, ...overrides })).toBe(false);
+  });
+});
+
+describe('firstConnectConfirmationCopy', () => {
+  const defaults = {
+    keepLighting: DEFAULT_KEEP_LIGHTING,
+    drivesInSession: true,
+    inSession: false,
+  };
+  const base = {
+    alwaysDrive: false,
+    keepLighting: defaults,
+  };
+
+  // Always drive the wall on (where it drives): every climb picked lights, from
+  // a list or a swipe, until the climber stops, whatever Stop driving after says.
+  it('says this phone drives the wall where Always drive the wall drives', () => {
+    expect(firstConnectConfirmationCopy({ ...base, alwaysDrive: true })).toEqual({ variant: 'always_drive' });
+    // Stop driving after doesn't apply then, Right away or the swipe flag off included.
+    expect(
+      firstConnectConfirmationCopy({ ...base, alwaysDrive: true, keepLighting: { ...defaults, keepLighting: 'off' } }),
+    ).toEqual({ variant: 'always_drive' });
+    expect(firstConnectConfirmationCopy({ ...base, alwaysDrive: true, keepLighting: null })).toEqual({
+      variant: 'always_drive',
+    });
+  });
+
+  // Where it doesn't drive (a crew with In a session too off), the copy falls
+  // through to Put on board's own plan.
+  it('reads Put on board’s plan where Always drive the wall doesn’t drive', () => {
+    expect(
+      firstConnectConfirmationCopy({
+        ...base,
+        alwaysDrive: firstConnectAlwaysDrives({
+          alwaysDrive: true,
+          swipeToDriveEnabled: true,
+          drivesInSession: false,
+          inSession: true,
+        }),
+        keepLighting: { ...defaults, inSession: true, drivesInSession: false },
+      }),
+    ).toEqual({ variant: 'put_on_board' });
+  });
+
+  it('agrees with the rule the Climbs card and the watcher read', () => {
+    const solo = {
+      alwaysDrive: true,
+      swipeToDriveEnabled: true,
+      drivesInSession: false,
+      inSession: false,
+    };
+    expect(firstConnectAlwaysDrives(solo)).toBe(true);
+    expect(firstConnectAlwaysDrives({ ...solo, alwaysDrive: false })).toBe(false);
+    // The swipe flag is driving's kill switch.
+    expect(firstConnectAlwaysDrives({ ...solo, swipeToDriveEnabled: false })).toBe(false);
+    // In a crew only with In a session too on, on every board.
+    expect(firstConnectAlwaysDrives({ ...solo, inSession: true })).toBe(false);
+    expect(firstConnectAlwaysDrives({ ...solo, inSession: true, drivesInSession: true })).toBe(true);
+  });
+
+  // 2 and 5 minutes are said in minutes, 1 minute as before.
+  it('names a drive of whole minutes in minutes', () => {
+    expect(firstConnectConfirmationCopy({ ...base, keepLighting: { ...defaults, keepLighting: '60' } })).toEqual({
+      variant: 'window_minute',
+    });
+    expect(firstConnectConfirmationCopy({ ...base, keepLighting: { ...defaults, keepLighting: '120' } })).toEqual({
+      variant: 'window_minutes',
+      minutes: 2,
+    });
+    expect(firstConnectConfirmationCopy({ ...base, keepLighting: { ...defaults, keepLighting: '300' } })).toEqual({
+      variant: 'window_minutes',
+      minutes: 5,
+    });
+  });
+
+  it('names the 45 s window on every board with the 2.7 defaults, MoonBoards included', () => {
+    expect(firstConnectConfirmationCopy(base)).toEqual({ variant: 'window', seconds: 45 });
+  });
+
+  it('reads the window from the climber’s keep-lighting choice', () => {
+    expect(firstConnectConfirmationCopy({ ...base, keepLighting: { ...defaults, keepLighting: '30' } })).toEqual({
+      variant: 'window',
+      seconds: 30,
+    });
+    // Worded as the preview-first card words it: "For 1 minute".
+    expect(firstConnectConfirmationCopy({ ...base, keepLighting: { ...defaults, keepLighting: '60' } })).toEqual({
+      variant: 'window_minute',
+    });
+    expect(
+      firstConnectConfirmationCopy({ ...base, keepLighting: { ...defaults, keepLighting: 'until_stopped' } }),
+    ).toEqual({ variant: 'until_stop' });
+  });
+
+  it('says Put on board lights one climb wherever no window can start', () => {
+    expect(firstConnectConfirmationCopy({ ...base, keepLighting: { ...defaults, keepLighting: 'off' } })).toEqual({
+      variant: 'put_on_board',
+    });
+    // A crew session with In a session too off: the press lights one climb.
+    expect(
+      firstConnectConfirmationCopy({ ...base, keepLighting: { ...defaults, inSession: true, drivesInSession: false } }),
+    ).toEqual({ variant: 'put_on_board' });
+    // Keep-lighting's kill switch (the swipe flag) is off.
+    expect(firstConnectConfirmationCopy({ ...base, keepLighting: null })).toEqual({ variant: 'put_on_board' });
   });
 });
 

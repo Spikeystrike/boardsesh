@@ -28,7 +28,7 @@
 FROM postgres:18.6-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af AS postgres-postgis
 
 ARG POSTGIS_PACKAGE_VERSION=3.6.4+dfsg-2.pgdg12+1
-ARG HYPOPG_PACKAGE_VERSION=1.4.3-1.pgdg12+1
+ARG HYPOPG_PACKAGE_VERSION=1.4.3-1.pgdg12+2
 
 # The digest pins the exact base artifact. Assert the upstream server version
 # separately; the exact PostGIS/HypoPG Debian packages are pinned below.
@@ -110,9 +110,10 @@ COPY packages/db/tsconfig.json /app/tsconfig.json
 #                               search query builder (create-climb-filters)
 #   @boardsesh/kiosk            type-only import for gym_kiosks.layout
 #   @boardsesh/board-look       type-only import for spray_walls.render_settings
+#   @boardsesh/auth-protocol    batch CLI mode guards, not loaded by image seeds
 #   sharp                       native; only the cell-set generator uses it
 RUN cd /app && \
-    sed -i -e '/"@boardsesh\/shared-schema"/d' -e '/"@boardsesh\/board-config"/d' -e '/"@boardsesh\/climb-filters"/d' -e '/"@boardsesh\/board-constants"/d' -e '/"@boardsesh\/kiosk"/d' -e '/"@boardsesh\/playlist-generator"/d' -e '/"@boardsesh\/board-look"/d' -e '/"@boardsesh\/sync-runtime"/d' -e '/"sharp"/d' package.json && \
+    sed -i -e '/"@boardsesh\/shared-schema"/d' -e '/"@boardsesh\/board-config"/d' -e '/"@boardsesh\/climb-filters"/d' -e '/"@boardsesh\/board-constants"/d' -e '/"@boardsesh\/kiosk"/d' -e '/"@boardsesh\/playlist-generator"/d' -e '/"@boardsesh\/board-look"/d' -e '/"@boardsesh\/sync-runtime"/d' -e '/"@boardsesh\/auth-protocol"/d' -e '/"sharp"/d' package.json && \
     npm install --global --no-fund --no-audit pnpm@11.22.0 && \
     pnpm install --ignore-workspace --ignore-scripts --no-frozen-lockfile
 COPY packages/shared-schema/ /app/node_modules/@boardsesh/shared-schema/

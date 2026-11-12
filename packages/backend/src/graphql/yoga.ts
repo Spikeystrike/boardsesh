@@ -1,6 +1,7 @@
 import { createYoga } from 'graphql-yoga';
 import { v4 as uuidv4 } from 'uuid';
 import { GraphQLError } from 'graphql';
+import { AuthCredentialRefusedError, isAuthAdmissionUnavailable } from '../auth/human-admission';
 import * as Sentry from '@sentry/node';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { schema } from './index';
@@ -21,6 +22,7 @@ import { recordUserActivity, resolveActivityPlatform } from '../services/user-ac
 import { clientUsagePlugin, resolveClientIdentity } from '../services/client-usage';
 import { appleAdsTokenPrivacyPlugin, sanitizeAppleAdsLogArgument } from './apple-ads-token-privacy';
 import { resolveEdgeRegionCode, resolveFlagCountry } from '../utils/flag-country';
+import { getTrustedClientIp } from '../utils/client-ip';
 import { boardShareTokenPrivacyPlugin, sanitizeBoardShareLogArgument } from './board-share-token-privacy';
 
 function sanitizeTokenLogArgument(argument: unknown): unknown {
@@ -36,7 +38,22 @@ async function authenticateHttpBearer(authHeader: string | null): Promise<AuthRe
   const token = bearerMatch[1]?.trim() ?? '';
   // Preserve the deployed transport contract: an invalid or expired optional
   // credential degrades to anonymous so public operations remain available.
-  return token ? validateToken(token) : null;
+  // A refused one does not. Anonymous would leave the app showing a signed-in
+  // climber whose every action fails; a 401 makes every shipped app refresh,
+  // and the refresh's own 401 signs it out.
+  try {
+    return token ? await validateToken(token, { throwOnRefusal: true }) : null;
+  } catch (error) {
+    if (error instanceof AuthCredentialRefusedError) {
+      throw new GraphQLError('Authentication is required', {
+        extensions: { code: 'UNAUTHENTICATED', http: { status: 401 } },
+      });
+    }
+    if (!isAuthAdmissionUnavailable(error)) throw error;
+    throw new GraphQLError('Authentication is temporarily unavailable', {
+      extensions: { code: 'SERVICE_UNAVAILABLE', http: { status: 503 } },
+    });
+  }
 }
 
 /**
@@ -103,6 +120,8 @@ export async function buildHttpConnectionContext({
     isCronAuthenticated,
     clientIp,
     socketPeerIp: resolveWebSocketSocketPeerIp(req),
+    // Unlike clientIp, believes cf-connecting-ip only from a verified edge.
+    trustedClientIp: req ? getTrustedClientIp(req) : undefined,
     // The trusted-edge country decides whether the analytics prompt is shown
     // (consentRegion). Without the Node request there is no peer to trust.
     edgeCountry: req ? resolveFlagCountry(req) : undefined,

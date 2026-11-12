@@ -1,10 +1,13 @@
 // MUST be the first import: initializes Sentry + loads dotenv before any
 // instrumented module (HTTP, Postgres, Redis) is required.
 import './instrument';
+// Second, before anything that builds a Postgres pool.
+import './request-pool-defaults';
 import * as Sentry from '@sentry/node';
 import { startServer } from './server';
 import { redisClientManager } from './redis/client';
 import { closePool, closeReadPool } from '@boardsesh/db/client';
+import { closeAdmissionPool } from './auth/admission-pool';
 import { shutdownPosthog } from './services/analytics/posthog';
 import { logger } from './utils/logger';
 import { FORCE_SHUTDOWN_TIMEOUT_MS } from './shutdown-timing';
@@ -17,9 +20,15 @@ import { db } from './db/client';
 import { startPopularBoardConfigsRefresh } from './services/popular-board-configs';
 import { startClimbPopularityRefresh } from './services/climb-popularity-refresh';
 import { startPlaylistGradeSummaryRefresh } from './services/playlist-grade-summary-refresh';
+import { startPartnerOAuthSweep } from './services/partner-oauth-sweep';
 import { startPosthogPersonDeletion } from './services/analytics/posthog-person-deletion';
+import { assertCutoffEnforcementConfiguration } from './auth/current-store/authority-configuration';
 
 async function main() {
+  // Before anything listens: a staged writer under AUTH_CUTOFF_ENFORCEMENT=observe
+  // would bump generations no reader enforces (docs/better-auth-migration.md).
+  assertCutoffEnforcementConfiguration();
+
   // The durable job queue (docs/partner-workouts-internal.md, "The job queue").
   //
   // Started HERE and not in `startServer()` on purpose. The queue is a property
@@ -57,6 +66,11 @@ async function main() {
   // removed through the app; only upstream grade drift and synced circuits wait.
   await startPlaylistGradeSummaryRefresh(jobQueue).catch((error: unknown) => {
     logger.error('[PlaylistGradeSummaries] Could not register the refresh job', { error });
+  });
+  // Not fatal: without the sweep, expired partner OAuth rows wait for the next
+  // replica that registers it. Nothing a request reads depends on it.
+  await startPartnerOAuthSweep(jobQueue).catch((error: unknown) => {
+    logger.error('[PartnerOAuthSweep] Could not register the sweep job', { error });
   });
   // Not fatal: a queued erasure waits up to 14 days for a worker
   // (`retentionSeconds` on the queue; a finished one is kept 7 days), and the
@@ -157,10 +171,13 @@ async function main() {
     // Disconnect from Redis
     await redisClientManager.disconnect();
 
-    // Close database connection pools (primary + read replica)
+    // Close database connection pools (primary + read replica + admission).
+    // Admission goes last: nothing reads through it once the servers are closed,
+    // and its bounded close can never hold up the others.
     try {
       await closeReadPool();
       await closePool();
+      await closeAdmissionPool();
       logger.info('Database pools closed');
     } catch (error) {
       logger.warn('Error closing database pools:', error);

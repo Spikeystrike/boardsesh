@@ -131,6 +131,78 @@ describe('normalizeDocument', () => {
   });
 });
 
+describe('board wall-device replay compatibility', () => {
+  const sprayImport = 'sprayImport { wallUuid versionId detectionId stage queuePosition retryAt resetOfWallUuid }';
+  const fixture = (operationName: string, query: string, data: unknown): GraphqlFixtureFile => ({
+    formatVersion: 1,
+    operationName,
+    documentHash: 'original-hash',
+    variablesHash: 'variables',
+    query,
+    variables: {},
+    response: { data },
+    status: 200,
+    recordedAt: '2026-01-01T00:00:00Z',
+    upstream: 'https://example.test',
+  });
+
+  it('answers false beside every recorded hasLeds, without mutating the recording', () => {
+    const legacy = 'query GetGymBoardsForSwitcher { gymBoards { boards { uuid hasLeds } } }';
+    const current = 'query GetGymBoardsForSwitcher { gymBoards { boards { uuid hasLeds litByWallDevice } } }';
+    const recorded = fixture('GetGymBoardsForSwitcher', legacy, {
+      gymBoards: {
+        boards: [
+          { uuid: 'one', hasLeds: true },
+          { uuid: 'two', hasLeds: false },
+        ],
+      },
+    });
+    const bytes = JSON.stringify(recorded);
+    expect(replayCompatibleFixtureResponse(current, recorded)).toEqual({
+      response: {
+        data: {
+          gymBoards: {
+            boards: [
+              { uuid: 'one', hasLeds: true, litByWallDevice: false },
+              { uuid: 'two', hasLeds: false, litByWallDevice: false },
+            ],
+          },
+        },
+      },
+    });
+    expect(JSON.stringify(recorded)).toBe(bytes);
+  });
+
+  it('composes with the manufacturer-board sprayImport adapter', () => {
+    const legacy = 'query GetBoard { board { uuid boardType hasLeds } }';
+    const current = `query GetBoard { board { ${sprayImport} uuid boardType hasLeds litByWallDevice } }`;
+    const recorded = fixture('GetBoard', legacy, { board: { uuid: 'board', boardType: 'kilter', hasLeds: true } });
+    expect(replayCompatibleFixtureResponse(current, recorded)).toEqual({
+      response: {
+        data: {
+          board: { uuid: 'board', boardType: 'kilter', hasLeds: true, sprayImport: null, litByWallDevice: false },
+        },
+      },
+    });
+  });
+
+  it('refuses a recording that already holds the field, a stray copy, or any other change', () => {
+    const legacy = 'query GetMyBoards { myBoards { boards { uuid hasLeds } } }';
+    const current = 'query GetMyBoards { myBoards { boards { uuid hasLeds litByWallDevice } } }';
+    const recordedWithField = fixture('GetMyBoards', legacy, {
+      myBoards: { boards: [{ uuid: 'one', hasLeds: true, litByWallDevice: true }] },
+    });
+    expect(replayCompatibleFixtureResponse(current, recordedWithField)).toBeNull();
+    const recorded = fixture('GetMyBoards', legacy, { myBoards: { boards: [{ uuid: 'one', hasLeds: true }] } });
+    expect(replayCompatibleFixtureResponse(current.replace('uuid', 'uuid litByWallDevice'), recorded)).toBeNull();
+    expect(replayCompatibleFixtureResponse(current.replace('uuid', 'uuid name'), recorded)).toBeNull();
+    const otherOperation = fixture('GetClimb', 'query GetClimb { climb { hasLeds } }', { climb: { hasLeds: true } });
+    expect(
+      replayCompatibleFixtureResponse('query GetClimb { climb { hasLeds litByWallDevice } }', otherOperation),
+    ).toBeNull();
+  });
+});
+
 describe('legacy manufacturer-board replay compatibility', () => {
   const selection = 'sprayImport { wallUuid versionId detectionId stage queuePosition retryAt resetOfWallUuid }';
   const legacy = 'query GetBoard { board { uuid boardType } }';
@@ -429,6 +501,80 @@ describe('legacy GetSmartPlaylist replay compatibility', () => {
       ),
     ).toBeNull();
     expect(replayCompatibleFixtureResponse(current, fixture(null))).toBeNull();
+  });
+});
+
+describe('legacy tick characteristics replay compatibility', () => {
+  // A session's highlights and its grouped items are two tick levels in one
+  // document, so the field is added twice.
+  const legacyFor = (operationName: string) =>
+    `query ${operationName}($id: ID!) { feed(id: $id) { ticks { uuid isNoMatch comment } ` +
+    `groups { isNoMatch items { uuid isNoMatch comment } } } }`;
+  const currentFor = (operationName: string) =>
+    legacyFor(operationName).replaceAll('isNoMatch', 'isNoMatch characteristics');
+  const fixture = (operationName: string, feed: unknown): GraphqlFixtureFile => ({
+    formatVersion: 1,
+    operationName,
+    documentHash: 'original-hash',
+    variablesHash: 'variables',
+    query: legacyFor(operationName),
+    variables: { id: 'session-1' },
+    response: { data: { feed } },
+    status: 200,
+    recordedAt: '2026-01-01T00:00:00Z',
+    upstream: 'https://example.test',
+  });
+  const recordedFeed = {
+    ticks: [{ uuid: 't-1', isNoMatch: true, comment: '' }],
+    groups: [{ isNoMatch: false, items: [{ uuid: 't-2', isNoMatch: false, comment: 'nice' }] }],
+  };
+
+  it.each(['GetSessionDetail', 'GetSessionGroupedFeed', 'GetUserGroupedAscentsFeed'])(
+    '%s: replays every tick with null characteristics, without mutating the recording',
+    (operationName) => {
+      const recorded = fixture(operationName, recordedFeed);
+      const bytes = JSON.stringify(recorded);
+      expect(replayCompatibleFixtureResponse(currentFor(operationName), recorded)).toEqual({
+        response: {
+          data: {
+            feed: {
+              ticks: [{ uuid: 't-1', isNoMatch: true, characteristics: null, comment: '' }],
+              groups: [
+                {
+                  isNoMatch: false,
+                  characteristics: null,
+                  items: [{ uuid: 't-2', isNoMatch: false, characteristics: null, comment: 'nice' }],
+                },
+              ],
+            },
+          },
+        },
+      });
+      expect(JSON.stringify(recorded)).toBe(bytes);
+    },
+  );
+
+  it('keeps every other document change subject to drift checks', () => {
+    const recorded = fixture('GetSessionDetail', recordedFeed);
+    const current = currentFor('GetSessionDetail');
+    expect(replayCompatibleFixtureResponse(current.replace('comment } }', 'comment frames } }'), recorded)).toBeNull();
+    expect(replayCompatibleFixtureResponse(legacyFor('GetSessionDetail'), recorded)).toBeNull();
+    // The field on only one tick level is not the shipped document.
+    const partial = legacyFor('GetSessionDetail').replace('isNoMatch', 'isNoMatch characteristics');
+    expect(replayCompatibleFixtureResponse(partial, recorded)).toBeNull();
+  });
+
+  it('refuses a recording that already carries characteristics, and other operations', () => {
+    const withField = {
+      ...recordedFeed,
+      ticks: [{ uuid: 't-1', isNoMatch: true, characteristics: ['no_match'], comment: '' }],
+    };
+    expect(
+      replayCompatibleFixtureResponse(currentFor('GetSessionDetail'), fixture('GetSessionDetail', withField)),
+    ).toBeNull();
+    expect(
+      replayCompatibleFixtureResponse(currentFor('GetActivityFeed'), fixture('GetActivityFeed', recordedFeed)),
+    ).toBeNull();
   });
 });
 

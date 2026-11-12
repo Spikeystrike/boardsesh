@@ -7,7 +7,7 @@ import { themeTokens } from './theme/theme-config';
 
 export const runtime = 'nodejs';
 
-export const alt = 'Boardsesh - Train smarter on your climbing board';
+export const alt = 'Boardsesh: one app for your boards';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 

@@ -84,6 +84,8 @@ vi.mock('../../workers/families/provider-sync-batch', async (importOriginal) => 
 });
 
 const AURORA_USER = 'psync-rgrant-aurora';
+/** The app the logbook snapshot's connection belongs to. */
+const GRANT_TEST_APP = 'psync-rgrant-app';
 const AURORA_CLIMB = 'psync-climb-rgrant';
 const KILTER_USER = 'psync-rgrant-kilter';
 const KILTER_CLIMB = 'psync-kclimb-rgrant';
@@ -463,6 +465,8 @@ async function proveRoutineGrants({ full, ownerUrl }: Proof) {
   }
 
   const cleanup = async () => {
+    // Deleting the app cascades into its connection.
+    await database.execute(sql`DELETE FROM oauth_client WHERE client_id = ${GRANT_TEST_APP}`);
     await removeFixtures(
       database,
       [AURORA_USER, KILTER_USER, DONOR_USER, FOLLOWER_USER, HEAL_USER, FIRST_SYNC_USER],
@@ -759,6 +763,72 @@ async function proveRoutineGrants({ full, ownerUrl }: Proof) {
                        WHERE board_type = 'spray' AND climb_uuid = ${SPRAY_HEAL_CLIMB} AND angle = 40`),
     ).toBe(SPRAY_PINNED_DIFFICULTY);
 
+    // 6. The logbook snapshot reclaim, as the maintenance login: a row past its
+    //    hour goes, with its chunk. The job never reads the chunk's ticks.
+    // A snapshot's connection_id references oauth_connections (migration 0301).
+    await database.execute(sql`
+      INSERT INTO oauth_client (id, client_id, redirect_uris)
+      VALUES (${GRANT_TEST_APP}, ${GRANT_TEST_APP}, ARRAY['https://app.example.test/callback'])
+      ON CONFLICT DO NOTHING`);
+    await database.execute(sql`
+      INSERT INTO oauth_connections (id, user_id, client_id, connected_at)
+      VALUES ('grant-test-connection', ${AURORA_USER}, ${GRANT_TEST_APP}, now())
+      ON CONFLICT DO NOTHING`);
+    const [expiredSnapshot] = (await database.execute(sql`
+      INSERT INTO logbook_snapshots
+        (user_id, connection_id, connection_generation, feed_generation, horizon_txid, status, expires_at)
+      VALUES (${AURORA_USER}, 'grant-test-connection', 0, gen_random_uuid(), '1'::xid8, 'ready', now() - interval '1 minute')
+      RETURNING id`)) as unknown as Array<{ id: string }>;
+    await database.execute(sql`
+      INSERT INTO logbook_snapshot_chunks (snapshot_id, chunk_index, ticks)
+      VALUES (${expiredSnapshot.id}::uuid, 0, '[]'::jsonb)`);
+    await runAs('maintenance-delivery', maintenance, 'reclaim-logbook-snapshots', {});
+    expect(
+      await count(sql`SELECT count(*)::int AS count FROM logbook_snapshots WHERE id = ${expiredSnapshot.id}::uuid`),
+    ).toBe(0);
+    expect(
+      await count(
+        sql`SELECT count(*)::int AS count FROM logbook_snapshot_chunks WHERE snapshot_id = ${expiredSnapshot.id}::uuid`,
+      ),
+    ).toBe(0);
+
+    // 7. The logbook change prune, as the maintenance login: every change row
+    //    written so far ages out and goes, and the watermark moves over it. The
+    //    job never reads whose row it is or which tick it names.
+    await database.execute(sql`UPDATE logbook_changes SET created_at = localtimestamp - interval '91 days'`);
+    const [lastChange] = (await database.execute(sql`
+      SELECT txid::text AS txid, seq::text AS seq FROM logbook_changes ORDER BY txid DESC, seq DESC LIMIT 1`)) as unknown as Array<{
+      txid: string;
+      seq: string;
+    }>;
+    expect(lastChange).toBeDefined();
+    // Every write so far below the cluster-wide horizon, so none is skipped as unsettled.
+    const [fence] = (await database.execute(sql`SELECT pg_current_xact_id()::text AS txid`)) as unknown as Array<{
+      txid: string;
+    }>;
+    for (const deadline = Date.now() + 60_000; ;) {
+      const [snapshot] = (await database.execute(
+        sql`SELECT pg_snapshot_xmin(pg_current_snapshot())::text AS horizon`,
+      )) as unknown as Array<{ horizon: string }>;
+      if (BigInt(snapshot.horizon) > BigInt(fence.txid)) break;
+      if (Date.now() > deadline) throw new Error('the transaction horizon never passed the fence');
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    try {
+      await runAs('maintenance-delivery', maintenance, 'prune-logbook-changes', {});
+      expect(await count(sql`SELECT count(*)::int AS count FROM logbook_changes`)).toBe(0);
+      const [prunedThrough] = (await database.execute(sql`
+        SELECT pruned_through_txid::text AS txid, pruned_through_seq::text AS seq FROM logbook_change_watermark`)) as unknown as Array<{
+        txid: string;
+        seq: string;
+      }>;
+      expect(prunedThrough).toEqual(lastChange);
+    } finally {
+      await database.execute(
+        sql`UPDATE logbook_change_watermark SET pruned_through_txid = '0', pruned_through_seq = 0`,
+      );
+    }
+
     // Nothing was refused and swallowed on the way.
     expect(logged.filter((line) => /permission denied|"sqlState":"42501"/i.test(line))).toEqual([]);
 
@@ -777,6 +847,24 @@ async function proveRoutineGrants({ full, ownerUrl }: Proof) {
     await expect(maintenanceDb.executeSql('SELECT 1 FROM public.aurora_credentials LIMIT 1')).rejects.toThrow(
       'permission denied',
     );
+    await expect(maintenanceDb.executeSql('SELECT ticks FROM public.logbook_snapshot_chunks LIMIT 1')).rejects.toThrow(
+      'permission denied',
+    );
+    await expect(maintenanceDb.executeSql('SELECT user_id FROM public.logbook_snapshots LIMIT 1')).rejects.toThrow(
+      'permission denied',
+    );
+    await expect(maintenanceDb.executeSql('SELECT user_id FROM public.logbook_changes LIMIT 1')).rejects.toThrow(
+      'permission denied',
+    );
+    await expect(maintenanceDb.executeSql('SELECT tick_uuid FROM public.logbook_changes LIMIT 1')).rejects.toThrow(
+      'permission denied',
+    );
+    await expect(
+      maintenanceDb.executeSql('SELECT feed_generation FROM public.logbook_change_watermark LIMIT 1'),
+    ).rejects.toThrow('permission denied');
+    await expect(
+      maintenanceDb.executeSql("INSERT INTO public.logbook_changes (user_id, tick_uuid) VALUES ('a', 'b')"),
+    ).rejects.toThrow('permission denied');
   } finally {
     await routine.boss.stop({ graceful: true, close: true });
     await maintenance.boss.stop({ graceful: true, close: true });

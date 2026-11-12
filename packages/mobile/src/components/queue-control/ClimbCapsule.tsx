@@ -17,7 +17,7 @@ import { MarqueeText } from '../MarqueeText';
 import { DraftChip } from '../DraftChip';
 import { useTheme } from '../../providers/theme-provider';
 import { useDrawerHost, type BoardConfig } from '../../providers/drawer-host-provider';
-import { AccessoryBarSurface, type AccessoryBarSurfaceTreatment } from './AccessoryBarSurface';
+import { AccessoryBarSurface } from './AccessoryBarSurface';
 import { AccessoryClimbThumbnail } from './AccessoryClimbThumbnail';
 import { useAccessoryClimbTap } from './use-accessory-climb-tap';
 import { AccessoryPlayLink } from './AccessoryPlayLink';
@@ -25,6 +25,9 @@ import { LargeContentViewer } from '../LargeContentViewer';
 import { largeContentTitle } from './accessory-large-content-title';
 import { useBoardConnectionState } from '../ble/use-board-connection-state';
 import { BoardControlIndicator } from './BoardControlIndicator';
+import { PickBulbSlot } from './PickPutOnBoardBulb';
+import { usePickBulb } from './use-pick-bulb';
+import { lastPickClimb } from '../../lib/last-pick-store';
 
 type ClimbLabelProps = {
   climb: Climb;
@@ -72,36 +75,32 @@ function ClimbLabel({ climb, labelColor, formattedGrade, gradeColor, showThumbna
 
 type ClimbCapsuleProps = {
   height?: number;
-  /** Span the full available width instead of the centered 260px cap (Material bar). */
-  fillWidth?: boolean;
   /** Action floated inside the capsule on the right, outside the swipe target (e.g. the tick). */
   endAction?: ReactNode;
   endActionSize?: number;
-  /** Surface silhouette; Material docks this row while other variants float it. */
-  surfaceTreatment?: AccessoryBarSurfaceTreatment;
 };
 
-export function ClimbCapsule({
-  height = TOOLBAR_CAPSULE_HEIGHT,
-  fillWidth = false,
-  endAction,
-  endActionSize = 0,
-  surfaceTreatment = 'floating',
-}: ClimbCapsuleProps) {
-  const { systemColors, brandColors } = useTheme();
+export function ClimbCapsule({ height = TOOLBAR_CAPSULE_HEIGHT, endAction, endActionSize = 0 }: ClimbCapsuleProps) {
+  const { systemColors } = useTheme();
   const { boardConfig } = useDrawerHost();
   const { resolveGrade } = useDisplayGrade();
-  const { openPlay, preparePlay, currentItem } = useAccessoryClimbTap();
+  const { openPlay, preparePlay, currentItem, pick } = useAccessoryClimbTap();
   // Connection state drives the leading control + the "you have control" glow.
   // Read from the single source so the bar can't disagree with the drawer bulb.
   const { inAppBoardConnection, bluetooth } = useBoardConnectionState();
 
-  // Queue head only — the wall's lit climb lives in the top "On the wall" strip.
-  const currentClimb = currentItem?.climb ?? null;
+  // The climber's last pick (its mirror flip drawn) or the queue's current
+  // (owner decision A). Never the wall's lit climb: that lives in the top "On
+  // the wall" strip.
+  const currentClimb = useMemo(() => (pick ? lastPickClimb(pick) : (currentItem?.climb ?? null)), [pick, currentItem]);
   // Board art needs the active board config; matches the iOS 26 native accessory.
   const showThumbnail = boardConfig != null;
-  // Show the connect control once a board is bound (the BLE context exists).
-  const hasBoardControl = bluetooth != null;
+  // The last pick's bulb (owner decision A): lit, unlit, or none for a climb
+  // this wall can't light. Null while the bar shows the queue's current climb.
+  const pickBulb = usePickBulb(pick);
+  // Show the connect control once a board is bound (the BLE context exists),
+  // and not for a pick no board here can light.
+  const hasBoardControl = bluetooth != null && pickBulb?.kind !== 'none';
   // Only "you are driving the wall" lights the bar up.
   const connected = inAppBoardConnection === 'connectedByMe';
 
@@ -117,7 +116,7 @@ export function ClimbCapsule({
 
   if (!currentClimb) return null;
 
-  const capsuleRadius = surfaceTreatment === 'docked' ? 0 : height / 2;
+  const capsuleRadius = height / 2;
   // Reserve room on the right so the name/grade never slide under the inline tick.
   const endActionReservedWidth = endAction ? endActionSize + spacing[2] : 0;
   const labelRight = spacing[4] + endActionReservedWidth;
@@ -126,29 +125,13 @@ export function ClimbCapsule({
   const leadingReservedWidth = hasBoardControl ? glassSize.inline + spacing[2] : 0;
   const labelLeft = spacing[4] + leadingReservedWidth;
 
-  // The docked Material bar stays on a neutral M3 surface (a step above the tab bar
-  // via elevation) and marks the grade with a vivid leading colour stripe — distinct
-  // from the tab bar without painting a full grade-coloured band. The grade number
-  // keeps its per-grade colour, matching the list rows. When you hold control the
-  // stripe recolors to the brand violet so it reads as a control-on edge marker.
-  const showGradeAccent = surfaceTreatment === 'docked';
-  const gradeAccentColor = connected ? brandColors.primary : grades.currentColor;
-
   return (
     <AccessoryBarSurface
       height={height}
       borderRadius={capsuleRadius}
-      treatment={surfaceTreatment}
       emphasis={connected ? 'connected' : 'none'}
-      style={[styles.capsule, fillWidth ? null : styles.capsuleCap]}
+      style={[styles.capsule, styles.capsuleCap]}
     >
-      {showGradeAccent ? (
-        <View
-          testID="grade-accent"
-          pointerEvents="none"
-          style={[styles.gradeAccent, { backgroundColor: gradeAccentColor }]}
-        />
-      ) : null}
       <AccessoryPlayLink
         testID={`mini-player-current-${currentClimb.uuid}`}
         style={[styles.tapArea, { height, borderRadius: capsuleRadius }]}
@@ -175,7 +158,18 @@ export function ClimbCapsule({
           drawer. Sits over the bar's left edge, symmetric to the trailing tick. */}
       {hasBoardControl ? (
         <View style={[styles.leadingActionSlot, { height }]}>
-          <BoardControlIndicator size={glassSize.inline} enableLongPress />
+          {pick && pickBulb ? (
+            // The last pick: unlit, the bulb puts it on the board (owner decision A).
+            <PickBulbSlot
+              pick={pick}
+              bulb={pickBulb}
+              size={glassSize.inline}
+              enableLongPress
+              litBulb={<BoardControlIndicator size={glassSize.inline} enableLongPress />}
+            />
+          ) : (
+            <BoardControlIndicator size={glassSize.inline} enableLongPress />
+          )}
         </View>
       ) : null}
       {endAction ? <View style={[styles.endActionSlot, { width: endActionSize, height }]}>{endAction}</View> : null}
@@ -187,17 +181,7 @@ const styles = StyleSheet.create({
   capsule: {
     flex: 1,
   },
-  // Leading grade marker on the docked Material bar: a vivid full-height stripe in
-  // the raw grade colour, sitting in the label's left padding so it never overlaps
-  // text. Distinguishes the bar from the tab bar and reads grade at a glance.
-  gradeAccent: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: spacing[1],
-  },
-  // Centered-pill cap; omitted on the full-width Material bar.
+  // Centered-pill cap.
   capsuleCap: {
     maxWidth: TOOLBAR_CAPSULE_MAX_WIDTH,
   },

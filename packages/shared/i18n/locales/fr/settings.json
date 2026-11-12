@@ -160,6 +160,7 @@
       "nameLabel": "Nom du contrôleur (facultatif)",
       "namePlaceholder": "ex. Board du salon",
       "boardLabel": "Type de board",
+      "boardSpray": "Spraywall",
       "layoutLabel": "Layout",
       "sizeLabel": "Taille",
       "setsLabel": "Sets de prises",
@@ -453,8 +454,13 @@
     "devicesFound_other": "{{count}} boards trouvées",
     "noDevicesFound": "Aucune board trouvée à proximité",
     "differentBoardType": "Ces boards semblent différentes de votre configuration {{board}}.",
-    "troubleshootTitle": "Vous ne voyez pas votre board ?",
-    "troubleshootTips": "Assurez-vous qu'elle est allumée et active. Un seul téléphone peut se connecter à une board à la fois, alors déconnectez les autres appareils. Rapprochez-vous ou désactivez puis réactivez le Bluetooth.",
+    "troubleshootTitle": "Tu ne vois pas ta board ?",
+    "scanTipPower": "Vérifie que la board est allumée et active.",
+    "scanTipCloser": "Rapproche-toi de la board.",
+    "scanTipBluetooth": "Désactive puis réactive le Bluetooth.",
+    "scanTipOtherPhone": "Un seul téléphone peut se connecter à la fois. Si un autre est connecté, déconnecte-le d'abord.",
+    "scanTipOtherPhoneMoonBoard": "Si un autre téléphone est connecté, déconnecte-le d'abord. Un ancien contrôleur MoonBoard peut devoir être éteint puis rallumé avant que le téléphone suivant puisse s'y connecter.",
+    "browseForNow": "Parcourir en attendant",
     "locationHintTitle": "Android a besoin de la localisation pour voir les boards",
     "locationHintBody": "Sur Android 12 et versions ultérieures, les résultats de la recherche Bluetooth restent masqués tant que la localisation n'est pas autorisée. Boardsesh n'utilise pas votre position pour trouver les boards, et une prochaine mise à jour supprimera définitivement cette exigence.",
     "locationHintGrant": "Autoriser la localisation",
@@ -466,34 +472,38 @@
     "cancel": "Annuler",
     "connectBoard": "Connecter la board",
     "relightBoard": "Rallumer la board",
-    "sectionTitle": "Bluetooth",
-    "autoDisconnect": {
-      "description": "Se déconnecter de la board après la durée choisie sans nouveau bloc affiché.",
-      "enabledLabel": "Déconnexion automatique",
-      "enabledDescription": "Laisser les autres grimpeurs se connecter à l'expiration du délai.",
-      "timeoutLabel": "Déconnecter après",
-      "toggleTitle": "Déconnexion automatique",
-      "toggleSubtitle": "Déconnexion après {{timeout}} d'inactivité",
-      "timeoutOptions": {
-        "10": "10 secondes",
-        "15": "15 secondes",
-        "30": "30 secondes",
-        "45": "45 secondes",
-        "60": "1 minute",
-        "120": "2 minutes",
-        "300": "5 minutes",
-        "600": "10 minutes"
-      }
-    },
     "lighting": {
       "title": "Éclairage de la board",
-      "description": "Choisissez ce qui allume automatiquement la board connectée.",
-      "onSwipeLabel": "Allumer la board quand je fais défiler",
-      "onSwipeDescription": "Seulement quand un bloc est déjà au mur. Un aperçu n'allume jamais la board quand vous faites défiler.",
-      "onTapLabel": "Allumer la board quand je touche un bloc",
-      "onTapDescription": "Toucher un bloc dans une liste l'allume au mur. Désactivé, le toucher ouvre un aperçu.",
+      "keep": {
+        "label": "Arrêter de piloter après",
+        "off": "Tout de suite",
+        "options": {
+          "30": "30 secondes",
+          "45": "45 secondes",
+          "60": "1 minute",
+          "120": "2 minutes",
+          "300": "5 minutes"
+        },
+        "untilStopped": "Jusqu'à ce que j'arrête",
+        "inSessionLabel": "Aussi en session",
+        "inSessionAccessibilityLabel": "Allumer sur la board et Toujours piloter la board s'appliquent aussi en session",
+        "inSessionDescription": "Quand votre téléphone a la board de la crew. Désactivé, les blocs que vous choisissez en session restent des aperçus.",
+        "inSessionOffReason": "Choisissez autre chose que Tout de suite dans Arrêter de piloter après pour utiliser ce réglage.",
+        "alwaysDriveReason": "Toujours piloter la board est activé, donc ce réglage ne s'applique pas.",
+        "footer": "Allumer sur la board allume le bloc et vous pilotez la board : chaque bloc que vous choisissez s'allume aussi, et chacun relance le chrono. Quand le temps est écoulé, le bloc suivant s'ouvre en aperçu.",
+        "footerUntilStopped": "Allumer sur la board allume le bloc et vous pilotez la board : chaque bloc que vous choisissez s'allume aussi, jusqu'à ce que vous touchiez le bouton Tu pilotes la board.",
+        "footerOff": "Allumer sur la board allume le bloc affiché. Le bloc suivant que vous choisissez s'ouvre en aperçu."
+      },
+      "drivingEnds": {
+        "label": "Déconnecter le Bluetooth quand le pilotage s’arrête",
+        "description": "Quand votre pilotage s’arrête, votre téléphone libère la board pour que le grimpeur suivant puisse se connecter : quand vous l’arrêtez ou éteignez tout, quand le temps est écoulé, ou quand quelqu’un de votre crew allume un bloc pendant un pilotage à durée limitée. Allumer sur la board la reconnecte."
+      },
+      "drivingHelp": "Comment marche le pilotage de la board",
+      "alwaysDriveLabel": "Toujours piloter la board",
+      "alwaysDriveDescription": "Chaque bloc que vous choisissez s'allume tant que ce téléphone a la board. En session, il faut Aussi en session.",
+      "alwaysDriveFooter": "Touchez le bouton Tu pilotes la board pour arrêter. Les blocs que vous choisissez s'ouvrent ensuite en aperçu jusqu'à ce que vous vous déconnectiez ou touchiez Allumer sur la board.",
       "playlistTapLoadsQueueLabel": "Toucher une playlist la charge dans ma file",
-      "playlistTapLoadsQueueDescription": "Toucher un bloc d'une playlist, de Pour vous ou de la page d'un ouvreur remplace votre file par cette liste. Si Allumer la board quand je touche un bloc est désactivé, utilisez Lecture pour la charger."
+      "playlistTapLoadsQueueDescription": "Toucher un bloc d'une playlist, de Pour vous ou de la page d'un ouvreur charge cette liste. Si vous pilotez la board, la liste remplace votre file et le bloc touché s'allume. Sinon, la liste à partir du bloc touché passe dans À suivre et ce bloc s'ouvre en aperçu, tandis que la board garde son bloc jusqu'à Allumer sur la board. En session, la liste n'entre jamais dans la file partagée."
     },
     "holdForControls": "Maintenir pour les commandes",
     "boardControls": "Commandes de la board",
@@ -501,6 +511,7 @@
     "connectionFailedTitle": "Connexion impossible",
     "permissionRequired": "Autorisation Bluetooth requise",
     "errorPermissionDenied": "Autorise le Bluetooth pour connecter une board.",
+    "tryAgain": "Réessayer",
     "blockedTitle": "Le Bluetooth est bloqué pour Boardsesh",
     "blockedBody": "Autorise le Bluetooth pour Boardsesh dans Réglages pour allumer des blocs sur ta board.",
     "blockedBodyNearbyDevices": "Autorise « Appareils à proximité » pour Boardsesh dans les Paramètres pour allumer des blocs sur ta board.",
@@ -528,10 +539,13 @@
       "wallHeldWithClimb": "Vous avez le mur : {{name}}, {{grade}}",
       "wallHeldHint": "Libère le mur",
       "wallOpenLabel": "Le mur est libre",
-      "wallOpenHint": "Prend le mur"
+      "wallOpenHint": "Prend le mur",
+      "drivingValue": "Tu pilotes la board",
+      "stopDrivingLabel": "Arrêter de piloter",
+      "stopDrivingHint": "Les prochains blocs que tu choisis s'ouvrent en aperçu"
     },
     "relayToWall": "Allumer ton bloc au mur",
-    "peerDrivingBoard": "Quelqu’un d’autre pilote la board"
+    "peerDrivingBoard": "Quelqu’un d’autre a la board"
   },
   "integrations": {
     "title": "Applications connectées",
@@ -563,6 +577,40 @@
     },
     "garmin": {
       "title": "Garmin"
+    },
+    "partnerApps": {
+      "title": "Apps avec accès",
+      "empty": "Aucune app connectée pour l’instant. Les apps que tu connectes à ton compte Boardsesh apparaissent ici.",
+      "footer": "Une app déconnectée ne lit plus rien de nouveau. Ce qu’elle a déjà copié reste chez elle.",
+      "gone": "Cette app n’est plus connectée.",
+      "loadFailed": "Impossible de charger cette app. Vérifie ta connexion et réessaie.",
+      "retry": "Réessayer",
+      "scopesHeading": "Ce que {{app}} peut voir",
+      "unnamedApp": "App sans nom",
+      "publisher": "Par {{publisher}}",
+      "connected": "Connectée le {{date}}",
+      "lastUsed": "Dernière utilisation {{time}}",
+      "lastUsedRecently": "Utilisée dans la dernière heure",
+      "notUsedYet": "Pas encore utilisée",
+      "suspended": "Boardsesh a mis cette app en pause. Elle ne peut rien lire pour l’instant.",
+      "suspendedShort": "Mise en pause par Boardsesh",
+      "scopes": {
+        "logbookRead": "Voit toutes les entrées de ton carnet, sur toutes les boards",
+        "logbookOnlyMe": "Y compris les entrées que tu gardes en « Moi uniquement »",
+        "logbookUnlisted": "Y compris les blocs non listés et les brouillons ouverts par d’autres que tu as notés",
+        "logbookSpraywall": "Les blocs du Spraywall « Privé » ou « Lien seulement » d’une autre personne arrivent sans leur nom",
+        "profileRead": "Voit ton nom affiché et ta photo de profil",
+        "offlineAccess": "Garde cet accès jusqu’à ce que tu la déconnectes",
+        "other": "Autre accès : {{scope}}"
+      },
+      "disconnect": "Déconnecter",
+      "disconnectA11y": "Déconnecter {{app}}",
+      "disconnectConfirmTitle": "Déconnecter {{app}} ?",
+      "disconnectConfirmBody": "{{app}} ne voit plus ton compte dès maintenant. Ce qu’elle a déjà copié reste dans l’app. Pour l’utiliser à nouveau, connecte-la depuis l’app.",
+      "disconnected": "{{app}} déconnectée",
+      "disconnectFailed": "Impossible de déconnecter {{app}}. Réessaie.",
+      "cancel": "Annuler",
+      "close": "Fermer"
     }
   },
   "watchPairing": {

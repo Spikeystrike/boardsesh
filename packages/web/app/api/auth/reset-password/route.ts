@@ -6,6 +6,18 @@ import { getDb } from '@/app/lib/db/db';
 import * as schema from '@/app/lib/db/schema';
 import { checkRateLimit, getClientIp } from '@/app/lib/auth/rate-limiter';
 import { getPasswordResetIdentifier, hashResetToken, consistentDelay } from '@/app/lib/auth/password-reset';
+import { isVersionedPasswordRecoveryToken, passwordRecoveryTokenSchema } from '@boardsesh/auth-protocol';
+import { soleAccount } from '@boardsesh/auth-protocol/account-email';
+import { findAccountsByEmail } from '@boardsesh/db/queries/account-email';
+import { PASSWORD_HASH_COST } from '@boardsesh/auth-protocol/password-hash';
+import { AuthBackendUnavailableError, webPasswordMode } from '@/app/lib/auth/password-command-client.server';
+import {
+  INVALID_PASSWORD_RESET_MESSAGE,
+  passwordRecoveryUnavailableResponse,
+  resetPasswordWithCommand,
+} from '@/app/lib/auth/password-recovery-command.server';
+import { withEmailVerificationPrivacy } from '@/app/lib/auth/email-verification-response.server';
+import { stagedPasswordClientKey } from '@/app/lib/auth/trusted-client-ip.server';
 
 const resetPasswordSchema = z
   .object({
@@ -25,9 +37,15 @@ const resetPasswordSchema = z
 const MIN_RESPONSE_TIME_MS = 1500;
 
 export async function POST(request: NextRequest) {
+  return withEmailVerificationPrivacy(await handleResetPassword(request));
+}
+
+async function handleResetPassword(request: NextRequest) {
   const startTime = Date.now();
+  let staged = false;
   try {
-    const clientIp = getClientIp(request);
+    // The staged budget is shared by every caller, so its key must not be forgeable.
+    const clientIp = stagedPasswordClientKey(request) ?? getClientIp(request);
     // NOTE: checkRateLimit is in-memory and not shared across serverless instances.
     // This provides best-effort protection only. Add Redis/Upstash rate limiting
     // before relying on this as a production security control.
@@ -46,7 +64,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    const mode = webPasswordMode();
+    staged = mode === 'backend-staging';
+    const body: unknown = await request.json();
+    const submittedToken: unknown =
+      typeof body === 'object' && body !== null && 'token' in body ? body.token : undefined;
+    if (isVersionedPasswordRecoveryToken(submittedToken)) {
+      if (!staged || typeof submittedToken !== 'string' || !/^pr1_/i.test(submittedToken)) {
+        await consistentDelay(startTime, MIN_RESPONSE_TIME_MS);
+        return passwordRecoveryUnavailableResponse();
+      }
+      if (!passwordRecoveryTokenSchema.safeParse(submittedToken).success) {
+        await consistentDelay(startTime, MIN_RESPONSE_TIME_MS);
+        return withEmailVerificationPrivacy(
+          NextResponse.json({ error: INVALID_PASSWORD_RESET_MESSAGE }, { status: 400 }),
+        );
+      }
+    }
+    if (staged) {
+      const response = await resetPasswordWithCommand(body);
+      await consistentDelay(startTime, MIN_RESPONSE_TIME_MS);
+      return response;
+    }
     const validationResult = resetPasswordSchema.safeParse(body);
 
     if (!validationResult.success) {
@@ -83,36 +122,35 @@ export async function POST(request: NextRequest) {
     // The token row only carries the email-derived identifier, not the user id —
     // look the user up to get the id the transaction below needs. This also guards
     // the rare case where the account was deleted within the token's 1-hour window.
-    const user = await db
-      .select({ id: schema.users.id })
-      .from(schema.users)
-      .where(eq(schema.users.email, email))
-      .limit(1);
-    if (user.length === 0) {
+    // The link's address is matched exactly first, so a link names the row it was
+    // issued for even when another account has the address in other capitals. A
+    // link that matches no row exactly and several rows in other capitals is refused.
+    const account = soleAccount(await findAccountsByEmail(db, email));
+    if (!account) {
       await consistentDelay(startTime, MIN_RESPONSE_TIME_MS);
       return NextResponse.json({ error: 'Invalid or expired reset link' }, { status: 400 });
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
+    const passwordHash = await bcrypt.hash(password, PASSWORD_HASH_COST);
 
     await db.transaction(async (tx) => {
       const existingCredentials = await tx
         .select({ userId: schema.userCredentials.userId })
         .from(schema.userCredentials)
-        .where(eq(schema.userCredentials.userId, user[0].id))
+        .where(eq(schema.userCredentials.userId, account.id))
         .limit(1);
 
       if (existingCredentials.length > 0) {
         await tx
           .update(schema.userCredentials)
           .set({ passwordHash, updatedAt: new Date() })
-          .where(eq(schema.userCredentials.userId, user[0].id));
+          .where(eq(schema.userCredentials.userId, account.id));
       } else {
         // Insert credentials for OAuth-only users who want to add a password.
         // In practice forgot-password skips OAuth-only accounts, but this supports
         // future flows where an admin or other path may issue a reset token directly.
         await tx.insert(schema.userCredentials).values({
-          userId: user[0].id,
+          userId: account.id,
           passwordHash,
         });
       }
@@ -123,7 +161,7 @@ export async function POST(request: NextRequest) {
       await tx
         .update(schema.users)
         .set({ emailVerified: new Date(), updatedAt: new Date() })
-        .where(and(eq(schema.users.id, user[0].id), isNull(schema.users.emailVerified)));
+        .where(and(eq(schema.users.id, account.id), isNull(schema.users.emailVerified)));
 
       await tx.delete(schema.verificationTokens).where(eq(schema.verificationTokens.identifier, identifier));
     });
@@ -133,7 +171,11 @@ export async function POST(request: NextRequest) {
       message: 'Password reset successful. You can now sign in with your new password.',
     });
   } catch (error) {
-    console.error('Reset password error:', error);
+    if (staged || error instanceof AuthBackendUnavailableError) {
+      await consistentDelay(startTime, MIN_RESPONSE_TIME_MS);
+      return passwordRecoveryUnavailableResponse();
+    }
+    console.error('Password reset request failed');
     await consistentDelay(startTime, MIN_RESPONSE_TIME_MS);
     return NextResponse.json({ error: 'Failed to reset password' }, { status: 500 });
   }

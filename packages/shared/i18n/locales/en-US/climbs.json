@@ -10,7 +10,6 @@
     "allSetters": "All setters",
     "followingClimbs": "Climbs by people I follow",
     "playlistSubtitleSort": "All climbs on this board · {{sort}}",
-    "signIn": "Sign in to follow this setter",
     "syncNeeded": "Connect once to sync your follows and linked setters.",
     "followError": "Couldn't update this follow. Try again.",
     "loadError": "Couldn't load these climbs.",
@@ -30,7 +29,9 @@
       "description": "Browse climbs on {{boardName}} at {{angle}}°",
       "fallbackTitle": "Climbs",
       "fallbackDescription": "Browse climbs",
-      "paginatedTitle": "{{boardName}} Climbs at {{angle}}° — Page {{page}}"
+      "paginatedTitle": "{{boardName}} Climbs at {{angle}}° — Page {{page}}",
+      "ogTitle": "Climbs on {{name}} at {{angle}}°",
+      "ogDescription": "Pick one, light it up and log the send."
     },
     "view": {
       "title": "{{climbName}} - {{grade}}",
@@ -510,6 +511,10 @@
       "quickFiltersFooter": "Choose the filters that show in the top row, and their order.",
       "established2plus": "Established 2+",
       "benchmark": "Benchmarks",
+      "verified": "Verified",
+      "verifiedDescription": "Verified climbs are picked by Kilter with climbers and setters.",
+      "onlyBenchmarks": "Only benchmark climbs",
+      "onlyVerified": "Only Verified climbs",
       "showCount_one": "Show {{count}} climb",
       "showCount_other": "Show {{count}} climbs",
       "close": "Close filters",
@@ -678,6 +683,7 @@
       "anyFeet": "Any feet",
       "noKickboard": "No KB",
       "benchmark": "Benchmark",
+      "verified": "Verified climb",
       "method": {
         "footless": "Footless",
         "footlessKickboard": "Footless + KB",
@@ -733,7 +739,6 @@
       }
     },
     "hidden": {
-      "short": "hidden",
       "chip": "Hidden",
       "banner": "Hidden by the community"
     },
@@ -748,8 +753,8 @@
       "editorHint_other": "Remove the grey holds to save"
     },
     "climbActions": {
-      "preview": "Preview",
       "playNext": "Play next",
+      "playNextActiveHint": "This climb is already active. Browse another climb to put it next.",
       "playLast": "Play last",
       "replayFromHere": "Replay from here",
       "nameCopied": "Name copied",
@@ -764,7 +769,6 @@
       "editEntry": "Edit logbook entry",
       "report": "Report climb",
       "changeGrade": "Change grade",
-      "closeOverlay": "Close climb actions",
       "openQueue": "Open the queue",
       "deleteClimb": {
         "row": "Delete climb",
@@ -822,6 +826,7 @@
       "settings": {
         "draftLabel": "Save as draft",
         "draftDescription": "Drafts stay private until you publish them.",
+        "draftDescriptionApps": "Drafts stay unlisted until you publish them. Apps connected by climbers who log one can still see it.",
         "noMatchLabel": "No matching",
         "noMatchDescription": "Hands can't match on the same hold",
         "noKickboardLabel": "No kickboard",
@@ -830,7 +835,8 @@
         "campusDescription": "Hands only — no feet allowed",
         "anyFeetLabel": "Any feet",
         "anyFeetDescription": "Feet can use any hold, not just the marked ones",
-        "wallDraftDescription": "Everyone with access to this Spraywall can climb your saved drafts."
+        "wallDraftDescription": "Everyone with access to this Spraywall can climb your saved drafts.",
+        "wallDraftDescriptionApps": "Everyone with access to this Spraywall can climb your saved drafts. Apps connected by climbers who log one can see it too."
       },
       "drafts": {
         "holds_one": "{{count}} hold",
@@ -1077,7 +1083,10 @@
       },
       "metadata": {
         "title": "{{wallName}} | Spraywall",
-        "description": "{{wallName}}, a Spraywall at {{angle}}°. See the Spraywall and open it in the Boardsesh app."
+        "description": "{{wallName}}, a Spraywall at {{angle}}°. See the Spraywall and open it in the Boardsesh app.",
+        "ogTitle": "{{wallName}} · Spraywall",
+        "ogDescription_one": "A Spraywall at {{angle}}° with {{count}} hold. See the Spraywall and try what's been set.",
+        "ogDescription_other": "A Spraywall at {{angle}}° with {{count}} holds. See the Spraywall and try what's been set."
       }
     },
     "install": {

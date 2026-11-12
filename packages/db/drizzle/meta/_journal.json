@@ -2017,6 +2017,125 @@
       "when": 1793343933993,
       "tag": "0287_climb_mutation_receipts",
       "breakpoints": true
+    },
+    {
+      "idx": 288,
+      "version": "7",
+      "when": 1793692597289,
+      "tag": "0288_user_deleted_upstream_playlists",
+      "breakpoints": true
+    },
+    {
+      "idx": 289,
+      "version": "7",
+      "when": 1793712417163,
+      "tag": "0289_board_lit_by_wall_device",
+      "breakpoints": true
+    },
+    {
+      "idx": 290,
+      "version": "7",
+      "when": 1794162086974,
+      "tag": "0290_posthog_daily_signups",
+      "breakpoints": true
+    },
+    {
+      "idx": 291,
+      "version": "7",
+      "when": 1794162998966,
+      "tag": "0291_auth_current_store_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 292,
+      "version": "7",
+      "when": 1794162998967,
+      "tag": "0292_auth_uid_email_verification",
+      "breakpoints": true
+    },
+    {
+      "idx": 293,
+      "version": "7",
+      "when": 1794162998968,
+      "tag": "0293_auth_uid_password_recovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 294,
+      "version": "7",
+      "when": 1794162998969,
+      "tag": "0294_auth_web_oauth_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 295,
+      "version": "7",
+      "when": 1794234880275,
+      "tag": "0295_kilter_aurora_benchmarks",
+      "breakpoints": true
+    },
+    {
+      "idx": 296,
+      "version": "7",
+      "when": 1794239487648,
+      "tag": "0296_partner_oauth_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 297,
+      "version": "7",
+      "when": 1794299995530,
+      "tag": "0297_logbook_changes",
+      "breakpoints": true
+    },
+    {
+      "idx": 298,
+      "version": "7",
+      "when": 1794299995531,
+      "tag": "0298_logbook_change_triggers",
+      "breakpoints": true
+    },
+    {
+      "idx": 299,
+      "version": "7",
+      "when": 1794300197601,
+      "tag": "0299_logbook_snapshots",
+      "breakpoints": true
+    },
+    {
+      "idx": 300,
+      "version": "7",
+      "when": 1794300273523,
+      "tag": "0300_partner_revocation_trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 301,
+      "version": "7",
+      "when": 1794301080382,
+      "tag": "0301_logbook_snapshots_connection_fk",
+      "breakpoints": true
+    },
+    {
+      "idx": 302,
+      "version": "7",
+      "when": 1794307774903,
+      "tag": "0302_oauth_app_publisher_name",
+      "breakpoints": true
+    },
+    {
+      "idx": 303,
+      "version": "7",
+      "when": 1794352988594,
+      "tag": "0303_stamp_new_credentials",
+      "breakpoints": true
+    },
+    {
+      "idx": 304,
+      "version": "7",
+      "when": 1794392099632,
+      "tag": "0304_spray_wall_led_setups",
+      "breakpoints": true
     }
   ]
 }

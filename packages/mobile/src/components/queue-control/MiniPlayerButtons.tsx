@@ -8,6 +8,7 @@ import { useFavoriteStatus, useToggleFavorite } from '../../lib/graphql/hooks';
 import { track } from '../../lib/analytics';
 import { hapticSelection } from '../../lib/haptics';
 import { trackQueueSheetOpened } from '../../lib/queue-navigation-analytics';
+import { queueSheetOpenContext } from '../../lib/queue-sheet-open-context';
 import { useShareClimbAction } from '../../hooks/use-share-climb-action';
 import { useDrawerHost, type BoardConfig } from '../../providers/drawer-host-provider';
 import { useTheme } from '../../providers/theme-provider';
@@ -21,7 +22,9 @@ import { useRouter, useSegments } from 'expo-router';
 import { WALL_DISPLAY_HREF } from '../../lib/routing/wall-display-link';
 import { isPlayerRoute } from '../../lib/route-segments';
 import { MiniPlayerTrackPager, useMiniPlayerNavigation } from './use-mini-player-navigation';
+import { describeMiniPlayerStep } from './mini-player-step-label';
 import { useQueueActions } from '../../providers/queue-provider';
+import { getLastPick, setLastPickMirrored } from '../../lib/last-pick-store';
 
 type MiniPlayerIconButtonProps = {
   iconName: IconName;
@@ -181,7 +184,10 @@ function MiniPlayerShareButton({ climb, climbBoard, size, wideLayout }: ClimbBut
 
 /**
  * Mirror the exact committed occurrence shown by this retained accessory. The
- * bar's button and the bar's ⋯ row both run this toggle.
+ * bar's button and the bar's ⋯ row both run this toggle. On the climber's last
+ * pick (owner decision A) it flips the pick's own mirror instead, the flip the
+ * player puts back when it reopens the pick: a preview's mirror never writes
+ * the queue.
  */
 export function useMiniPlayerMirrorToggle({
   climb,
@@ -197,8 +203,28 @@ export function useMiniPlayerMirrorToggle({
   const toggle = useCallback(() => {
     const snapshot = getQueueSnapshot();
     const headItem = snapshot.currentClimbQueueItem;
-    if (!queueItemUuid || headItem?.uuid !== queueItemUuid || headItem.climb.uuid !== climb.uuid) return;
     const shared = snapshot.sessionId != null;
+    const pick = getLastPick();
+    if (
+      pick &&
+      queueItemUuid &&
+      pick.item.uuid === queueItemUuid &&
+      pick.item.climb.uuid === climb.uuid &&
+      headItem?.uuid !== queueItemUuid
+    ) {
+      hapticSelection();
+      track(SHARED_EVENTS.MirrorClimb, {
+        climbUuid: climb.uuid,
+        boardName: climbBoard.boardName,
+        layoutId: climbBoard.layoutId,
+        isMirrored: !pick.mirrored,
+        surface: 'mini_player',
+        shared,
+      });
+      setLastPickMirrored(!pick.mirrored);
+      return;
+    }
+    if (!queueItemUuid || headItem?.uuid !== queueItemUuid || headItem.climb.uuid !== climb.uuid) return;
     if (
       process.env.EXPO_PUBLIC_SCREENSHOT_MODE === '1' &&
       process.env.EXPO_PUBLIC_SCREENSHOT_CPP_COMMANDS?.includes('screenshotClimbId=') === true &&
@@ -246,11 +272,13 @@ function MiniPlayerMirrorButton({
 /** Open the queue sheet from the bar: its Queue button or its ⋯ row. */
 export function useOpenMiniPlayerQueue(surface: 'mini_player' | 'mini_player_menu'): () => void {
   const { openQueueSheet, boardConfig } = useDrawerHost();
+  const { getQueueSnapshot } = useQueueActions();
   const boardType = boardConfig?.boardName;
   return useCallback(() => {
-    trackQueueSheetOpened({ surface, boardType });
+    // `from`: the bar's last pick is a preview (Then-signposts).
+    trackQueueSheetOpened({ surface, boardType, ...queueSheetOpenContext(getQueueSnapshot()) });
     openQueueSheet();
-  }, [openQueueSheet, boardType, surface]);
+  }, [openQueueSheet, boardType, surface, getQueueSnapshot]);
 }
 
 function MiniPlayerQueueButton({ size, wideLayout }: { size: number; wideLayout: boolean }) {
@@ -336,7 +364,7 @@ function MiniPlayerTransportButtons({
           buttonId === 'previous' ? (
             <MiniPlayerIconButton
               iconName={wideLayout ? 'skip.previous.fill' : 'skip.previous'}
-              accessibilityLabel={t('playView.actionBar.previousAria')}
+              accessibilityLabel={describeMiniPlayerStep('previous', navigation.previousWalk, t)}
               onPress={navigation.onPrevious}
               disabled={!navigation.canPrevious}
               size={size}
@@ -345,7 +373,7 @@ function MiniPlayerTransportButtons({
           ) : (
             <MiniPlayerIconButton
               iconName={wideLayout ? 'skip.next.fill' : 'skip.next'}
-              accessibilityLabel={t('playView.actionBar.nextAria')}
+              accessibilityLabel={describeMiniPlayerStep('next', navigation.nextWalk, t)}
               onPress={navigation.onNext}
               disabled={!navigation.canNext}
               size={size}

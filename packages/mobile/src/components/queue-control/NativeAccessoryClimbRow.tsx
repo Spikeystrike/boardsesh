@@ -24,6 +24,7 @@ import { AccessoryConnectionBadge } from './AccessoryConnectionBadge';
 import {
   getBoardConnectionBadgeVisual,
   getBoardConnectionLabel,
+  showsWallHoldLook,
   type BoardConnectionBadgeVisual,
 } from './board-control-indicator-state';
 import type { AccessoryPlacement } from '../../lib/analytics-board-connect';
@@ -36,6 +37,7 @@ import {
   isMiniPlayerButtonAvailable,
   miniPlayerCapacityWidth,
   miniPlayerPaneMode,
+  miniPlayerPhoneGutter,
   miniPlayerSlotCount,
   miniPlayerUsesWideLayout,
   recordRowWidth,
@@ -44,6 +46,7 @@ import {
   trailingSlotFrame,
   wideRowCapacityWidth,
   type MeasuredRowWidth,
+  type MiniPlayerHost,
   type TrailingControlSlot,
 } from './mini-player-controls';
 import { useNativeTabContentInsetLeft, useNativeTabContentInsetRight } from '../../lib/native-tab-content-inset-store';
@@ -67,11 +70,27 @@ import { usePhoneSplitPaneTaken } from '../navigation/phone-split-pane-slot';
 import { usePlayerButtonsPreference } from '../../lib/player-buttons-preference';
 import { MiniPlayerWorkoutButtons } from './MiniPlayerWorkoutButtons';
 import { useMiniPlayerWorkoutOutcome } from './use-mini-player-workout-outcome';
+import type { LastPick } from '../../lib/last-pick-store';
+import { PickBulbSlot } from './PickPutOnBoardBulb';
+import { usePickBulb } from './use-pick-bulb';
+import { useDriveLightingMode } from '../play-drawer/drive-mode-store';
+import { phoneDrivesTheWall, resolveBulbDriveCue } from './bulb-drive-cue';
 
 type NativeAccessoryClimbRowProps = {
   climb: Climb;
   queueItemUuid?: string;
+  /**
+   * The climber's last pick, while the bar shows it rather than the queue's
+   * current (owner decision A). Its bulb, unlit, puts it on the board.
+   */
+  pick?: LastPick | null;
   placement: AccessoryPlacement;
+  /**
+   * Who draws the bar around the row: UIKit's accessory platter (iOS 26), or the
+   * Material card (`FloatingMiniPlayerCard`). It sets the phone's control budget
+   * (`miniPlayerPhoneGutter`), and only the platter keeps the zoom source.
+   */
+  host?: MiniPlayerHost;
   testID?: string;
 };
 
@@ -167,15 +186,17 @@ function ClimbLabel({
 }
 
 /**
- * Content for the iOS 26 tab-bar bottom accessory (Liquid Glass variant only).
+ * Content for the iOS 26 tab-bar bottom accessory, and for the Material card
+ * (`FloatingMiniPlayerCard`, `host="materialCard"`), which draws the same row.
  * UIKit supplies the glass platter, so this stays bare: the current climb, the
  * climber's MiniPlayer buttons (#6940), then the lightbulb and the tick at the
  * trailing edge. In a timed workout block the climber's buttons step aside for
  * one-tap Fell / Sent (`useMiniPlayerWorkoutOutcome`). How many controls fit is `miniPlayerSlotCount`; which ones is
  * `resolveMiniPlayerControls`. The collapsed platter has room for one control:
  * the lightbulb while the board is free (so connecting stays one tap away), the
- * tick once someone holds it. A mark on the thumbnail says who holds it, in both
- * placements. The
+ * tick once someone holds it, except during Put on board's timed drive, when
+ * the bulb's draining ring is the only sign of how long picks keep lighting.
+ * A mark on the thumbnail says who holds it, in both placements. The
  * displayed climb is resolved once by {@link QueueBottomAccessory} and passed in,
  * so this component never re-gates (a second gate could blank the live platter for
  * a frame, which UIKit snapshotted as doubled text). Tap-to-open is shared with
@@ -183,14 +204,24 @@ function ClimbLabel({
  * are tuned for the platter, so they intentionally differ from the floating
  * capsule's colorized grade.
  */
-export function NativeAccessoryClimbRow({ climb, queueItemUuid, placement, testID }: NativeAccessoryClimbRowProps) {
+export function NativeAccessoryClimbRow({
+  climb,
+  queueItemUuid,
+  pick = null,
+  placement,
+  host = 'nativeAccessory',
+  testID,
+}: NativeAccessoryClimbRowProps) {
   const { width: windowWidth } = useWindowDimensions();
   const { boardConfig, playDrawerPaneProps } = useDrawerHost();
   const { systemColors, brandColors } = useTheme();
   const { resolveGrade } = useDisplayGrade();
   const { openPlay, preparePlay } = useAccessoryClimbTap();
   const { t } = useTranslation('settings');
-  const { bluetooth, inAppBoardConnection, ledless, holderDisplayName } = useBoardConnectionState();
+  const { bluetooth, inAppBoardConnection, localConnected, ledless, holderDisplayName } = useBoardConnectionState();
+  // This phone's drive, as the bar's bulb reads it (`BulbDriveCue`). It changes
+  // as a drive starts and ends, never on the clock's ticks.
+  const lightingMode = useDriveLightingMode();
   const { isTablet } = useDeviceLayout();
   const phoneSplit = usePhoneSplit();
   const verticalTabBar = useVerticalTabBar();
@@ -268,7 +299,13 @@ export function NativeAccessoryClimbRow({ climb, queueItemUuid, placement, testI
   // The open wide bar draws Music's iPad layout: ⏮ ⏭ first, ⋯ before 💡 ✓.
   const wideLayout = miniPlayerUsesWideLayout({ wide, placement });
   const rowWidth = wide ? wideRowCapacityWidth(measuredRowWidth, layoutKey) : (measuredRowWidth?.latest ?? null);
-  const capacityWidth = miniPlayerCapacityWidth({ windowWidth, rowWidth, wide, verticalTabBar });
+  const capacityWidth = miniPlayerCapacityWidth({
+    windowWidth,
+    rowWidth,
+    wide,
+    verticalTabBar,
+    gutter: miniPlayerPhoneGutter(host),
+  });
   const slotCount = miniPlayerSlotCount({ placement, rowWidth: capacityWidth, widthBesideName, wide });
   // Tell the View options preview what this device's open bar measures.
   useEffect(() => {
@@ -286,13 +323,35 @@ export function NativeAccessoryClimbRow({ climb, queueItemUuid, placement, testI
     connectedColor: brandColors.warning,
     peerColor: systemColors.secondaryLabel,
     ledless,
+    localConnected,
     wallHeldColor: brandColors.primary,
   });
+  // The last pick's bulb (owner decision A): lit, unlit (Put on board), or
+  // none for a climb this wall can't light. Null while the bar shows the
+  // queue's current climb.
+  const pickBulb = usePickBulb(pick);
   // One slot when collapsed or narrow: the bulb only while there is a board to
   // connect to and nobody holds it. With no board bound the bulb renders nothing,
-  // so the tick keeps the slot.
-  const bulbAvailable = bluetooth != null;
-  const collapsedSlotShowsBulb = bulbAvailable && inAppBoardConnection === 'disconnected';
+  // so the tick keeps the slot; nor is there one for a pick no board here can light.
+  const bulbAvailable = bluetooth != null && pickBulb?.kind !== 'none';
+  const driveCue = resolveBulbDriveCue({
+    mode: lightingMode,
+    drivesTheWall: phoneDrivesTheWall({ inAppBoardConnection, localConnected, ledless }),
+    showsLitClimb: true,
+  });
+  // Put on board's timed drive keeps the bulb in the one slot, whoever's climb
+  // the bar shows: its draining ring is the only sign of how long the wall keeps
+  // lighting picks (owner decision 2026-11-02), and the collapsed bar is what a
+  // climber scrolling the Climbs list sees. ✓ comes back when the drive ends.
+  // An open-ended drive has no end to show, so ✓ keeps the slot then.
+  // Otherwise a last pick that isn't lit keeps Put on board one tap away, on a
+  // board with lights, and ✓ keeps the slot, so the shown climb can be logged.
+  const collapsedSlotShowsBulb =
+    bulbAvailable &&
+    (driveCue === 'drain' ||
+      (pickBulb !== null
+        ? pickBulb.kind === 'putOnBoard' && !showsWallHoldLook({ ledless, localConnected })
+        : inAppBoardConnection === 'disconnected'));
   const isDraft = climb.is_draft === true;
   const climbBoardName = climbBoard?.boardName ?? null;
   const climbLayoutId = climbBoard?.layoutId ?? null;
@@ -341,15 +400,31 @@ export function NativeAccessoryClimbRow({ climb, queueItemUuid, placement, testI
       playerRouteUp,
     ],
   );
-  // A visible bulb already speaks the state; without it, only the mark shows
-  // it, so the climb link says it.
-  const connectionValue =
-    !controls.trailing.includes('lightbulb') && inAppBoardConnection !== 'disconnected'
-      ? getBoardConnectionLabel(t, { boardConnection: inAppBoardConnection, ledless, holderDisplayName })
+  // A visible bulb already speaks the state and the drive (the pick's Put on
+  // board bulb too); without it, only the mark shows who holds the board, so
+  // the climb link says it, and that this phone drives the wall.
+  const bulbSpeaks = controls.trailing.includes('lightbulb') && bulbAvailable;
+  const connectionLabel =
+    !bulbSpeaks && inAppBoardConnection !== 'disconnected'
+      ? getBoardConnectionLabel(t, {
+          boardConnection: inAppBoardConnection,
+          ledless,
+          localConnected,
+          holderDisplayName,
+        })
       : undefined;
+  const connectionValue =
+    connectionLabel !== undefined && driveCue !== null
+      ? `${connectionLabel}, ${t('ble.barControl.drivingValue')}`
+      : connectionLabel;
 
   const angleClimbUuid =
     climbBoardName === playerBoardName && climbLayoutId === playerLayoutId ? climb.uuid : undefined;
+  // The bulb's and the tick's analytics placement is UIKit's platter placement,
+  // sent only from the platter (`AccessoryPlacement`): a tap on the Material card
+  // sends none, so it reads as a JS-bar tap and the iOS open/collapsed split
+  // stays clean.
+  const platterPlacement = host === 'nativeAccessory' ? placement : undefined;
   const bluetoothConnected = bluetooth?.isConnected ?? false;
   // The climber's buttons, or Fell / Sent in a timed block. Before the climb on
   // a wide bar, as Music puts its transport; after it elsewhere.
@@ -429,7 +504,7 @@ export function NativeAccessoryClimbRow({ climb, queueItemUuid, placement, testI
         accessibilityValue={connectionValue}
         onOpen={openPlay}
         onPrepare={preparePlay}
-        zoomSourceRetained
+        zoomSourceRetained={host === 'nativeAccessory'}
       >
         <LargeContentViewer
           style={styles.labelSlot}
@@ -451,8 +526,9 @@ export function NativeAccessoryClimbRow({ climb, queueItemUuid, placement, testI
       {/* The controls sit beside the climb gesture, never inside it, so their
           44pt tap targets are never stolen by the row's tap. Long-press on the
           bulb opens the controls sheet, as on the other lightbulbs now that a
-          short press disconnects. The row stays mounted as controls appear and
-          disappear: UIKit snapshots the platter between placements. */}
+          short press disconnects (during a drive it only stops driving). The
+          row stays mounted as controls appear and disappear: UIKit snapshots
+          the platter between placements. */}
       {wideLayout ? null : buttonCluster}
       <View
         pointerEvents="box-none"
@@ -506,23 +582,47 @@ export function NativeAccessoryClimbRow({ climb, queueItemUuid, placement, testI
                 // player's board control (#7000): its model, its tap and its hold.
                 paneMode === 'mirror' && paneWallControl ? (
                   <PaneWallControlBulb control={paneWallControl} size={glassSize.inline} iconSize={22} solidGlyphs />
+                ) : pick && pickBulb ? (
+                  // The last pick (owner decision A): unlit, the bulb puts it
+                  // on the board through the player's wall button path.
+                  <PickBulbSlot
+                    pick={pick}
+                    bulb={pickBulb}
+                    size={glassSize.inline}
+                    iconSize={22}
+                    solidGlyphs
+                    enableLongPress
+                    placement={platterPlacement}
+                    litBulb={
+                      <BoardControlIndicator
+                        size={glassSize.inline}
+                        iconSize={22}
+                        enableLongPress
+                        solidGlyphs
+                        placement={platterPlacement}
+                      />
+                    }
+                  />
                 ) : (
                   <BoardControlIndicator
                     size={glassSize.inline}
                     iconSize={22}
                     enableLongPress
                     solidGlyphs
-                    placement={placement}
+                    placement={platterPlacement}
                   />
                 )
               ) : (
                 <LogAscentToolbarButton
                   queueItemUuid={queueItemUuid}
+                  // A pick logs the flip the bar draws (its own, from the
+                  // player or the bar's Mirror), never its queue slot's.
+                  isMirror={pick ? pick.mirrored : undefined}
                   climb={climb}
                   size={glassSize.inline}
                   iconSize={wideLayout ? WIDE_LOG_GLYPH_SIZE : geometry.logGlyphSize}
                   appearance={wideLayout ? 'hero' : 'plain'}
-                  placement={placement}
+                  placement={platterPlacement}
                 />
               )}
             </View>

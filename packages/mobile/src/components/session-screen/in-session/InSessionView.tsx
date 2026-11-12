@@ -1,3 +1,4 @@
+import { ClimbActionsPressable } from '../../climb-actions/ClimbActionsPressable';
 import { useNativeRootHeader } from '../../../hooks/use-native-root-header';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { type NativeScrollEvent, type NativeSyntheticEvent, StyleSheet, View } from 'react-native';
@@ -43,11 +44,12 @@ import { useTickListActivation } from '../../../lib/playlists/use-tick-list-acti
 import { useGradeFormat } from '../../../hooks/use-grade-format';
 import { useBottomChromeMetrics } from '../../../hooks/use-bottom-chrome-metrics';
 import { useScrollEdgeBackdrop } from '../../../hooks/use-scroll-edge-backdrop';
+import { useHideOnScroll } from '../../../hooks/use-hide-on-scroll';
 import { withAlpha } from '../../../theme/colors';
 import { springs } from '../../../theme/animations';
 import { borderRadius, spacing } from '../../../theme/tokens';
 import { gradeBadgeColor } from '../../you/profile-chart-colors';
-import { hapticSelection, hapticMedium } from '../../../lib/haptics';
+import { hapticSelection } from '../../../lib/haptics';
 import { reportHandledError } from '../../../lib/error-reporting';
 import { track } from '../../../lib/analytics';
 import { useToast } from '../../../providers/toast-provider';
@@ -153,7 +155,7 @@ const SessionHistoryRow = memo(function SessionHistoryRow({
   const { t } = useTranslation(['session', 'climbs']);
   const { systemColors, brandColors, chartColors } = useTheme();
   const { formatGrade, formatGradeByDifficultyId } = useGradeFormat();
-  const { openClimbActions } = useDrawerHost();
+  const { getClimbActions } = useDrawerHost();
   const statusIconName = statusIcon(status);
   const statusColor = statusTint(status, brandColors, chartColors.secondaryLabel);
   let statusLabel: string;
@@ -168,7 +170,13 @@ const SessionHistoryRow = memo(function SessionHistoryRow({
       statusLabel = t('playView.tickBar.attemptLabel');
       break;
   }
-  const climb = tickToClimb(tick);
+  // Memoized on the tick: the menu target feeds useClimbMenu, which rebuilds the
+  // native menu's rows whenever its identity changes.
+  const climb = useMemo(() => tickToClimb(tick), [tick]);
+  const boardConfig = useMemo(
+    () => (tick.layoutId ? renderBoardToPlaylistConfig(tick.boardType, tick.layoutId, tick.renderBoard) : null),
+    [tick],
+  );
   const historyRowLabel = t('mobile.session.historyRowAria', {
     name: tick.climbName ?? t('detail.unknownClimb'),
     status: statusLabel,
@@ -176,9 +184,6 @@ const SessionHistoryRow = memo(function SessionHistoryRow({
   const rowAccessibilityLabel = isMultiFrameClimb(climb?.framesCount)
     ? `${historyRowLabel}, ${t('mobile.climbRow.frameCount', { ns: 'climbs', count: climb.framesCount })}`
     : historyRowLabel;
-  const boardConfig = tick.layoutId
-    ? renderBoardToPlaylistConfig(tick.boardType, tick.layoutId, tick.renderBoard)
-    : null;
   const subtitleParts = [
     participant?.displayName ?? null,
     status === 'flash' ? null : t('detail.attemptCount', { count: tick.attemptCount }),
@@ -197,25 +202,26 @@ const SessionHistoryRow = memo(function SessionHistoryRow({
     onPress(tick);
   };
 
-  const handleLongPress = () => {
-    if (!climb || !boardConfig) return;
-    hapticMedium();
-    openClimbActions(climb, {
-      boardName: boardConfig.boardName,
-      layoutId: boardConfig.layoutId,
-      sizeId: boardConfig.sizeId,
-      setIds: boardConfig.setIds.join(','),
-      angle: tick.angle,
-    });
-  };
+  const tickAngle = tick.angle;
+  const menuTarget = useMemo(
+    () =>
+      climb && boardConfig
+        ? getClimbActions(climb, {
+            boardName: boardConfig.boardName,
+            layoutId: boardConfig.layoutId,
+            sizeId: boardConfig.sizeId,
+            setIds: boardConfig.setIds.join(','),
+            angle: tickAngle,
+          })
+        : null,
+    [climb, boardConfig, tickAngle, getClimbActions],
+  );
 
   return (
     <View>
-      <PressableSurface
+      <ClimbActionsPressable
+        target={menuTarget}
         onPress={handlePress}
-        onLongPress={handleLongPress}
-        feedback="opacity"
-        opacityTo={0.7}
         accessibilityRole="button"
         accessibilityLabel={rowAccessibilityLabel}
         style={[styles.historyRow, { backgroundColor: systemColors.secondaryBackground }]}
@@ -255,7 +261,7 @@ const SessionHistoryRow = memo(function SessionHistoryRow({
             ) : null}
           </>
         )}
-      </PressableSurface>
+      </ClimbActionsPressable>
       <View style={[styles.historySeparator, { backgroundColor: systemColors.separator }]} />
     </View>
   );
@@ -437,8 +443,8 @@ export function InSessionView({
   // the history lists them (issue #6665). It used to make the climb current for
   // everyone with a fresh queue entry, so in a crew it took a crewmate's wall
   // and queued a second copy of a climb already there. Now it follows every
-  // list's rules: a preview in a crew or with Light the board when I tap
-  // a climb off, otherwise the climb goes up like any list tap.
+  // list's rules: a preview unless this phone drives the wall, and while it
+  // does the climb goes up like any list tap.
   const handlePressHistoryTick = useTickListActivation<SessionDetailTick>({
     sourceId: `session:${sessionId ?? ''}`,
     label: t('playView.track.sessionClimbs'),
@@ -455,7 +461,8 @@ export function InSessionView({
   const startedAtTop = useSharedValue(true);
   // Tells the Material app bar when the session list has scrolled under it.
   const scrollEdge = useScrollEdgeBackdrop();
-  const edgeOnScroll = scrollEdge.list?.listProps.onScroll;
+  // The Android nav bar hides as the session list scrolls down.
+  const edgeOnScroll = useHideOnScroll(scrollEdge.list?.listProps.onScroll);
   // FlashList forwards a plain JS scroll event (it isn't a reanimated host
   // component), so we mirror the offset into the shared value here. The dismiss
   // gesture only reads `scrollOffset.value <= 0` on start, so JS-thread latency

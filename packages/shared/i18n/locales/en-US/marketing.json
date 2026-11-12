@@ -3,7 +3,8 @@
     "home": {
       "title": "Climbing app compatible with Kilter, Tension & MoonBoard",
       "description": "Share a live queue with your crew and track your sends across boards. Works with Kilter, Tension, MoonBoard and more.",
-      "ogDescription": "Share a live queue with your crew and track your sends across boards. Works with Kilter, Tension, MoonBoard and more."
+      "ogDescription": "Light up climbs, log your sends and climb with your crew. Works with Kilter, Tension, MoonBoard and more.",
+      "ogTitle": "Boardsesh: one app for your boards"
     },
     "about": {
       "title": "Built by climbers, open to everyone",
@@ -47,11 +48,11 @@
     },
     "helpBoardAndBluetooth": {
       "title": "Connect to your board over Bluetooth",
-      "description": "Connect Boardsesh to a Kilter, Tension or MoonBoard controller, fix a failed connection, and drive it from the lock screen with Live Activity."
+      "description": "Connect Boardsesh to a Kilter, Tension or MoonBoard controller, choose how long Put on board drives the wall, fix a failed connection, and control it from the lock screen with Live Activity."
     },
     "helpClimbActions": {
-      "title": "Preview, log a tick or add to a playlist from any climb row",
-      "description": "The press-and-hold menu on a climb row in the Boardsesh app, from previewing without lighting the board to logging a tick or adding to a playlist."
+      "title": "Tap to preview, hold to log a tick or add to a playlist",
+      "description": "How a tap on a climb row in the Boardsesh app opens a preview without lighting the board, and what the press-and-hold menu does: log a tick or add to a playlist."
     },
     "helpBetaVideos": {
       "title": "Share a reel from Instagram or TikTok as beta",
@@ -167,8 +168,8 @@
       "otherWays": "Not got money spare?"
     },
     "supportBanner": {
-      "text": "Boardsesh stays free because climbers chip in. Go monthly and pay for the time it takes to build.",
-      "cta": "Go monthly",
+      "text": "Boardsesh stays free and ad free thanks to the climbers that chip in. All contributions help, either once off or monthly.",
+      "cta": "Support us",
       "close": "Close"
     }
   },
@@ -220,7 +221,7 @@
     "hero": {
       "title": "Keep Boardsesh running",
       "subtitle": "Free, open source, and paid for by climbers",
-      "ctaMonthly": "Go monthly"
+      "ctaMonthly": "Support us"
     },
     "promise": "No locked screens, no second tier, no ads. Chipping in pays the bill, nothing else.",
     "promiseMonthly": "No locked screens, no second tier, no ads. Chipping in pays for the hours spent building Boardsesh, nothing else.",
@@ -415,7 +416,7 @@
       "title": "In the app",
       "intro": "Anything that touches the wall or your logbook happens in the app.",
       "item1": "Build a queue and work through it with your crew.",
-      "item2": "Run a live session so every phone drives one queue.",
+      "item2": "Run a live session so every phone works one queue.",
       "item3": "Light holds over Bluetooth on Kilter, Tension and MoonBoard walls.",
       "item4": "Log sends and attempts, and attach beta videos."
     },
@@ -457,7 +458,7 @@
       },
       "climbActions": {
         "title": "Climb actions",
-        "body": "Hold a climb to preview it without lighting the wall, log a tick or add to a playlist."
+        "body": "Tap a climb to preview it without lighting the wall. Hold it to log a tick or add to a playlist."
       },
       "sessions": {
         "title": "Live sessions",
@@ -473,7 +474,7 @@
       },
       "bluetooth": {
         "title": "Board and Bluetooth",
-        "body": "Connect to the board, fix a failed connection, and control it from the lock screen with Live Activity."
+        "body": "Connect to the board, choose how long Put on board keeps lighting, fix a failed connection, and use the lock screen."
       },
       "betaVideos": {
         "title": "Beta videos",
@@ -515,9 +516,9 @@
       },
       "queue": {
         "title": "Climb the whole list",
-        "intro": "Tap a climb in a playlist and you play from that playlist. Your queue stays as it is.",
-        "p1": "Swipe to walk the list in order from the climb you tapped. The header's play button starts from the top. Play next puts the whole list at the top of Up next, Play last at the bottom. To have a tap load the playlist into your queue instead, turn on Tapping a playlist loads it into my queue under Settings, then Board.",
-        "p2": "In a session, tapping only opens the climb for you. The shared queue stays put.",
+        "intro": "Tap a climb in a playlist and you preview it, playing from that playlist. Your queue stays as it is.",
+        "p1": "Swipe to walk the list in order from the climb you tapped. The header’s play button does the same from the first climb. Play next puts the whole list at the top of Up next, Play last at the bottom. To have a tap or the play button load the playlist into Up next, turn on Tapping a playlist loads it into my queue under Settings, then Board. The wall keeps its climb, and you preview the one you tapped. While you drive the wall, the tap replaces your whole queue with the playlist and lights the climb instead.",
+        "p2": "In a session, tapping only opens the climb for you and the shared queue stays put, unless you drive the wall: then the climb you tapped lights and goes up for everyone.",
         "sessionsLink": "How a session shares one queue",
         "clipAlt": "The Start playlist? sheet",
         "clipCaption": "With that switch on and climbs already queued, Start playlist? asks first."
@@ -572,7 +573,7 @@
       },
       "queue": {
         "title": "One queue, every phone",
-        "p1": "Anyone in the session can add, reorder or remove climbs. Your avatar marks your rows.",
+        "p1": "Anyone in the session can add, reorder or remove climbs. Your avatar marks your rows. Tap a climb in the queue to preview it; only you see it until you tap Put on board.",
         "p2": "Only the climber who started the session can end it. Everyone else taps Leave session."
       },
       "wall": {
@@ -583,9 +584,10 @@
       },
       "crowd": {
         "title": "Browsing without moving the wall",
-        "p1": "With someone else in your session, swipes browse without changing the wall unless you are driving. Tap Put on board to put up one climb, or tap On the wall at the top to return to the climb on the wall.",
-        "p2": "If the player button says You are driving the wall, tap it to stop driving and keep the connection. Solo, turn off Light the board when I tap a climb and Light the board as I swipe under Settings, then Board, to keep ordinary browsing off the wall.",
-        "previewLink": "Preview a climb from any list",
+        "p1": "With someone else in your session, swipes browse without changing the wall unless your phone holds the board and you are driving. Tap Put on board to put up a climb, or tap the back arrow at the top left, with the face of whoever lit the wall, to return to the climb on the wall.",
+        "p2": "If your phone holds the board and In a session too is on, Put on board lights the climb and you drive the wall: the climbs you pick light too until the time you chose under Stop driving after has passed since the last one (45 seconds to start with; Right away lights only that one). The button reads You are driving the wall with a clock, and the frost shrinks as the time runs out. Tap it to stop early; your phone stays connected unless Disconnect Bluetooth when driving ends is on. A crewmate putting a climb up ends a drive with a clock; if you swiped to drive, you keep driving and their climb lights.",
+        "p3": "On the other phones, Put on board lights that one climb. When you aren’t driving, taps and swipes open previews. Always drive the wall applies only on the phone that holds the board, and in a session only while In a session too is on.",
+        "previewLink": "Tap a climb to preview it",
         "drivingLink": "How to start and stop driving the wall"
       },
       "history": {
@@ -668,7 +670,7 @@
       },
       "log": {
         "title": "Log it at the wall",
-        "p1": "Tap the big tick in the play drawer, or Log ascent on the queue bar. Date and Time are filled in as now, the rest is optional.",
+        "p1": "Tap the big tick in the play drawer, or ✓ on the bar at the bottom, which shows the last climb you opened. Date and Time are filled in as now, the rest is optional.",
         "p2": "Attempt logs a go that didn't stick. The other button reads Flash on your first logged go at this angle, otherwise Send.",
         "shotAlt": "The tick button",
         "shotCaption": "The tick opens the log sheet.",
@@ -714,28 +716,34 @@
       "breadcrumb": "Board and Bluetooth",
       "hero": {
         "title": "Connect your phone to the board",
-        "subtitle": "Read the frosted wall button: Put on board lights this climb. You are driving the wall means every climb you pick lights up."
+        "subtitle": "A tap opens a preview. Put on board lights it, and you drive the wall: the button reads You are driving the wall with a clock, and every climb you pick lights until the time runs out (45 seconds by default). No clock means it lasts until you tap it."
       },
       "connect": {
         "title": "Connect",
-        "p1": "In a climb, tap the large Put on board button. It connects if needed and lights the climb on screen. If Select Board opens, tap your board: the strongest signal comes first, with a serial on each row. The top bar’s lightbulb can connect too.",
+        "p1": "In a climb, tap the large Put on board button. It connects if needed and lights the climb on screen, and then you drive the wall: the next climbs you pick light too (see Know when you’re driving the wall). If Select Board opens, your board is listed first, then boards the app can’t identify, such as MoonBoards and boxes that show no serial. Don’t see yours? Tap Search for any board. The top bar’s lightbulb can connect too.",
         "p2": "The first time, iOS asks for Bluetooth. Android asks for nearby devices, or Location on Android 11 and older.",
         "litShotAlt": "The Play drawer with its large wall button",
-        "litShotCaption": "Read the wall button: You are driving the wall means the next climb you pick lights up too.",
+        "litShotCaption": "Read the wall button: You are driving the wall means the climbs you pick light up too. With a clock it stops on its own; without one it runs until you tap it.",
+        "timedClipAlt": "Tapping Put on board starts a timed drive, shown by a clock and shrinking frost",
+        "timedClipCaption": "Tap Put on board to start driving. The clock and frost shrink; changing climbs refills them. Tap the button again to stop.",
         "p3": "At a different wall? Change board is the first row behind your avatar.",
-        "p4": "Prefer the lightbulb? In a climb, tap ⋯, then View options, Buttons, and set Board control to Lightbulb. It takes the top row’s right end. Both controls connect and light climbs; holding either opens board options while connected. The wall button also offers swipe-to-drive and tap-to-stop."
+        "p4": "Prefer the lightbulb? In a climb, tap ⋯, then View options, Buttons, and set Board control to Lightbulb. It takes the top row’s right end. Both controls connect and light climbs; holding either opens board options while connected. The wall button also offers swipe-to-drive and tap-to-stop. The lightbulb has no frost: when a drive has a time limit, an amber ring around it empties as the time runs out. Tapping the lightbulb while you drive stops driving, as the wall button does."
       },
       "hidden": {
         "title": "Board controls",
-        "p1": "While connected, hold the wall button for Board controls. In a climb, ⋯, then Board controls opens them too, as does holding the top bar’s lightbulb. A short tap follows the button’s label: You are driving the wall stops driving and keeps the connection; Disconnect board disconnects.",
+        "p1": "While connected, hold the wall button for Board controls. In a climb, ⋯, then Board controls opens them too, as does holding the top bar’s lightbulb. In a climb the sheet starts with a line that says where you stand: a preview, lit on the wall, driving, or how long until the drive stops. A short tap on the wall button follows its label: You are driving the wall stops driving and keeps the connection, unless Disconnect Bluetooth when driving ends is on; then your phone lets go of the board and the button reads Put on board again. Disconnect board disconnects.",
+        "rowStopDriving": "Stop driving after. Change how long Put on board drives, or pick Right away, without leaving the wall.",
         "row1": "Re-light board. Sends the climb to the LEDs again.",
-        "row2": "Turn off all lights. Your phone stays connected.",
+        "row2": "Turn off all lights. This also stops driving. Your phone stays connected unless Disconnect Bluetooth when driving ends is on.",
         "row3": "Disconnect board. Use it when you connected to the wrong wall.",
         "row4": "Light the hold above. MoonBoard only.",
-        "p2": "Auto-disconnect, Light the board when I tap a climb and Light the board as I swipe are under Settings, then Board, and in the sheet the top bar’s lightbulb opens. Auto-disconnect frees the board after 30 seconds idle. For browsing without lighting, stop driving first, then turn off both lighting switches. A live drive lights every climb you pick even when those switches are off.",
-        "p3": "With no board connected, Put on board connects and lights the climb on screen. Climbing alone, this also starts driving. In a crew, a tap puts up just that climb. The top bar’s lightbulb can reconnect to the last board you used.",
+        "p2": "Settings, then Board holds the rest. Stop driving after sets how long your picks keep lighting after the last lit climb: Right away (Put on board lights only that climb), 30 seconds to 5 minutes (45 seconds by default), or Until I stop. In a session too (on by default) lets Put on board drive in a crew. Disconnect Bluetooth when driving ends (off by default) frees the board for the next climber when a drive ends. It replaced Auto-disconnect: if you had that on, it is on, and your old timer, rounded up to the next choice (5 minutes at most), became your Stop driving after time.",
+        "autoLight": "Always drive the wall (off by default) keeps you driving whenever your phone holds the board: every climb you pick lights, with no clock, so Stop driving after doesn’t apply. In a session it needs In a session too. Tap You are driving the wall to stop; your picks open as previews until you disconnect or tap Put on board. The sheet the top bar’s lightbulb opens has most of these too.",
+        "p3": "With no board connected, Put on board connects, lights the climb on screen and starts your drive; in a crew, only on the phone that holds the board, while In a session too is on. After Disconnect Bluetooth when driving ends, Put on board reconnects to the same board. After Disconnect board, the app forgets that board and the next connect searches again.",
         "shotAlt": "Board controls for a connected board",
-        "shotCaption": "Re-light, turn off all lights or disconnect. Light every climb starts driving when offered."
+        "shotCaption": "Re-light, turn off all lights or disconnect, and change Stop driving after without leaving the wall. Light every climb starts driving when offered.",
+        "lightingShotAlt": "Board lighting settings with drive duration and automatic lighting controls",
+        "lightingShotCaption": "Choose when driving stops, whether it also applies in a session, and whether stopping disconnects Bluetooth."
       },
       "failed": {
         "title": "When it won't connect",
@@ -749,12 +757,12 @@
       },
       "twoBoards": {
         "title": "Two boards in range",
-        "p1": "Read the serial before you tap. The signal bars don't update while you stand there.",
+        "p1": "When you connect to a board you’ve used or a gym’s board, it is listed first, then boards the app can’t identify. Boards known to be another board stay hidden until you tap Search for any board. Read the serial before you tap. The signal bars don’t update while you stand there.",
         "p2": "A Board configuration doesn't match alert means the controller belongs to a different board setup. Pick Cancel, Connect anyway or Switch board setup."
       },
       "duplicate": {
         "title": "The same board listed twice",
-        "p1": "Two rows with different serials are two controllers. A row that reads only Kilter Board, with no serial, is a newer manufacturer-built LED box. Two of those in one gym show as two rows. The one with more signal bars is usually the wall you're standing at. If the wrong wall lights, open Board controls, tap Disconnect board and try again.",
+        "p1": "Two rows with different serials are two controllers. A row that reads only Kilter Board, with no serial, is a newer manufacturer-built LED box. Two of those in one gym show as two rows, listed after your own board. The one with more signal bars is usually the wall you're standing at. If the wrong wall lights, open Board controls, tap Disconnect board and try again.",
         "p2": "There is no forget-this-device list. The app only remembers your last board.",
         "p3": "A board showing twice under Your boards is different. Tap Edit next to Your boards, then Delete or Unfollow."
       },
@@ -767,8 +775,8 @@
       "liveActivity": {
         "title": "Control the board from the lock screen (Live Activity)",
         "intro": "Start or join a session first. A solo queue doesn't get one.",
-        "p1": "On iPhone, a session puts a Live Activity on the lock screen and in the Dynamic Island with the climb, its grade and your place in the queue. While your phone holds the board it also has Previous, Next, a lightbulb that re-lights the wall, and Mirror climb where supported.",
-        "p2": "Android shows the same controls in an ongoing notification called Active climbing session.",
+        "p1": "On iPhone, a session puts a Live Activity on the lock screen and in the Dynamic Island with the climb on the wall, its grade and your place in the queue. Previews you open in the app don’t change it. While your phone holds the board it also has Previous, Next, a lightbulb that re-lights the wall, and Mirror climb where supported. Next and Previous move the queue, light the climb, and start or renew a drive the way Put on board does. While you drive, an amber ring around the lightbulb empties as the time runs out, with the time left beside it; with no time limit, the bulb sits on a full amber disc.",
+        "p2": "Android shows the same controls in an ongoing notification called Active climbing session. While you drive, it says Driving the wall, with a countdown when the drive has a time limit.",
         "p3": "Locking the screen doesn't disconnect the board."
       },
       "next": {
@@ -778,48 +786,53 @@
       },
       "driving": {
         "title": "Know when you’re driving the wall",
-        "p1": "The frosted wall button handles physical board controls. Read its label: Put on board connects if needed and lights the climb on screen; You are driving the wall means every climb you pick lights up, including in a crew. Solo, tapping Put on board starts driving; in a crew, a tap puts up one climb.",
-        "p2": "To start driving when the button shows ‹‹, swipe the wall button left. Let go when it says Let go to light every climb. This connects if needed, lights the climb on screen and lights the climbs you choose after it. Swiping across the board itself moves between climbs.",
-        "p3": "Tap You are driving the wall to stop driving and browse while staying connected. The label changes to Disconnect board; tapping that disconnects. You can also start driving with Light every climb in ⋯, then Board controls, or the button’s screen-reader actions.",
+        "p1": "A tap on a climb opens a preview, and the wall keeps its climb. Put on board lights it and you drive the wall: the button turns frosted and reads You are driving the wall, and every climb you pick lights too. If the drive has a time limit, a clock shows beside the label; each lit climb restarts it, and the frost shrinks toward the bulb as the time runs out. After that, your next pick opens as a preview again. Pick the time under Stop driving after in Settings, then Board: 45 seconds by default, Until I stop (no clock), or Right away to light only that climb. Swipe the button left, or once connected hold it and pick Light every climb, to drive with no clock until you tap it. Frost always means you are driving.",
+        "p2": "To start driving when the button shows ‹‹, swipe the wall button left. Let go when it says Let go to light every climb. This connects if needed, lights the climb on screen and lights the climbs you choose after it. During a drive with a clock, the same swipe keeps it going until you stop. Swiping across the board itself moves between climbs.",
+        "p3": "Tap You are driving the wall to stop driving and browse. Your phone stays connected and the label changes to Disconnect board; tapping that disconnects. With Disconnect Bluetooth when driving ends on, the stop lets go of the board instead, and the button reads Put on board again. A drive from Put on board also ends by itself when its clock runs out; your next pick opens as a preview. You can also start driving with Light every climb in ⋯, then Board controls, or the button’s screen-reader actions.",
+        "p4": "The first time you open a preview on a board with lights, a card under the wall button explains previews and the frost. Its Lighting settings button opens Settings, then Board.",
         "clipAlt": "Swiping the wall button left to start driving, then tapping it to stop",
-        "clipCaption": "Swipe the button left and release to light every climb. Tap You are driving the wall to stop driving and keep the connection."
+        "clipCaption": "Swipe the button left and release to light every climb. Tap You are driving the wall to stop; your phone stays connected unless Disconnect Bluetooth when driving ends is on."
       }
     },
     "climbActions": {
       "breadcrumb": "Climb actions",
       "hero": {
         "title": "Press and hold a climb",
-        "subtitle": "Every action on a climb sits behind a long press on its row."
+        "subtitle": "Tap a climb to preview it. Press and hold its row for everything else."
       },
       "open": {
         "title": "Open the menu",
-        "p1": "Press and hold a climb row. It lifts into a card with Log a tick, Add to Playlist and Share on top and the rest below.",
-        "p2": "Prefer a tap? Under Settings, then Climbs & grades, then Climb list, turn on Show quick-actions button for a ⋮ on every Climbs row.",
-        "shotAlt": "The climb actions card",
-        "shotCaption": "Three quick buttons on top, the full list below.",
+        "p1": "Press and hold a climb row and its actions open in a menu. On iPhone the row lifts above the dimmed list with the menu underneath. Tap an action, or tap outside to close.",
+        "p2": "Prefer a tap? Under Settings, then Climbs & grades, then Climb list, turn on Show quick-actions button for a ⋮ on every Climbs row. It opens the same menu.",
+        "shotAlt": "A climb row lifted above the list, with its actions underneath",
+        "shotCaption": "The row on top, its actions in groups below.",
         "clipAlt": "Holding a climb row",
-        "clipCaption": "Hold the row and the card lifts on its own."
+        "clipCaption": "Hold the row and the menu opens on its own."
       },
       "preview": {
-        "title": "Preview a climb without lighting the board",
-        "intro": "Preview is the first item in the list.",
-        "p1": "Preview opens the climb in the play drawer without touching your queue. When a preview comes with a list, swipes follow that list. A standalone preview may have no next climb to swipe to.",
-        "p2": "While browsing without lighting, the chip at the top takes you back: My pick for your own climb, On the wall for the climb on the wall. The line under the name says Only you see this in a session, or Preview, not lit when a board is connected or a climb is lit. Tap Put on board (or Set active) when you want the climb. If the player button says You are driving the wall, further climb changes light the wall; tap it to stop driving first.",
+        "title": "Tap a climb to preview it",
+        "intro": "A tap on a climb in any list or in your queue opens it as a preview, and so does a playlist’s play button. The wall keeps its climb.",
+        "p1": "A preview opens the climb in the play drawer without touching your queue or the wall. Swipes walk the list named at the top. Up next plays from your own climb, then its list carries on. A standalone preview may have no next climb to swipe to. While you drive the wall, a tap lights the climb instead. To drive whenever your phone holds the board, turn on Always drive the wall under Settings, then Board.",
+        "p2": "While you preview, the back arrow at the top left ends the preview and takes you back: to your own climb, or, when it shows a face, to the climb on the wall. The line under the name says Only you see this in a session, or Preview · not on the wall when your phone holds a board or a climb was lit in the last hour. Tap Put on board when you want the climb. It lights, and you drive the wall: by default the next climbs you pick light until 45 seconds after the last one. Set active picks it without lighting. If the player button says You are driving the wall, further climb changes light the wall; tap it to stop driving first.",
+        "p3": "The bar at the bottom keeps the last climb you opened, preview included, until your queue moves on. Tap it to jump back in with its list. Its lightbulb puts that climb on the board, and ✓ logs it. While you drive the wall, tap the lightbulb to stop driving. Opening a preview never changes your queue or the wall. The top of Climbs, and the lock screen in a session, keep showing the climb on the wall.",
         "sessionsLink": "How a session keeps browsing off the wall",
         "clipAlt": "Browsing a list in the Play drawer without lighting its climbs",
-        "clipCaption": "Browse the list while the wall keeps its climb. Put on board lights the climb when you choose.",
+        "clipCaption": "Browse the list while the wall keeps its climb. Put on board lights it, and the climbs you pick next light too until your time runs out.",
+        "shotAlt": "A climb preview with the back chip, Preview · not on the wall, and a plain Put on board button",
+        "shotCaption": "The preview stays on your phone. The back chip returns to the wall’s climb; Put on board lights this one.",
         "drivingLink": "How to start and stop driving the wall"
       },
       "quick": {
-        "title": "The three buttons across the top",
+        "title": "The actions you'll use most",
         "tick": "Log a tick opens the ascent sheet.",
-        "playlist": "Add to Playlist is a checklist. Tick to add, untick to remove.",
+        "playlist": "Add to Playlist opens a checklist of your playlists. Tick to add, untick to remove.",
         "share": "Share hands a link to your phone's share sheet.",
-        "p1": "The card closes when an action fires, except Add to Playlist."
+        "p1": "The menu closes as soon as you pick an action."
       },
       "rest": {
         "title": "The rest of the list",
         "queue": "Play next puts the climb at the top of Up next. Play last puts it at the bottom.",
+        "replay": "Replay from here, when it shows on a climb under History in your queue: opens that climb the way a tap on it does, as a preview by default. Put on board puts it back up, with the climbs after it next in line again.",
         "favorite": "Toggle favorite is the heart. Hearted climbs fill Liked Climbs.",
         "editEntry": "Edit logbook entry, when you came from your logbook.",
         "betaVideo": "Add beta video, when signed in.",
@@ -1050,9 +1063,9 @@
   },
   "privacy": {
     "title": "Privacy Policy",
-    "lastUpdated": "Last updated: October 29, 2026",
+    "lastUpdated": "Last updated: November 3, 2026",
     "intro1": "Boardsesh is an open-source app for controlling climbing training boards (Kilter, Tension, MoonBoard) over Bluetooth. This policy explains what data we collect, why, and what we do with it.",
-    "intro2ProductAnalytics": "The short version: we collect only what we need to make the app work. We do not sell your data, we do not run ads, and we do not share data with third-party marketers or data brokers.",
+    "intro2ProductAnalytics": "The short version: we collect only what we need to make the app work. We do not sell your data, there are no ads in Boardsesh, and we do not share data with data brokers. We do advertise Boardsesh on Reddit and Instagram, and on our website analytics includes measuring those ads with Meta and Reddit, as described below.",
     "collect": {
       "title": "What we collect",
       "accountLabel": "Account information.",
@@ -1063,6 +1076,8 @@
       "locationBody": "If you grant location permission, we use your approximate location to help you discover nearby Party Mode sessions. We do not track your location in the background or store location history.",
       "productAnalyticsLabel": "Product analytics.",
       "productAnalyticsBody": "We use PostHog for feature usage, page views, performance and optional session replay in the app. In the EU, the EEA, the UK, Switzerland, Gibraltar, Jersey, Guernsey, the Isle of Man, China, South Korea, Andorra, Monaco, San Marino, Vatican City, the Faroe Islands and Quebec, and whenever we cannot tell where you are, we ask first and PostHog runs only after you allow analytics. Elsewhere analytics is on by default, under our legitimate interest in improving Boardsesh, and you can turn it off anytime in Settings or Privacy choices; if your browser sends a Global Privacy Control signal, we treat it as a no. We decide this from the country and, in Canada, province Cloudflare reports for your connection, which we do not store. Signed-in analytics can be linked to your Boardsesh account. Install attribution needs your own Allow everywhere; the default does not turn it on. With your Allow, Android install attribution may include the Play Store install referrer and campaign information, and on iOS we use Apple AdServices through our own backend to measure which Apple Ads campaigns lead to signups and climbing activity. We share validated campaign identifiers and download status with PostHog, never the attribution token. We do not use these data to show you ads.",
+      "adMeasurementLabel": "Ad measurement on our website.",
+      "adMeasurementBody": "We advertise Boardsesh on Reddit and Instagram. When analytics is on for our website, we load the Meta Pixel and the Reddit Pixel so Meta and Reddit can tell us which ads bring visitors and app store taps. They receive the pages you visit on boardsesh.com, your taps on our app store buttons (which store, and where the button was) and what their pixels read from your browser: your IP address, browser details and their own cookies. We never send them your email, your account or any other contact details. In the regions where we ask first, this needs an Allow given after our banner started naming Meta and Reddit. Elsewhere it follows the analytics default and stops when you say no in Privacy choices or your browser sends a Global Privacy Control signal. It never runs in the app, on kiosk displays, in embedded widgets or on sign-in pages.",
       "serviceStatsLabel": "First-party service statistics.",
       "serviceStatsBody": "We record a signed-in account’s active day and platform in our own database, regardless of analytics consent, under legitimate interest to understand service use. These rows are kept for 13 months. Only aggregate daily, weekly and monthly counts are sent to PostHog. Signed-out visitors are not included in these account-based active-user counts."
     },
@@ -1083,11 +1098,24 @@
       "body4": "Switching it off, deleting the Spraywall, or deleting your account takes the Spraywall out of our stored training set within 24 hours. A copy already downloaded for a training run can be used for up to 7 more days, and is deleted the next time we fetch the set. Models we already trained keep what they learned, but they hold no copy of your photo.",
       "body5": "If a Spraywall is reported, a Boardsesh admin can see its photo to review the report, whatever the switch says. When you delete a Spraywall, we delete its photo after 30 days. When you delete your account, your Spraywall photos are deleted with it; a training copy leaves on the timing above. Resetting a Spraywall keeps the old one, photo included, as an archived Spraywall until you delete it too. Turning the switch off on either Spraywall covers both."
     },
+    "connectedApps": {
+      "title": "Apps you connect",
+      "intro": "You can connect another app to your Boardsesh account, such as a training planner. Before anything is shared, Boardsesh shows you the app, who makes it, a link to its privacy policy and what it asks to see. Nothing is shared until you choose Allow.",
+      "whatItGets": "Depending on what you allow, the app can see your display name and profile photo, and every tick in your logbook, including ticks you keep to “Only me”. Each tick comes with the climb it is on: its name, grade, board and layout. That includes a climb someone else set that is still a draft or unlisted, because the tick is part of your logbook. On someone else’s Spraywall that isn’t public, the app gets your tick but not the climb’s name or the Spraywall’s name.",
+      "afterSharing": "Once the app has your data, the app’s own privacy policy covers what it does with it.",
+      "disconnect": "You can disconnect an app at any time in your Boardsesh settings. Any change to your password, including resetting it or setting one for the first time, disconnects every app. After that the app can’t read anything new. Disconnecting, or deleting your Boardsesh account, does not delete what the app already copied: ask the app to delete it."
+    },
     "thirdParty": {
       "title": "Third-party services",
       "posthogLabel": "PostHog.",
       "posthogBody": "PostHog processes optional product analytics and app session replay in the United States. We also send minimal operational events without account identifiers for service stability, kiosk displays and update health, plus aggregate active-user counts. See ",
       "posthogLink": "PostHog's privacy policy",
+      "adPixelsLabel": "Meta and Reddit.",
+      "adPixelsBody": "Meta Platforms and Reddit receive ad-measurement data from our website while analytics is on (see What we collect). They also use it under their own privacy policies, which can include processing in the United States. See ",
+      "metaLink": "Meta's privacy policy",
+      "adPixelsJoin": " and ",
+      "redditLink": "Reddit's privacy policy",
+      "adPixelsBodyEnd": ".",
       "auroraLabel": "Aurora Climbing API.",
       "auroraBody": "If you link your Aurora Climbing account (used by Kilter and Tension boards), we sync your climb data with Aurora's servers so your logbook stays consistent across apps. This sync only happens when you initiate it. See ",
       "auroraLink": "Aurora Climbing",
@@ -1108,7 +1136,7 @@
     },
     "sharing": {
       "title": "Data sharing",
-      "body1ProductAnalytics": "We do not sell your data, run ads or share information with advertisers or data brokers. The providers described above process data for hosting, storage, payments, service reliability and optional analytics. Aurora Climbing synchronization runs when you enable it.",
+      "body1ProductAnalytics": "We do not sell your data, show ads in Boardsesh or share information with data brokers. The providers described above process data for hosting, storage, payments, service reliability and optional analytics, which on our website includes ad measurement with Meta and Reddit. Aurora Climbing synchronization runs when you enable it.",
       "body2": "Other Boardsesh users can see your username, profile, and logged climbs if you participate in social features like Party Mode. This is visible in the app and is part of how the product works.",
       "body3SprayPhotos": "We do not give Spraywall photos or the holds you mark to anyone else to train on. The only model trained on them is our own hold finder. Other people see a Spraywall's photo as its visibility setting allows, and members of a gym see the Spraywalls attached to that gym, private ones included. A public Spraywall's photo is on the open web."
     },
@@ -1148,6 +1176,7 @@
     "choices": {
       "title": "Cookies and privacy choices",
       "storageBody": "Required storage includes NextAuth login and sign-in-flow cookies, your language preference (boardsesh-locale), device preferences and the boardsesh-consent cookie. The consent cookie lasts one year and is shared between boardsesh.com and app.boardsesh.com. Outside the regions where we ask, the website sets it to the analytics default on your first visit. When analytics is on (your Allow, or the default outside the regions where we ask), PostHog stores identifiers and events (ph_* on the website and SDK storage in the app). Declining or withdrawing clears analytics identifiers and stops optional analytics, replay and install-attribution events. Basic crash and first-party performance diagnostics remain on. Feature flags still use an in-memory client; signed-in flags can use your account ID.",
+      "adCookiesBody": "While ad measurement is on, the Meta Pixel sets _fbp (and _fbc after you arrive from a Meta ad) and the Reddit Pixel sets _rdt_uuid (and _rdt_cid after you arrive from a Reddit ad), each for up to 90 days. Saying no in Privacy choices stops both pixels straight away and deletes these cookies.",
       "changeBody": "Use Privacy choices in the website footer or Analytics in Settings → Privacy to change your answer. We save your decision on the device and, when signed in, on your account. Where analytics is on by default, that default stays on the device and is never saved to your account as consent. An account denial overrides device grants; an account grant fills devices that have not answered. We retain decision history as evidence of consent until account deletion. Anonymous, short-lived update-health and kiosk events remain enabled for service reliability."
     }
   },

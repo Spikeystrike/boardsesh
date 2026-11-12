@@ -38,6 +38,17 @@ const wallConfirm = vi.hoisted(() => ({ emitWallConfirm: vi.fn() }));
 const analytics = vi.hoisted(() => ({ track: vi.fn() }));
 const toast = vi.hoisted(() => ({ showToast: vi.fn() }));
 const haptics = vi.hoisted(() => ({ hapticLight: vi.fn(), hapticSuccess: vi.fn(), hapticError: vi.fn() }));
+const lan = vi.hoisted(() => ({
+  send: vi.fn<(...arguments_: unknown[]) => Promise<boolean | null>>(async () => null),
+  release: vi.fn(),
+  invalidate: null as ((retry?: boolean) => void) | null,
+}));
+vi.mock('../../lib/spray/use-spray-led-route-sender', () => ({
+  useSprayLedRouteSender: ({ onInvalidated }: { onInvalidated: (retry?: boolean) => void }) => {
+    lan.invalidate = onInvalidated;
+    return lan;
+  },
+}));
 
 const queue = vi.hoisted(() => ({
   currentClimbQueueItem: null as ClimbQueueItem | null,
@@ -118,7 +129,7 @@ vi.mock('@tanstack/react-query', () => ({
 }));
 
 vi.mock('../../settings', () => ({
-  useSetting: (key: string) => (key === 'autoDisconnectBle' ? [false, vi.fn()] : [30, vi.fn()]),
+  useSetting: () => [30, vi.fn()],
 }));
 
 vi.mock('@boardsesh/play-view', () => ({ emitWallConfirm: wallConfirm.emitWallConfirm }));
@@ -198,6 +209,7 @@ vi.mock('../../lib/board-details', () => ({
 
 import { BluetoothProvider, useBluetoothContext } from '../bluetooth-provider';
 import { clearRelayReceipt, noteRelayReceipt } from '../../lib/relay-receipt';
+import { resetLinkEndForTests, takeLinkEnd } from '../../lib/ble/link-end-store';
 
 // Must match VIRTUAL_WALL_SETTLE_MS in the provider.
 const SETTLE_MS = 600;
@@ -233,9 +245,10 @@ function BluetoothProbe() {
 
 function providerElement({
   hasLeds = false,
+  litByWallDevice,
   boardUuid = 'board-uuid-1',
   showProbe = true,
-}: { hasLeds?: boolean; boardUuid?: string; showProbe?: boolean } = {}) {
+}: { hasLeds?: boolean; litByWallDevice?: boolean; boardUuid?: string; showProbe?: boolean } = {}) {
   return createElement(BluetoothProvider, {
     boardName: 'kilter',
     layoutId: 1,
@@ -243,6 +256,7 @@ function providerElement({
     setIds: '1,20',
     boardUuid,
     hasLeds,
+    litByWallDevice,
     children: showProbe ? (createElement(BluetoothProbe, null) as ReactNode) : null,
   });
 }
@@ -252,6 +266,9 @@ function renderProvider(options?: Parameters<typeof providerElement>[0]) {
 }
 
 beforeEach(() => {
+  lan.send.mockReset();
+  lan.send.mockResolvedValue(null);
+  lan.release.mockClear();
   queue.items = [];
   presence.lastConnectionSeq = 0;
   presence.currentClimb = null;
@@ -361,7 +378,7 @@ describe('BluetoothProvider — taking a wall with no LED light kit', () => {
     await settle();
 
     // The whole confirm fan-out fires — the same three things a BLE write does.
-    expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1');
+    expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1', 'self');
     expect(queue.confirmClimbOnWall).toHaveBeenCalledWith('climb-1');
     expect(presence.reportClimbForBoard).toHaveBeenCalledTimes(1);
     expect(presence.reportClimbForBoard).toHaveBeenCalledWith(
@@ -371,6 +388,79 @@ describe('BluetoothProvider — taking a wall with no LED light kit', () => {
     );
     // Zero bytes: nothing reached the radio.
     expect(bluetooth.state.sendFramesToBoard).not.toHaveBeenCalled();
+  });
+
+  it('waits for the configured LAN write before confirming the route', async () => {
+    let complete!: (written: boolean) => void;
+    lan.send.mockReturnValueOnce(
+      new Promise((resolve) => {
+        complete = resolve;
+      }),
+    );
+    renderProvider();
+    await takeTheWall();
+    await settle();
+    expect(lan.send).toHaveBeenCalledTimes(1);
+    expect(presence.reportClimbForBoard).not.toHaveBeenCalled();
+    await act(async () => complete(true));
+    await settle();
+    expect(presence.reportClimbForBoard).toHaveBeenCalledTimes(1);
+    expect(wallConfirm.emitWallConfirm).toHaveBeenCalledWith('climb-1', 'self');
+    expect(bluetooth.state.sendFramesToBoard).not.toHaveBeenCalled();
+  });
+
+  it('never falls back to a virtual confirmation after a failed LAN write', async () => {
+    lan.send.mockResolvedValue(false);
+    renderProvider();
+    await takeTheWall();
+    await settle();
+    expect(lan.send).toHaveBeenCalledTimes(1);
+    expect(presence.reportClimbForBoard).not.toHaveBeenCalled();
+    expect(wallConfirm.emitWallConfirm).not.toHaveBeenCalled();
+  });
+
+  it('uses the same LAN commit for create previews and explicit clearing', async () => {
+    lan.send.mockResolvedValue(true);
+    renderProvider();
+    expect(await capturedBluetooth?.sendFramesToBoard('p7r1')).toBe(false);
+    expect(lan.send).not.toHaveBeenCalled();
+    await takeTheWall();
+    await settle();
+    await act(async () => {
+      expect(await capturedBluetooth?.sendFramesToBoard('p7r1')).toBe(true);
+      expect(await capturedBluetooth?.clearBoard()).toBe(true);
+    });
+    expect(lan.send).toHaveBeenCalledWith('p7r1', undefined, undefined);
+    expect(lan.send).toHaveBeenLastCalledWith('', false, undefined);
+    await act(async () => capturedBluetooth?.releaseVirtualWall());
+    expect(lan.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('reasserts identical frames after the setup configuration changes', async () => {
+    lan.send.mockResolvedValue(true);
+    renderProvider();
+    await takeTheWall();
+    await settle();
+    expect(lan.send).toHaveBeenCalledTimes(1);
+    await act(async () => lan.invalidate?.(true));
+    await settle();
+    expect(lan.send).toHaveBeenCalledTimes(2);
+  });
+
+  it('discards a late physical acknowledgement after the wall was released', async () => {
+    let complete!: (written: boolean) => void;
+    lan.send.mockReturnValueOnce(
+      new Promise((resolve) => {
+        complete = resolve;
+      }),
+    );
+    renderProvider();
+    await takeTheWall();
+    await act(async () => capturedBluetooth?.releaseVirtualWall());
+    await act(async () => complete(true));
+    await settle();
+    expect(lan.release).toHaveBeenCalledTimes(1);
+    expect(presence.reportClimbForBoard).not.toHaveBeenCalled();
   });
 
   it('coalesces a fast swipe, so the gym kiosk history gets two entries and not five', async () => {
@@ -449,6 +539,8 @@ describe('BluetoothProvider — taking a wall with no LED light kit', () => {
     expect(queue.reportWallDisconnect).toHaveBeenCalled();
     expect(presence.reportDisconnectForBoard).toHaveBeenCalledWith(42);
     expect(capturedBluetooth?.virtualWallHeld).toBe(false);
+    // A hand-back is the climber's own: a drive it ends says nothing (board plan item 8).
+    expect(takeLinkEnd()).toMatchObject({ deliberate: true, takenByPeer: false });
 
     queue.currentClimbQueueItem = makeQueueItem('climb-after-release');
     await act(async () => {
@@ -589,12 +681,15 @@ describe('BluetoothProvider — a real link always wins over a virtual hold', ()
     const { rerender } = renderProvider();
     await takeTheWall();
     expect(capturedBluetooth?.virtualWallHeld).toBe(true);
+    resetLinkEndForTests();
 
     bluetooth.state.isConnected = true;
     await rerenderWith(rerender);
 
     expect(capturedBluetooth?.virtualWallHeld).toBe(false);
     expect(capturedBluetooth?.canDriveWall).toBe(true);
+    // A handoff to the radio ends no link: nothing is noted.
+    expect(takeLinkEnd()).toBeNull();
   });
 
   it('gives the wall up when another signed-in climber takes the holder slot', async () => {
@@ -610,6 +705,8 @@ describe('BluetoothProvider — a real link always wins over a virtual hold', ()
 
     expect(capturedBluetooth?.virtualWallHeld).toBe(false);
     expect(presence.reportDisconnectForBoard).toHaveBeenCalledWith(42);
+    // Not the climber's doing: a drive it ends is said (board plan item 8).
+    expect(takeLinkEnd()).toMatchObject({ deliberate: false, takenByPeer: true });
   });
 
   it('watches the holder on a ledless board even when nothing is held here', async () => {
@@ -834,6 +931,92 @@ describe('BluetoothProvider — a real link always wins over a virtual hold', ()
       if (change !== 'Bluetooth connect') expect(presence.reportClimbForBoard).not.toHaveBeenCalled();
     },
   );
+});
+
+describe('BluetoothProvider — an LED board lit by a wall device', () => {
+  const wallDeviceBoard = { hasLeds: true, litByWallDevice: true } as const;
+
+  beforeEach(async () => {
+    await setHoldColorOverridesPreference({});
+    vi.useFakeTimers();
+    queue.currentClimbQueueItem = makeQueueItem('climb-1');
+    queue.sessionId = null;
+    bluetooth.state.isConnected = false;
+    bluetooth.state.loading = false;
+    bluetooth.state.sendFramesToBoard.mockReset();
+    bluetooth.state.sendFramesToBoard.mockResolvedValue(true);
+    bluetooth.state.connectInitialSendRef.current = null;
+    presence.enabled = true;
+    presence.boardId = 42;
+    presence.holder = null;
+    presence.lastConnectionSeq = 0;
+    presence.reportClimbForBoard.mockClear();
+    presence.reportClimbForBoard.mockResolvedValue(true);
+    presence.reportDisconnectForBoard.mockClear();
+    analytics.track.mockClear();
+    viewer.profile = { id: 'me' };
+    capturedBluetooth = null;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    cleanup();
+  });
+
+  it('drives without Bluetooth: the take reports the climb to the feed the device reads, writing no bytes', async () => {
+    renderProvider(wallDeviceBoard);
+    expect(capturedBluetooth?.ledless).toBe(true);
+    expect(capturedBluetooth?.wallDevice).toBe(true);
+
+    await takeTheWall();
+    await settle();
+
+    expect(capturedBluetooth?.virtualWallHeld).toBe(true);
+    expect(presence.reportClimbForBoard).toHaveBeenCalledTimes(1);
+    expect(bluetooth.state.sendFramesToBoard).not.toHaveBeenCalled();
+    // `ledless` stays the server's no-light-kit flag; the device is said apart.
+    expect(analytics.track).toHaveBeenCalledWith(
+      'Wall Taken',
+      expect.objectContaining({ ledless: false, wallDevice: true }),
+    );
+  });
+
+  it('keeps Bluetooth on an LED board without the flag', () => {
+    renderProvider({ hasLeds: true });
+    expect(capturedBluetooth?.ledless).toBe(false);
+    expect(capturedBluetooth?.wallDevice).toBe(false);
+  });
+
+  it('hands the hold to Bluetooth when a link comes up', async () => {
+    const view = renderProvider(wallDeviceBoard);
+    await takeTheWall();
+    expect(capturedBluetooth?.virtualWallHeld).toBe(true);
+
+    bluetooth.state.isConnected = true;
+    await act(async () => view.rerender(providerElement(wallDeviceBoard)));
+
+    expect(capturedBluetooth?.virtualWallHeld).toBe(false);
+    expect(capturedBluetooth?.canDriveWall).toBe(true);
+    expect(analytics.track).toHaveBeenCalledWith(
+      'Wall Released',
+      expect.objectContaining({ reason: 'ble_connected', ledless: false, wallDevice: true }),
+    );
+  });
+
+  it('never tells the phone holding the radio that someone else has the wall', async () => {
+    // A crewmate's virtual take lands in the server's holder slot, but this
+    // phone's live link is what lights the LEDs. Put on board and the drive
+    // runner read this value, so it must not refuse the radio's owner.
+    presence.holder = { userId: 'someone-else' };
+    presence.lastConnectionSeq = 1;
+    const view = renderProvider(wallDeviceBoard);
+    await act(async () => {});
+    expect(capturedBluetooth?.wallHeldByOtherUser).toBe(true);
+
+    bluetooth.state.isConnected = true;
+    await act(async () => view.rerender(providerElement(wallDeviceBoard)));
+    expect(capturedBluetooth?.wallHeldByOtherUser).toBe(false);
+  });
 });
 
 describe('BluetoothProvider — a rejected report re-stamps membership once', () => {

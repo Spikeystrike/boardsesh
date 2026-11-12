@@ -12,6 +12,7 @@ export * from './ascents';
 export * from './board-climb-events';
 export * from './playlists';
 export * from './playlist-grade-summaries';
+export * from './deleted-upstream-playlists';
 export * from './hold-classifications';
 export * from './controllers';
 export * from './follows';
@@ -55,3 +56,7 @@ export * from './notification-devices';
 export * from './privacy';
 export * from './board-share-links';
 export * from './analytics-consent';
+export * from './posthog-signups';
+
+export * from './logbook-changes';
+export * from './logbook-snapshots';

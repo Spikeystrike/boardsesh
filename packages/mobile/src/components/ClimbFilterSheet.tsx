@@ -42,6 +42,7 @@ import { StarRating } from './StarRating';
 import { SwitchRow } from './SwitchRow';
 import { FilterSheetSection } from './filter-sheet/FilterSheetSection';
 import { FilterLabelRow } from './filter-sheet/FilterLabelRow';
+import { benchmarkFilterLabel, isVerifiedBoard } from '../lib/benchmark-term';
 import { FilterChip, FilterChipGroup } from './filter-sheet/FilterChip';
 import { FilterNameField } from './filter-sheet/FilterNameField';
 import { FilterTappableRow } from './filter-sheet/FilterTappableRow';
@@ -53,14 +54,19 @@ import { applyRecentFilterById, findCurrentRecentFilter, type ApplyRecentFilter 
 import { PINNABLE_CHIP_KINDS, isValidChipKind, type FilterChipKind } from '../lib/pinnable-chips';
 import { gradeRailRowHeight } from './filter-sheet/grade-rail-row-height';
 import { SPRAY_BOARD_NAME } from '../lib/spray/spray-wall-registry';
-import { collectionPatch, getCollectionFilter, type CollectionFilter } from '../lib/collection-filter';
+import {
+  collectionPatch,
+  getCollectionFilter,
+  offersBenchmarksFilter,
+  type CollectionFilter,
+} from '../lib/collection-filter';
 import type { SegmentOption } from './SegmentedControl.types';
 import { useTheme } from '../providers/theme-provider';
 import { useManagedSheet } from '../providers/sheet-presentation-provider';
 import { androidSafeSnapPoints } from './sheet-snap-points';
 import { useSheetColumnStyle } from './use-sheet-column-style';
 import { useSheetDetentProbe } from './sheet-detent-probe';
-import { useIosSheetBackgroundStyle } from './use-ios-sheet-background-style';
+import { useSheetBackgroundStyle } from './use-sheet-background-style';
 import { selectByVariant } from '../theme/variants';
 import { useGrades, useSearchClimbsCount } from '../lib/graphql/hooks';
 import type { BoardName, HoldsFilter } from '@boardsesh/shared-schema';
@@ -331,7 +337,7 @@ export function ClimbFilterSheet({
   // #6872). Android and the Material variant keep the RN body below.
   const nativeForm = Platform.OS === 'ios' && selectByVariant(variant, { liquidGlass: true, material: false });
   const { fontScale } = useWindowDimensions();
-  const iosBackgroundStyle = useIosSheetBackgroundStyle();
+  const sheetBackgroundStyle = useSheetBackgroundStyle();
   const { isAuthenticated } = useAuth();
   // The WINDOW inset, not this mount point's: this sheet lives in the climbs
   // tab, whose per-tab provider folds the iOS 26 tab bar + accessory into
@@ -685,13 +691,23 @@ export function ClimbFilterSheet({
   const handleCollectionChange = useCallback(
     (collection: CollectionFilter) => {
       const filters = selectedFiltersRef.current;
-      const patch = collectionPatch(collection, filters);
-      publishSelection({ ...filters, ...patch.filters }, { ...selectedBoardFiltersRef.current, ...patch.boardFilters });
+      publishSelection(
+        { ...filters, ...collectionPatch(collection, filters).filters },
+        selectedBoardFiltersRef.current,
+      );
     },
     [publishSelection],
   );
-  const collectionFilter = getCollectionFilter(selectedFilters, selectedBoardFilters);
-  const offerBenchmarks = !isSprayWall || collectionFilter === 'benchmarks';
+  const collectionFilter = getCollectionFilter(selectedFilters);
+  const offerBenchmarks = offersBenchmarksFilter(isSprayWall, !!selectedBoardFilters.onlyBenchmarks);
+  const handleBenchmarksChange = useCallback(
+    (onlyBenchmarks: boolean) =>
+      publishSelection(selectedFiltersRef.current, {
+        ...selectedBoardFiltersRef.current,
+        onlyBenchmarks: onlyBenchmarks || undefined,
+      }),
+    [publishSelection],
+  );
   // A list that hides My drafts (a playlist) still offers it while it is the
   // active value, so a status carried in can be undone.
   const offerDrafts = shownSections.drafts || collectionFilter === 'drafts';
@@ -701,14 +717,13 @@ export function ClimbFilterSheet({
   const collectionOptions = useMemo(
     () => [
       { key: 'any' as const, label: t('mobile.filter.collection.any') },
-      ...(offerBenchmarks ? [{ key: 'benchmarks' as const, label: t('mobile.filter.benchmark') }] : []),
       // My drafts and Liked are auth-only: both are the climber's own climbs.
       ...((isAuthenticated || isSprayWall) && offerDrafts
         ? [{ key: 'drafts' as const, label: isSprayWall ? t('mobile.filter.wallDrafts') : t('mobile.filter.drafts') }]
         : []),
       ...(isAuthenticated && offerLiked ? [{ key: 'liked' as const, label: t('mobile.filter.collection.liked') }] : []),
     ],
-    [t, isAuthenticated, isSprayWall, offerBenchmarks, offerDrafts, offerLiked],
+    [t, isAuthenticated, isSprayWall, offerDrafts, offerLiked],
   );
   const handlePopularity = useCallback(
     (bucket: number | undefined) => {
@@ -1129,6 +1144,14 @@ export function ClimbFilterSheet({
               }
             : null,
         collection: { options: collectionOptions, selected: collectionFilter, onSelect: handleCollectionChange },
+        benchmarks: offerBenchmarks
+          ? {
+              label: isVerifiedBoard(boardName) ? t('mobile.filter.onlyVerified') : t('mobile.filter.onlyBenchmarks'),
+              subtitle: isVerifiedBoard(boardName) ? t('mobile.filter.verifiedDescription') : undefined,
+              value: !!selectedBoardFilters.onlyBenchmarks,
+              onValueChange: handleBenchmarksChange,
+            }
+          : null,
         popularity: { onStatusChange: handleStatusChange, onBucket: handlePopularity },
         climbType: {
           show: showClimbTypeControl,
@@ -1210,7 +1233,7 @@ export function ClimbFilterSheet({
       onChange={handleSheetChange}
       onFullyDismissed={managed.onFullyDismissed}
       handleIndicatorStyle={[styles.indicator, { backgroundColor: systemColors.separator }]}
-      backgroundStyle={iosBackgroundStyle}
+      backgroundStyle={sheetBackgroundStyle}
     >
       {/* #3922 instrumentation, dev builds only. The sentinel is in-flow but
           zero-height and the probe is absolutely positioned, so neither adds
@@ -1382,8 +1405,8 @@ export function ClimbFilterSheet({
 
               {/* 4 · QUALITY — benchmarks, min rating, popularity (incl. Unrepeated). */}
               <FilterSheetSection title={t('mobile.filter.section.quality')}>
-                {/* Collection — Benchmarks, My drafts and Liked are mutually
-                  exclusive. Personal collections are offered only when signed in. */}
+                {/* Collection — My drafts and Liked are mutually exclusive, and
+                  offered only when signed in. */}
                 <FilterLabelRow label={t('mobile.filter.collection.label')} {...pinProps('collection')} />
                 <View style={filterSheetStyles.controlGap} />
                 <SegmentedControl
@@ -1392,6 +1415,26 @@ export function ClimbFilterSheet({
                   onSelect={handleCollectionChange}
                   accessibilityLabel={t('mobile.filter.collection.label')}
                 />
+
+                {/* Benchmarks only (Verified only on Kilter) — its own switch, so it
+                  combines with My drafts or Liked. */}
+                {offerBenchmarks ? (
+                  <>
+                    <View style={filterSheetStyles.subsectionGap} />
+                    <FilterLabelRow
+                      label={benchmarkFilterLabel(boardName, t)}
+                      description={isVerifiedBoard(boardName) ? t('mobile.filter.verifiedDescription') : undefined}
+                      {...pinProps('benchmarks')}
+                    />
+                    <SwitchRow
+                      label={
+                        isVerifiedBoard(boardName) ? t('mobile.filter.onlyVerified') : t('mobile.filter.onlyBenchmarks')
+                      }
+                      value={!!selectedBoardFilters.onlyBenchmarks}
+                      onValueChange={handleBenchmarksChange}
+                    />
+                  </>
+                ) : null}
 
                 <View style={filterSheetStyles.subsectionGap} />
                 <FilterLabelRow label={t('mobile.filter.minRating')} {...pinProps('rating')} />

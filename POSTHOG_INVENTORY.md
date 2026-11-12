@@ -4,7 +4,7 @@
 
 Boardsesh has comprehensive PostHog instrumentation across both web (Next.js) and backend (Node.js) packages. Events are captured client-side via `track()` helper and server-side via `captureBackendEvent()`. Analytics is dual-layered: Vercel Analytics as primary, PostHog as secondary via hostname-gated reverse proxy.
 
-**Total Web Events: 89 unique event names across 119+ track() call sites**
+**Total Web Events: 91 unique event names across 119+ track() call sites**
 **Backend Events: 5 event types for Live Activity tracking**
 **Key Infrastructure:**
 
@@ -156,7 +156,7 @@ disappears for the rest of the launch after a sign-out.
 | Search Zone Mode Changed   | climb-search-form.tsx:304       | `boardLayout`, `mode`                  | User toggled between zone types |
 | Search Zone Updated        | climb-search-form.tsx:355       | `boardLayout`, `zoneName`              | User edited zone bounds         |
 
-### 2.6 Playlist / Workout Generator (4 events)
+### 2.6 Playlist / Workout Generator (6 events)
 
 | Event Name                    | File:Line                         | Properties                                 | Context                           |
 | ----------------------------- | --------------------------------- | ------------------------------------------ | --------------------------------- |
@@ -164,6 +164,8 @@ disappears for the rest of the launch after a sign-out.
 | Workout Generated             | playlist-generator-drawer.tsx:287 | `boardLayout`, `workoutType`, `climbCount` | AI playlist generated             |
 | Create Playlist (via drawer)  | create-playlist-drawer.tsx:122    | `playlistName`, `boardLayout`              | User created playlist from drawer |
 | Liked Climbs Add All To Queue | liked-climbs-view-content.tsx:102 | `count`                                    | User bulk-added liked climbs      |
+| Playlist Shared | playlist-detail-content.tsx:313; mobile discover/[playlist_uuid].tsx | `playlistUuid`, `method` | Tapped Share on a playlist. Web: native/clipboard. Mobile: `share`, an intent |
+| Setter Shared | setter-share-button.tsx:25; mobile SetterPlaylistScreen.tsx | `username`, `method` | Tapped Share on a setter page. Web: native/clipboard. Mobile: `share`, an intent |
 
 ### 2.7 Navigation / UI (10 events)
 
@@ -530,6 +532,7 @@ Three mobile events so the "opened a climb, never scanned" stage of the newcomer
 ### Decisions
 
 - `Bluetooth Permission Denied` still fires for every Android denial. A browser with no Web Bluetooth (Expo web in Safari, Firefox or any iOS browser) no longer counts as one: it is `Bluetooth Unavailable {reason: 'unsupported'}`. `Bluetooth Unavailable` adds `unauthorized` only when only the Settings app can fix it (iOS denial, Android "never ask again").
+- On the `connect` surface, `Bluetooth Permission Denied` carries `attempt` and `permission_status` (#6003). `permission_status` is `denied` (Android will ask again, and the alert offers Try again) or `blocked` (it won't, and the alert offers Open Settings). `attempt` is 1 for a connect the climber started and 2 or more for one started from Try again, so `attempt >= 2` counts retries that were refused again; a retry that was granted has no marker, because the event only fires on a denial. Read the retry's success as the before/after rate of `connect`-surface denials with no later `Bluetooth Scan Started`. A connect started from Try again also sends no `Board Connect Tapped`, so its `Bluetooth Scan Started` and what follows belong to the tap that raised the alert. Cancelling the alert and tapping the bulb again starts back at 1. Both are snake_case or single-word because the #6003 plan names them that way, and both are missing on `quickstart_scan` and on bundles older than the retry. A second "Don't allow" usually still reads as `denied`, because the dialog was on screen for longer than the 500 ms window below; the tap after it is the one that reads `blocked`.
 - Android's `never_ask_again` counts as `unauthorized` only when the permission request came back inside 500 ms, meaning no dialog was drawn. React Native also reports `never_ask_again` when a climber closes the first dialog with back or a tap outside, and Android shows that dialog again next time. A slow phone that misses the window reads as a plain denial, so `unauthorized` on Android undercounts rather than overcounts.
 - A connect picker whose scan hears nothing now stays open in its empty state (tips, Scan again, the no-lights offer) instead of failing at the 30 s scan timeout. So `Bluetooth Connection Failed {failureReason: 'board_not_found'}` no longer fires for an empty picker scan. Those sessions still show as `BLE Picker Devices Resolved {devicesTotal: 0}`, and the connect ends as `user_cancelled` when the climber closes the sheet, taps Scan again or takes the wall without lights. It also ends as `user_cancelled` when the scan window closes with the app in the background (the Android session notification's bulb), because nobody is there to close the sheet. Read `board_not_found` across this release as a break in the series.
 - Scan again in the connect picker cancels the empty picker and starts a new connect, so it logs `Bluetooth Connection Failed {failureReason: 'user_cancelled'}` for the attempt it replaces, followed by `Board Connect Tapped {surface: 'picker_scan_again', reconnect: false}`. The new connect always opens the picker straight away, without the silent search for a remembered board.

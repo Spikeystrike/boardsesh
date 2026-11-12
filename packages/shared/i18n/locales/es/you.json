@@ -136,8 +136,7 @@
         "a11yHasBetaVideo": "con vídeo de beta",
         "a11yMirrored": "en espejo",
         "editAction": "Editar registro",
-        "deleteAction": "Eliminar registro",
-        "moreActions": "Más acciones"
+        "deleteAction": "Eliminar registro"
       },
       "day": {
         "today": "Hoy",
@@ -179,6 +178,7 @@
         "setters_one": "{{count}} setter",
         "setters_other": "{{count}} setters",
         "benchmarks": "Benchmarks",
+        "verified": "Verificados",
         "gradeOpenHint": "Muestra la fila de grado",
         "gradeCloseHint": "Oculta la fila de grado",
         "angleOpenHint": "Muestra la fila de ángulo",
@@ -231,6 +231,8 @@
         "setterAny": "Cualquiera",
         "benchmarks": "Benchmarks",
         "onlyBenchmarks": "Solo bloques benchmark",
+        "verified": "Verificados",
+        "onlyVerified": "Solo bloques verificados",
         "sectionSort": "Orden",
         "sortBy": "Ordenar por",
         "order": "Sentido",

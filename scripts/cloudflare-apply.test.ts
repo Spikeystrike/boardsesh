@@ -4,8 +4,10 @@ import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { diffR2Bucket, r2CorsHasUnmanagedRules } from '../infra/cloudflare/plan';
+import { API_HOSTNAME as BACKEND_API_HOSTNAME } from '../packages/backend/src/handlers/api-host';
 import { CloudflareApiRequestError, isAuthorizationError } from './cloudflare-apply';
 import {
+  API_HOSTNAME,
   APEX_HOSTNAME,
   APEX_ORIGINLESS_ADDRESS,
   APEX_REDIRECT_RULE_DESCRIPTION,
@@ -76,7 +78,7 @@ import {
   resolveRulePhase,
   upsertCacheRule,
 } from '../infra/cloudflare/plan';
-import type { LiveDnsRecord, LiveState, RulesetRule } from '../infra/cloudflare/plan';
+import type { LiveDnsRecord, LiveState, ManagedRulePhase, RulesetRule } from '../infra/cloudflare/plan';
 import {
   MANAGED_DNS_RECORD_TYPES,
   SHARED_TOKEN_SCOPES,
@@ -657,6 +659,33 @@ describe('assets.boardsesh.com routing and historical generic DNS fixture', () =
   });
 });
 
+describe('api.boardsesh.com (#6981)', () => {
+  it('names the host the backend filter guards', () => {
+    expect(API_HOSTNAME).toBe('api.boardsesh.com');
+    expect(API_HOSTNAME).toBe(BACKEND_API_HOSTNAME);
+  });
+
+  it('is not a desired DNS record yet, so a merge cannot create one', () => {
+    // A proxied-only entry would also make every apply throw while the record
+    // is missing, and deploy-cloudflare runs on each merge touching this config.
+    expect(desired.dnsRecords.some((record) => record.name === API_HOSTNAME)).toBe(false);
+
+    const plan = buildPlan(desired, inSyncLiveState(), { allowZoneSsl: false });
+    expect(plan.filter((change) => change.dnsName === API_HOSTNAME)).toEqual([]);
+    expect(JSON.stringify(plan)).not.toContain(API_HOSTNAME);
+  });
+
+  it('is not named by any managed rule', () => {
+    const phases: readonly ManagedRulePhase[] = MANAGED_RULE_PHASES;
+    const managedRules = phases.flatMap((phase) => phase.selectDesired(desired));
+    expect(managedRules.filter((rule) => rule.expression.includes(API_HOSTNAME))).toEqual([]);
+  });
+
+  it('is not a bucket domain', () => {
+    expect(desiredR2Buckets.filter((bucket) => bucket.customDomain === API_HOSTNAME)).toEqual([]);
+  });
+});
+
 describe('Observe country request header', () => {
   const countryRule = desired.requestHeaderRules.find(
     (rule) => rule.description === OBSERVE_COUNTRY_HEADER_RULE_DESCRIPTION,
@@ -1199,6 +1228,7 @@ describe('automation default-deny (allow-list model)', () => {
     ['empty UA', ''],
     ['production smoke', 'boardsesh-production-smoke/1.0'],
     ['ESP32 board controller (thumbnail fetch)', 'ESP32HTTPClient'],
+    ['LZRvision laser projector (websocket upgrade)', 'lzrvision-projector/1.0 Python/3.12 websockets/13.1'],
     [
       'Snapchat unfurler',
       'Mozilla/5.0 (compatible; Snap URL Preview Service; bot; snapchat; https://developers.snap.com/robots)',
@@ -1298,11 +1328,32 @@ describe('automation default-deny (allow-list model)', () => {
   it('leaves health, .well-known and the API surfaces alone', () => {
     // mobile-ota-production.yml polls ws /health with bare curl while it waits
     // for the backend; a 403 there would stall every OTA publish.
-    for (const path of ['/health', '/health/db', '/api/health', '/robots.txt']) {
+    const localeSegments = ['es', 'fr', 'de', 'it'];
+    for (const path of [
+      '/health',
+      '/health/db',
+      '/api/health',
+      '/robots.txt',
+      '/developers',
+      ...localeSegments.map((localeSegment) => `/${localeSegment}/developers`),
+    ]) {
       expect(defaultDenyRule.expression).toContain(`http.request.uri.path eq "${path}"`);
       expect(isBlockedCrawler('curl/8.9.1', { method: 'GET', pathname: path })).toBe(false);
     }
-    for (const prefix of ['/.well-known/', '/api/v1/', '/v1/partner/']) {
+    for (const prefix of [
+      '/.well-known/',
+      '/api/v1/',
+      '/v1/',
+      '/api/auth/oauth2/',
+      '/oauth/',
+      '/developers/',
+      '/auth/login',
+      ...localeSegments.flatMap((localeSegment) => [
+        `/${localeSegment}/oauth/`,
+        `/${localeSegment}/developers/`,
+        `/${localeSegment}/auth/login`,
+      ]),
+    ]) {
       expect(defaultDenyRule.expression).toContain(`starts_with(http.request.uri.path, "${prefix}")`);
       expect(isBlockedCrawler('Go-http-client/1.1', { method: 'GET', pathname: `${prefix}x` })).toBe(false);
     }
@@ -1321,6 +1372,10 @@ describe('automation default-deny (allow-list model)', () => {
     expect(rules.indexOf(blockRule)).toBeLessThan(rules.indexOf(defaultDenyRule));
     expect(rules.indexOf(defaultDenyRule)).toBeLessThan(rules.indexOf(challengeRule));
     expect(rules.indexOf(challengeRule)).toBe(rules.length - 1);
+  });
+
+  it('stays inside the 4096-character ruleset expression limit', () => {
+    expect(defaultDenyRule.expression.length).toBeLessThan(4096);
   });
 
   it('balances its parentheses', () => {

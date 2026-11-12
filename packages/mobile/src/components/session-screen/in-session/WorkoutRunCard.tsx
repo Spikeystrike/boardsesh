@@ -300,8 +300,11 @@ function CurrentClimbRow({ readout, item }: { readout: WorkoutRunnerReadout; ite
     <PressableSurface
       onPress={() => {
         hapticSelection();
-        // It is already the current climb, so the player opens on it without queueing it again.
-        openPlayDrawer(climb, {});
+        // It is already the current climb: reopen the committed slot, like the mini
+        // player does. A plain open would become a preview copy with a fresh uuid
+        // while nothing drives the wall, and the stage label and
+        // the timed block's Fell / Sent row both key on the committed uuid.
+        openPlayDrawer(climb, { reopensCurrent: true });
       }}
       feedback="opacity"
       accessibilityRole="button"

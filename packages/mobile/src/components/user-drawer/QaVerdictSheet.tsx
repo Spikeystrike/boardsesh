@@ -243,7 +243,7 @@ export function QaVerdictSheet({ sheetRef }: QaVerdictSheetProps) {
       ref={sheetRef}
       snapPoints={SNAP_POINTS}
       scrollable
-      surface="solid"
+      androidContentSized
       contentContainerStyle={styles.content}
       header={
         <SheetTopBar

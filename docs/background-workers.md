@@ -88,6 +88,41 @@ listed under "Batch families", the provider roles' below. Runtime users must
 never be migration owners. The existing runtime and detector grant contracts
 remain supported.
 
+### Default-off batch identity delegation
+
+`CURRENT_STORE_BATCH_SYSTEM_USERS_MODE` defaults to `legacy`. Independently
+opting the backend and batch worker into `backend-staging` delegates only the
+recommendations and hold-classifier system-account writes to the backend. The
+worker needs `CURRENT_STORE_BATCH_SYSTEM_USERS_ORIGIN` and the dedicated
+`CURRENT_STORE_BATCH_SYSTEM_USERS_RPC_SECRET`; the backend also needs the
+existing projection/writer-epoch authority configuration. Do not give the
+worker a human auth RPC secret, backend database login or auth-foundation grants.
+
+The machine HTTP call runs before the worker's data transactions. The backend
+owns the actual run/pg-boss fence and identity/reservation transaction together;
+stale, expired, malformed or unavailable commands cannot fall back to a worker
+INSERT. The original initial ensure transaction and classifier dry-run/no-shadow
+condition are preserved. Later failed batches retain a committed owner.
+
+The direct recommendations/hold-features scripts reject this staging mode before
+opening their database. Use the existing queue operator to obtain a real attempt;
+do not invent a token or use the worker secret for an unqueued manual operation.
+Their legacy mode remains unchanged. Location-sync ownership, seed/operator
+writers, deployed grants and trustworthy queue provenance are separate gates.
+The existing worker user-INSERT grants are deliberately not removed in this
+compatibility slice: an enforced software manifest is not an old-writer fence.
+
+Location sync still uses its existing fixed-owner writer. The
+[shared transaction preparation](./better-auth-location-batch-preparation.md)
+retains each whole-gym batch and direct caller's existing commit behavior.
+Optional SQL checkpoints are cooperative checks, not running-query cancellation
+or a new transaction guarantee. Compound backend adoption remains separate
+because fixed-owner user locks must be ordered with every content-transfer and
+legacy location writer.
+
+See [the identity contract and qualification](./better-auth-batch-system-users.md)
+before any rollout. No production mode/grant change is authorized by this note.
+
 ### A new worker image can start before the migrator has run
 
 A push to `main` starts two workflows that do not wait for each other:
@@ -141,7 +176,7 @@ the grant.
 | Grant | Tables |
 | --- | --- |
 | SELECT, UPDATE | `aurora_credentials`, `provider_sync_controls` |
-| SELECT | `users (id, name)`, `user_profiles (user_id, display_name)`, `user_board_mappings`, `board_climb_aliases`, `climb_community_status (board_type, climb_uuid, angle, community_grade)`, `board_difficulty_grades (board_type, difficulty, boulder_name)` |
+| SELECT | `users (id, name)`, `user_profiles (user_id, display_name)`, `user_board_mappings`, `board_climb_aliases`, `climb_community_status (board_type, climb_uuid, angle, community_grade)`, `board_difficulty_grades (board_type, difficulty, boulder_name)`, `user_deleted_upstream_playlists` |
 | SELECT, INSERT, UPDATE, DELETE | `boardsesh_ticks`, `logbook_sync_skips`, `board_users`, `board_walls`, `board_climbs`, `board_tags`, `board_circuits`, `board_user_syncs`, `board_climb_stats`, `board_climb_ratings`, `playlists`, `playlist_climbs`, `playlist_ownership`, `climb_stats_recompute_pending` |
 | INSERT | `sync_deletions` (the `boardsesh_ticks` and `playlist*` delete triggers write it as the caller) |
 
@@ -157,7 +192,7 @@ these grants. A table the appliers start writing fails that test first.
 | SELECT, INSERT, UPDATE | `board_products`, `board_sets`, `board_product_sizes`, `board_holes`, `board_layouts`, `board_placement_roles`, `board_leds`, `board_placements`, `board_product_sizes_layouts_sets`, `board_beta_links`, `board_attempts`, `board_kits`, `board_climb_holds`, `board_shared_syncs`, `board_layout_aliases`, `board_climb_ingest_skips`, `gyms`, `user_boards`, `location_sync_gym_sources`, `kilter_wall_sources` |
 | SELECT, INSERT, UPDATE, DELETE | `board_climb_aliases` (Kilter's folded aliases and the deletions that drop them) |
 | SELECT, INSERT | `board_climb_stats_history`, `notifications` |
-| SELECT | `setter_follows`, `user_follows`, `gym_claims`, `gym_members`, `gym_follows`, `comments (entity_id, entity_type, deleted_at)` |
+| SELECT | `setter_follows`, `user_follows`, `gym_claims`, `gym_members`, `gym_follows`, `comments (entity_id, entity_type, deleted_at)`, `kilter_aurora_benchmarks` |
 | INSERT | `provider_sync_controls` (a control row for a credential linked before rows existed), `users (id, name, email, emailVerified, image, created_at, updated_at)` (the system user that owns public catalog boards; none of it readable) |
 
 `maintenance-delivery` gets the grants `climb-stats-self-heal` needs
@@ -188,6 +223,84 @@ public-copy column: the backend decides who may see the art, the job only makes
 it. It needs the same `PRIVATE_*` storage configuration as the export; the
 restricted-role proof is `src/__tests__/spray-wall-art-jobs.test.ts`. See
 [spray-walls.md](./spray-walls.md), "Generated wall looks".
+
+`reclaim-logbook-snapshots` (`LOGBOOK_SNAPSHOT_RECLAIM_GRANTS`) deletes partner
+logbook snapshots past their expiry, every 15 minutes (`2,17,32,47 * * * *`), at
+most 200 batches a run of up to 100 snapshots and 500 chunks each.
+It reads only `logbook_snapshots (id, expires_at)` and
+`logbook_snapshot_chunks (snapshot_id, chunk_index)`, and holds `UPDATE
+(expires_at)` only because `FOR UPDATE SKIP LOCKED` needs an UPDATE grant. It
+can never read a chunk's ticks or which connection a snapshot belongs to. Expiry
+is enforced at read time, so the job only reclaims storage: it can be late
+without any client noticing. The restricted-role proof is
+`services/__tests__/job-queue-roles-routine.test.ts`. See
+[integration-platform.md](./integration-platform.md), "Complete bootstrap and
+transition".
+
+`prune-logbook-changes` (`LOGBOOK_CHANGE_PRUNE_GRANTS`) deletes partner logbook
+feed rows (`logbook_changes`) older than 90 days, once a day at 03:53 UTC
+(`53 3 * * *`), and moves the feed's retention watermark over them
+(`services/logbook-prune.ts`). It reads `logbook_changes (seq, txid,
+created_at)` and `logbook_change_watermark (id, pruned_through_txid,
+pruned_through_seq)`, deletes change rows, and updates only `pruned_through_*`
+and `updated_at`. It holds `UPDATE (created_at)` only because `FOR UPDATE SKIP
+LOCKED` needs an UPDATE grant. It can never read whose logbook a row belongs to,
+which tick it names, or the feed generation. The restricted-role proof is
+`services/__tests__/job-queue-roles-routine.test.ts`; the correctness tests are
+`src/__tests__/logbook-prune.test.ts`. See
+[integration-platform.md](./integration-platform.md), "Retention, cursor
+validity and moving the database".
+
+How a run works, and what it costs:
+
+- **The walk** is an unfenced read up the primary key from the oldest row, 500
+  rows at a time, with a 120 s statement timeout and no row locks. It stops at
+  the first row younger than 90 days, or whose transaction is not yet below the
+  feed's transaction horizon. It uses the primary key, not the BRIN index on
+  `created_at`: rows leave from the head of the table, VACUUM gives those pages
+  to new rows, and a BRIN range only ever widens. Measured on PostgreSQL 15
+  against 1.8M synthetic rows (90 days at 20,000 a day, 231 MB heap; production
+  writes more, see below): after 30
+  days of deletions and page reuse, a BRIN scan for one day's 20,000 old rows
+  read 10,311 of 29,509 heap pages, against 459 on the fresh table. After a full
+  90-day cycle it would read all of them. One 500-row step of the walk reads
+  about 17 pages.
+- **Each delete** is one fenced transaction of at most 500 rows, with a 5 s
+  statement timeout, a 1 s lock timeout and a 10 s idle-in-transaction timeout
+  (the walk has the same idle timeout). A worker that freezes mid-batch holds a
+  transaction id, and with it every partner's feed horizon, for at most 10 s. It checks both conditions again,
+  claims its rows `FOR UPDATE SKIP LOCKED` (a row an account deletion holds is
+  skipped, never waited for), deletes them, and raises the watermark to the last
+  position it deleted. It never lowers the watermark. Measured: 5,520 buffer hits
+  and 10 pages dirtied for 500 rows, 1.5 ms warm. It takes row locks on the rows
+  it deletes and on the one watermark row, and no table lock stronger than ROW
+  EXCLUSIVE, so tick writes and feed reads never wait for it.
+- **A day's run.** Production writes about 674 change rows every 30 minutes
+  (November 2026), about 32,000 a day, so 90 days is about 2.9M rows. A day's
+  run is then about 65 batches; 40 batches took 46 ms warm on the synthetic
+  table. The first walk of a run also steps over every index entry that earlier
+  runs deleted and autovacuum has not cleared yet. At autovacuum's 20% threshold
+  (about 576,000 rows, 18 days of deletions) that is up to about 1,450 leaf
+  pages, plus the previous run's ~530 heap pages the first time. Measured with
+  600,000 such entries, none yet marked dead: 11,054 pages on the first walk,
+  1,645 on the next. At 30 ms a cold page (see
+  [postgres-query-costs.md](./postgres-query-costs.md)) a whole run is about
+  3,100 cold pages (about 2,000 for the first walk, about 17 per batch after
+  it), about 93 s.
+- **Not worth tuning autovacuum for.** A lower
+  `autovacuum_vacuum_scale_factor` on this table would clear those entries
+  sooner, but every vacuum of a 2.9M-row table reads its two B-tree indexes in
+  full, about 50,000 pages. Vacuuming every 2 days instead of every 18 costs
+  about 25,000 cold page reads a day to save at most about 1,450 on the walk.
+  Where cold reads are the cost, that is a poor trade.
+- **Bounds:** 400 batches (200,000 rows) or 240 s a run, then the rest waits a
+  day. The lease is 600 s and the heartbeat 60 s. Nothing a client sees depends
+  on when the run happens: a cursor answers 410 only once the watermark has
+  passed it, and the watermark only moves together with the rows it covers. A
+  late or failed run only keeps rows longer.
+
+No row is 90 days old before 2027-02-08, 90 days after the feed went live, so
+until then each run reads a few rows and stops.
 
 No application SQL function is called directly; the trigger functions these
 writes fire (the `sync_seq` stamps, the location triggers) run as the caller,
@@ -274,13 +387,15 @@ module. The module declares:
 | `community-monthly-stats` | `batch` | 900 s | 1, after 300 s | 20 h | `months`, `+retireMonths` when set, `:dry-run` on a dry run (`2` daily, `13+1` Mondays) |
 | `aurora-user-sync` | `interactive-import` | 1800 s (heartbeat 300 s) | 3, 30 s backoff to 300 s | 2 h | `userId:boardType:linkGeneration` |
 | `kilter-user-sync` | `interactive-import` | 1800 s (heartbeat 300 s) | 3, 30 s backoff to 300 s | 2 h | `userId:kilter:linkGeneration` |
-| `provider-routine-cycle` | `routine-provider` | 600 s (heartbeat 300 s) | none | 48 600 s (the fan-out budget) | `aurora` / `kilter` |
-| `aurora-shared-sync` | `routine-provider` | 3600 s (heartbeat 300 s) | 1, after 300 s | 48 600 s (the fan-out budget) | the board |
-| `kilter-catalog-sync` | `routine-provider` | 3600 s (heartbeat 300 s) | 1, after 300 s | 48 600 s (the fan-out budget) | `kilter` |
+| `provider-routine-cycle` | `routine-provider` | 600 s (heartbeat 300 s) | none | 55 800 s (the fan-out budget) | `aurora` / `kilter` |
+| `aurora-shared-sync` | `routine-provider` | 3600 s (heartbeat 300 s) | 1, after 300 s | 55 800 s (the fan-out budget) | the board |
+| `kilter-catalog-sync` | `routine-provider` | 7200 s (heartbeat 300 s) | 1, after 300 s | 55 800 s (the fan-out budget) | `kilter` |
 | `moonboard-locations-sync` | `routine-provider` | 1800 s (heartbeat 120 s) | 1, after 600 s | 24 h | `moonboard` |
 | `climb-stats-self-heal` | `maintenance-delivery` | 900 s (heartbeat 120 s) | 1, after 300 s | 1 h | `climb-stats` |
 | `user-data-export` | `maintenance-delivery` | 300 s (heartbeat 30 s) | 1, after 15 s | 30 min | `userId:boardType:ISO-week` |
 | `spray-wall-art` | `maintenance-delivery` | 300 s (heartbeat 30 s) | 2, 30 s backoff to 300 s | 1 h | `art:versionId:recipe` |
+| `reclaim-logbook-snapshots` | `maintenance-delivery` | 300 s (heartbeat 60 s) | 1, after 60 s | 15 min | `logbook-snapshots` |
+| `prune-logbook-changes` | `maintenance-delivery` | 600 s (heartbeat 60 s) | 1, after 300 s | 1 h | `logbook-changes` |
 
 Throw `BackgroundJobError(code)` from `execute` to record a bounded,
 credential-free `error_code` (`/^[A-Z][A-Z0-9_]{0,63}$/`); pass
@@ -938,12 +1053,12 @@ one is 5 minutes away.
 except Kilter at :07, least recently synced board first (by its
 `board_shared_syncs` cooldown stamp; never-run boards lead). The routine worker
 runs one job at a time, so the last board can wait behind every other board's
-run and the Kilter catalog's, and each may use its hour's lease and its one
-retry. The deadline (`BOARD_WIDE_FAN_OUT_DEADLINE_SECONDS`, in
+run and the Kilter catalog's. Aurora has a one-hour lease, Kilter a two-hour
+lease, and each may retry once. The deadline (`BOARD_WIDE_FAN_OUT_DEADLINE_SECONDS`, in
 `workers/families/fan-out-budget.ts`) is derived from both families' own
 options: boards x worst(shared) + worst(catalog) + an hour of slack for the
 routine cycles, where worst = lease x (1 + retryLimit) + retryDelay x
-retryLimit. Five boards give 5 x 7500 + 7500 + 3600 = 48 600 s, 13.5 hours. A
+retryLimit. Five boards give 5 x 7500 + 14 700 + 3600 = 55 800 s, 15.5 hours. A
 late board runs late instead of expiring at claim, and a test fails if the
 options ever outgrow the budget. The Kilter catalog (queued at :23) and the routine
 cycle can wait behind the same runs, so they carry the same deadline.

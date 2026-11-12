@@ -22,6 +22,8 @@ import type { BoardName } from '@boardsesh/shared-schema';
 import { useTheme } from '../../providers/theme-provider';
 import { useNavigation, useRouter } from 'expo-router';
 import { useBottomChromeMetrics } from '../../hooks/use-bottom-chrome-metrics';
+import { useKeyboardHeight } from '../../hooks/use-keyboard-height';
+import { useAndroidKeyboardScroll } from '../../hooks/use-android-keyboard-scroll';
 import { useHeaderActions } from '../../hooks/use-header-actions';
 import { useTransparentHeaderInset } from '../../hooks/use-transparent-header-inset';
 import { useForeignSerialBoard } from '../../lib/boards/use-foreign-serial-board';
@@ -87,6 +89,8 @@ type BoardFormProps = {
   currentBoardUuid?: string;
   /** A spray wall's background picker, drawn under its visibility rows. */
   sprayBackgroundSection?: ReactNode;
+  /** Device-local spray wall lighting, immediately above More options. */
+  sprayLedSection?: ReactNode;
   /**
    * The owner's "Help train hold finding" switch. Drawn beside whichever control
    * says who sees the wall: under the three-way one, or directly above the
@@ -113,6 +117,7 @@ export function BoardForm({
   errorMessage = null,
   currentBoardUuid,
   sprayBackgroundSection,
+  sprayLedSection,
   sprayTrainingSection,
 }: BoardFormProps) {
   const headerHeight = useHeaderHeight();
@@ -138,6 +143,9 @@ export function BoardForm({
   const foreignSerialBoard = useForeignSerialBoard(builder.serialNumber, currentBoardUuid, serialConflictConfig);
   const foreignSerialDisclosure = foreignSerialBoard ? serialReuseDisclosure(foreignSerialBoard) : null;
   const bottomChrome = useBottomChromeMetrics();
+  // Android draws the keyboard over edge-to-edge routes instead of resizing
+  // them. Keep the lower fields scrollable above it, as on the profile form.
+  const keyboardHeight = useKeyboardHeight(Platform.OS === 'android');
   const { width: windowWidth } = useWindowDimensions();
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [timerPairingOpen, setTimerPairingOpen] = useState(false);
@@ -233,11 +241,12 @@ export function BoardForm({
     clearOnUnmount: true,
   });
 
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const keyboardScroll = useAndroidKeyboardScroll(scrollRef, keyboardHeight, headerHeight + spacing[4]);
   // A submit failure shows at the top of the form, so the form scrolls back up
   // to it from wherever the climber was, and a screen reader hears it. The
   // header inset is the rest offset under `automatic` on a glass header. Runs
   // once per attempt, when the save has settled with an error.
-  const scrollRef = useRef<ScrollViewInstance>(null);
   const headerInset = useTransparentHeaderInset();
   const headerInsetRef = useRef(headerInset);
   headerInsetRef.current = headerInset;
@@ -256,9 +265,10 @@ export function BoardForm({
       <ScrollView
         ref={scrollRef}
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={[styles.content, { paddingBottom: bottomChrome.scrollBottomPadding }]}
+        contentContainerStyle={[styles.content, { paddingBottom: bottomChrome.scrollBottomPadding + keyboardHeight }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        {...keyboardScroll}
       >
         {/* Above everything, so it never pushes a control the climber is
             looking at; the scroll above brings it into view. */}
@@ -442,6 +452,8 @@ export function BoardForm({
           </View>
         ) : null}
 
+        {isSprayWall ? sprayLedSection : null}
+
         {/* Advanced — hold sets (default all), visibility, location, serial. */}
         <PressableSurface
           onPress={() => setAdvancedOpen((open) => !open)}
@@ -476,17 +488,34 @@ export function BoardForm({
                 LED hardware on the wall. Nothing below is hidden when the toggle
                 goes off: buildUpdateInput submits the serial and timer from
                 retained state either way, so hiding a field would be a silent
-                submit trap, and the Rogue workout timer isn't an LED device. */}
+                submit trap, and the Rogue workout timer isn't an LED device. The
+                wall device switch is the exception: it hides with the lights,
+                and the builder leaves it out of the save while it is hidden. */}
+            <SectionLabel>{t('mobile.create.lights')}</SectionLabel>
+            {isSprayWall ? null : (
+              <SwitchRow
+                label={t('mobile.create.hasLeds')}
+                description={t('mobile.create.hasLedsHint')}
+                value={builder.hasLeds}
+                onValueChange={builder.setHasLeds}
+              />
+            )}
+            {/* A wall device (a laser projector, an LED controller on the
+                internet) follows the board feed, so every climber takes the
+                wall with no Bluetooth. Offered under LED lights on a catalogue
+                board, and on its own on a spray wall, which a projector can
+                light too. */}
+            {builder.litByWallDeviceShown ? (
+              <SwitchRow
+                label={t('mobile.create.litByWallDevice')}
+                description={t('mobile.create.litByWallDeviceHint')}
+                value={builder.litByWallDevice}
+                onValueChange={builder.setLitByWallDevice}
+              />
+            ) : null}
+
             {isSprayWall ? null : (
               <>
-                <SectionLabel>{t('mobile.create.lights')}</SectionLabel>
-                <SwitchRow
-                  label={t('mobile.create.hasLeds')}
-                  description={t('mobile.create.hasLedsHint')}
-                  value={builder.hasLeds}
-                  onValueChange={builder.setHasLeds}
-                />
-
                 <SectionLabel>{t('mobile.create.serial')}</SectionLabel>
                 <BuilderTextInput
                   value={builder.serialNumber}

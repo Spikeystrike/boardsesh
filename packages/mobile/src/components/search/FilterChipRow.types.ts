@@ -83,13 +83,15 @@ export type FilterChipRowProps = {
   onChangeProgress: (value: ProgressFilter) => void;
   /** The progress selector is auth-gated (its chip hides), matching the sheet. */
   canFilterProgress: boolean;
-  /** Current "Collection" single-select (Any / Benchmarks / My drafts / Liked). */
+  /** Current "Collection" single-select (Any / My drafts / Liked). */
   collection: CollectionFilter;
   onChangeCollection: (value: CollectionFilter) => void;
   /** My drafts and Liked are auth-only; their options are dropped from the chip menu when signed out. */
   canFilterPersonalCollections: boolean;
-  /** A spray wall has no benchmarks, so the menu hides Benchmarks unless it is already active. */
+  /** A spray wall has no benchmarks, so the Benchmarks chip hides there unless it is already on. */
   isSprayWall: boolean;
+  /** Names the benchmarks chip: Verified on Kilter, Benchmarks elsewhere. */
+  boardName?: string | null;
 
   // --- Tier-2 (opt-in) chips: sheet-only controls a user can pin. ---
 
@@ -118,6 +120,10 @@ export type FilterChipRowProps = {
   betaActive: boolean;
   onToggleBeta: () => void;
 
+  /** Benchmarks only (Verified only on Kilter) — a plain on/off toggle chip. */
+  benchmarksActive: boolean;
+  onToggleBenchmarks: () => void;
+
   /** "Fits my board": a toggle chip before Sort, shown while pinned. Playlist-only; absent without an active board. */
   boardFit?: { active: boolean; onToggle: () => void };
 
@@ -126,4 +132,10 @@ export type FilterChipRowProps = {
    * false, matching Liquid Glass, where no list but Climbs carries an angle control.
    */
   showAngle?: boolean;
+
+  /**
+   * The Climbs bar's 48dp row: no vertical padding around the Compose chips
+   * (CapsuleRow `dense`). Only the Android row honours it.
+   */
+  dense?: boolean;
 };

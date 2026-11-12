@@ -3,7 +3,8 @@
     "home": {
       "title": "App di arrampicata compatibile con Kilter, Tension e MoonBoard",
       "description": "Condividi una coda live con la tua crew e tieni traccia delle ripetizioni su tutti i pannelli. Funziona con Kilter, Tension, MoonBoard e altri.",
-      "ogDescription": "Condividi una coda live con la tua crew e tieni traccia delle ripetizioni su tutti i pannelli. Funziona con Kilter, Tension, MoonBoard e altri."
+      "ogDescription": "Illumina i blocchi in parete, registra le tue ripetizioni e scala con la tua crew. Funziona con Kilter, Tension, MoonBoard e altri.",
+      "ogTitle": "Boardsesh: un'app per i tuoi pannelli"
     },
     "about": {
       "title": "Fatta da climber, aperta a tutti",
@@ -47,11 +48,11 @@
     },
     "helpBoardAndBluetooth": {
       "title": "Connettiti al tuo pannello via Bluetooth",
-      "description": "Connetti Boardsesh al controller di un Kilter Board, di un Tension Board o di una MoonBoard, risolvi una connessione fallita e controllalo dalla schermata di blocco con Live Activity."
+      "description": "Connetti Boardsesh al controller di un Kilter Board, di un Tension Board o di una MoonBoard, scegli per quanto guidi il pannello dopo Illumina il pannello, risolvi una connessione fallita e controllalo dalla schermata di blocco con Live Activity."
     },
     "helpClimbActions": {
-      "title": "Anteprima, salita o playlist da qualsiasi riga di blocco",
-      "description": "Il menu a pressione prolungata su una riga di blocco nell'app Boardsesh: dall'anteprima senza illuminare il pannello alla registrazione di una salita o all'aggiunta a una playlist."
+      "title": "Tocca per l'anteprima, tieni premuto per registrare o aggiungere a una playlist",
+      "description": "Come un tocco su una riga di blocco nell'app Boardsesh apre un'anteprima senza illuminare il pannello, e cosa fa il menu a pressione prolungata: registrare una salita o aggiungerlo a una playlist."
     },
     "helpBetaVideos": {
       "title": "Condividi un reel di Instagram o TikTok come beta",
@@ -167,8 +168,8 @@
       "otherWays": "Non hai soldi da parte?"
     },
     "supportBanner": {
-      "text": "Boardsesh resta gratis grazie ai contributi dei climber. Sostienilo ogni mese e finanzia il tempo necessario a svilupparlo.",
-      "cta": "Dona ogni mese",
+      "text": "Boardsesh resta gratis e senza pubblicità grazie ai climber che contribuiscono. Ogni contributo aiuta, una tantum o ogni mese.",
+      "cta": "Sostienici",
       "close": "Chiudi"
     }
   },
@@ -220,7 +221,7 @@
     "hero": {
       "title": "Aiuta Boardsesh a restare online",
       "subtitle": "Gratis, open source e pagato dai climber",
-      "ctaMonthly": "Dona ogni mese"
+      "ctaMonthly": "Sostienici"
     },
     "promise": "Niente schermate bloccate, niente versione premium, niente pubblicità. Il tuo contributo paga le bollette, nient'altro.",
     "promiseMonthly": "Niente schermate bloccate, niente versione premium, niente pubblicità. Il tuo contributo finanzia le ore dedicate a sviluppare Boardsesh, nient'altro.",
@@ -457,7 +458,7 @@
       },
       "climbActions": {
         "title": "Azioni sul blocco",
-        "body": "Tieni premuto un blocco per vederne l'anteprima senza illuminare il pannello, registrare una salita o aggiungerlo a una playlist."
+        "body": "Tocca un blocco per vederne l'anteprima senza illuminare il pannello. Tienilo premuto per registrare una salita o aggiungerlo a una playlist."
       },
       "sessions": {
         "title": "Session live",
@@ -473,7 +474,7 @@
       },
       "bluetooth": {
         "title": "Pannello e Bluetooth",
-        "body": "Connettiti al pannello, risolvi una connessione fallita e controllalo dalla schermata di blocco con Live Activity."
+        "body": "Connettiti al pannello, scegli per quanto Illumina il pannello continua a illuminare, risolvi una connessione fallita e usa la schermata di blocco."
       },
       "betaVideos": {
         "title": "Video della beta",
@@ -515,9 +516,9 @@
       },
       "queue": {
         "title": "Scala tutta la lista",
-        "intro": "Tocca un blocco in una playlist e parti da quella playlist. La tua coda resta com'è.",
-        "p1": "Scorri per percorrere la lista in ordine dal blocco che hai toccato. Il pulsante play in testata parte dall'inizio. Metti subito dopo mette tutta la lista in cima a Prossimi, Metti in fondo la mette in fondo. Per far sì che un tocco carichi la playlist nella tua coda, attiva Toccare una playlist la carica nella mia coda in Impostazioni, poi Pannello.",
-        "p2": "In una session, un tocco apre il blocco solo per te. La coda condivisa resta com'è.",
+        "intro": "Tocca un blocco in una playlist e ne vedi l'anteprima, partendo da quella playlist. La tua coda resta com'è.",
+        "p1": "Scorri per percorrere la lista in ordine dal blocco che hai toccato. Il pulsante play in testata fa lo stesso dal primo blocco. Metti subito dopo mette tutta la lista in cima a Prossimi, Metti in fondo la mette in fondo. Per far sì che un tocco o il pulsante play carichino la playlist nella tua coda, attiva Toccare una playlist la carica nella mia coda in Impostazioni, poi Pannello. Il pannello tiene il suo blocco e vedi in anteprima quello che hai toccato. Mentre guidi tu il pannello, il tocco sostituisce invece tutta la tua coda con la playlist e illumina il blocco.",
+        "p2": "In una session, un tocco apre il blocco solo per te e la coda condivisa resta com'è, a meno che non guidi tu il pannello: allora il blocco toccato si illumina in parete per tutti.",
         "sessionsLink": "Come una session condivide una coda",
         "clipAlt": "La finestra Avviare la playlist?",
         "clipCaption": "Con quell'interruttore attivo e dei blocchi già in coda, Avviare la playlist? chiede prima conferma."
@@ -572,7 +573,7 @@
       },
       "queue": {
         "title": "Una coda, ogni telefono",
-        "p1": "Chiunque sia nella session può aggiungere, riordinare o rimuovere blocchi. Il tuo avatar segna le tue righe.",
+        "p1": "Chiunque sia nella session può aggiungere, riordinare o rimuovere blocchi. Il tuo avatar segna le tue righe. Tocca un blocco in coda per vederne l’anteprima; lo vedi solo tu finché non tocchi Illumina il pannello.",
         "p2": "Solo il climber che ha avviato la session può terminarla. Tutti gli altri toccano Esci dalla session."
       },
       "wall": {
@@ -583,9 +584,10 @@
       },
       "crowd": {
         "title": "Sfogliare senza cambiare il blocco in parete",
-        "p1": "Con qualcun altro nella tua session, scorrere ti fa sfogliare senza cambiare il blocco in parete, a meno che tu stia guidando. Tocca Illumina il pannello per un blocco, oppure In parete in alto per tornare al blocco illuminato.",
-        "p2": "Se il pulsante del lettore dice Guidi tu il pannello, toccalo per smettere di guidare senza disconnetterti. Da solo, disattiva Illumina il pannello quando tocco un blocco e Illumina il pannello mentre scorro in Impostazioni, poi Pannello, per sfogliare senza illuminare.",
-        "previewLink": "Anteprima di un blocco da qualsiasi lista",
+        "p1": "Con qualcun altro nella tua session, scorrere ti fa sfogliare senza cambiare il blocco in parete, a meno che il tuo telefono tenga il pannello e tu stia guidando. Tocca Illumina il pannello per un blocco, oppure la freccia in alto a sinistra, con il volto di chi ha illuminato il pannello, per tornare al blocco illuminato.",
+        "p2": "Se il tuo telefono tiene il pannello e Anche in una session è attivo, Illumina il pannello illumina il blocco e guidi tu il pannello: anche i blocchi che scegli dopo si illuminano, finché non passa il tempo impostato in Smetti di guidare dopo dall’ultimo blocco (all’inizio 45 secondi; con Subito si illumina solo quel blocco). Il pulsante dice Guidi tu il pannello con un cronometro, e lo smerigliato si restringe man mano che il tempo scade. Toccalo per fermarti prima; il telefono resta connesso, a meno che Disconnetti il Bluetooth quando smetti di guidare sia attivo. Se qualcuno della crew illumina un blocco, una guida con il cronometro finisce; se hai fatto scorrere il pulsante per guidare, continui a guidare e il suo blocco si illumina.",
+        "p3": "Sugli altri telefoni, Illumina il pannello illumina solo quel blocco. Quando non guidi, tocchi e scorrimenti aprono anteprime. Guida sempre il pannello vale solo per il telefono che ha il pannello e, in una session, solo con Anche in una session attivo.",
+        "previewLink": "Tocca un blocco per vederne l’anteprima",
         "drivingLink": "Come iniziare e smettere di guidare il pannello"
       },
       "history": {
@@ -668,7 +670,7 @@
       },
       "log": {
         "title": "Registrala al pannello",
-        "p1": "Tocca la grande spunta nel cassetto di riproduzione, o Registra salita nella barra della coda. Data e Ora sono già impostate su adesso, il resto è facoltativo.",
+        "p1": "Tocca la grande spunta nel cassetto di riproduzione, o ✓ sulla barra in basso, che mostra l’ultimo blocco che hai aperto. Data e Ora sono già impostate su adesso, il resto è facoltativo.",
         "p2": "Tentativo registra un giro che non è riuscito. L'altro pulsante dice Flash al tuo primo giro registrato a questa inclinazione, altrimenti Chiuso.",
         "shotAlt": "Il pulsante della spunta",
         "shotCaption": "La spunta apre il foglio di registrazione.",
@@ -714,28 +716,34 @@
       "breadcrumb": "Pannello e Bluetooth",
       "hero": {
         "title": "Connetti il telefono al pannello",
-        "subtitle": "Leggi il pulsante parete satinato: Illumina il pannello illumina questo blocco. Guidi tu il pannello significa che ogni blocco scelto si illumina."
+        "subtitle": "Un tocco apre un’anteprima. Illumina il pannello lo illumina e guidi tu il pannello: il pulsante dice Guidi tu il pannello con un cronometro, e ogni blocco che scegli si illumina finché il tempo non finisce (45 secondi per impostazione predefinita). Senza cronometro, dura finché non lo tocchi."
       },
       "connect": {
         "title": "Connetti",
-        "p1": "In un blocco, tocca il grande pulsante Illumina il pannello. Si connette se serve e illumina il blocco sullo schermo. Se si apre Seleziona pannello, tocca il tuo: il segnale più forte viene prima, con un numero di serie per riga. Anche la lampadina della barra in alto può connettere.",
+        "p1": "In un blocco, tocca il grande pulsante Illumina il pannello. Si connette se serve, illumina il blocco sullo schermo e poi guidi tu il pannello: anche i blocchi che scegli dopo si illuminano (vedi Riconosci quando guidi il pannello). Se si apre Seleziona pannello, il tuo pannello è in cima, poi quelli che l’app non sa riconoscere, come le MoonBoard e le scatole senza numero di serie. Non vedi il tuo? Tocca Cerca qualsiasi pannello. Anche la lampadina della barra in alto può connettere.",
         "p2": "La prima volta, iOS chiede il Bluetooth. Android chiede i dispositivi nelle vicinanze, o la posizione su Android 11 e precedenti.",
         "litShotAlt": "Il lettore con il grande pulsante parete",
-        "litShotCaption": "Leggi il pulsante parete: Guidi tu il pannello significa che anche il prossimo blocco scelto si illumina.",
+        "litShotCaption": "Leggi il pulsante parete: Guidi tu il pannello significa che anche i blocchi che scegli si illuminano. Con il cronometro finisce da solo; senza, continua finché non lo tocchi.",
+        "timedClipAlt": "Un tocco su Illumina il pannello avvia una guida a tempo, con cronometro e sfondo smerigliato che si riduce",
+        "timedClipCaption": "Tocca Illumina il pannello per iniziare a guidare. Il cronometro e lo sfondo smerigliato si riducono; cambiare blocco li riempie. Tocca di nuovo per smettere.",
         "p3": "Davanti a un altro pannello? Cambia pannello è la prima riga dietro il tuo avatar.",
-        "p4": "Preferisci la lampadina? In un blocco, tocca ⋯, poi Opzioni di visualizzazione, Pulsanti, e imposta Controllo del pannello su Lampadina. Occupa l’estremo destro della riga in alto. Entrambi i controlli connettono e illuminano i blocchi; tienili premuti per le opzioni quando il pannello è connesso. Il pulsante parete permette anche di scorrere per guidare e toccare per smettere."
+        "p4": "Preferisci la lampadina? In un blocco, tocca ⋯, poi Opzioni di visualizzazione, Pulsanti, e imposta Controllo del pannello su Lampadina. Occupa l’estremo destro della riga in alto. Entrambi i controlli connettono e illuminano i blocchi; tienili premuti per le opzioni quando il pannello è connesso. Il pulsante parete permette anche di scorrere per guidare e toccare per smettere. La lampadina non è smerigliata: quando la guida ha un limite di tempo, un anello ambra intorno a lei si svuota man mano che il tempo passa. Se tocchi la lampadina mentre guidi, smetti di guidare, come con il pulsante parete."
       },
       "hidden": {
         "title": "Controlli del pannello",
-        "p1": "Quando sei connesso, tieni premuto il pulsante parete per i Controlli del pannello. In un blocco li apri anche da ⋯, poi Controlli del pannello, o tenendo premuta la lampadina in alto. Un tocco breve segue l’etichetta: Guidi tu il pannello smette di guidare mantenendo la connessione; Disconnetti pannello disconnette.",
+        "p1": "Quando sei connesso, tieni premuto il pulsante parete per i Controlli del pannello. In un blocco li apri anche da ⋯, poi Controlli del pannello, o tenendo premuta la lampadina in alto. In un blocco il menu inizia con una riga che dice dove sei: anteprima, illuminato in parete, alla guida, o quanto manca alla fine della guida. Un tocco breve sul pulsante parete segue la sua etichetta: Guidi tu il pannello smette di guidare mantenendo la connessione, a meno che Disconnetti il Bluetooth quando smetti di guidare sia attivo; allora il telefono libera il pannello e il pulsante torna a dire Illumina il pannello. Disconnetti pannello disconnette.",
+        "rowStopDriving": "Smetti di guidare dopo. Cambia quanto dura la guida di Illumina il pannello, o scegli Subito, senza lasciare la parete.",
         "row1": "Illumina di nuovo il pannello. Riaccende il blocco sui LED.",
-        "row2": "Spegni tutte le luci. Il telefono resta connesso.",
+        "row2": "Spegni tutte le luci. Ferma anche la guida. Il telefono resta connesso, a meno che Disconnetti il Bluetooth quando smetti di guidare sia attivo.",
         "row3": "Disconnetti il pannello. Usalo se ti sei connesso al pannello sbagliato.",
         "row4": "Illumina la presa sopra. Solo MoonBoard.",
-        "p2": "Disconnessione automatica, Illumina il pannello quando tocco un blocco e Illumina il pannello mentre scorro sono in Impostazioni, poi Pannello, e nel menu della lampadina in alto. La disconnessione automatica libera il pannello dopo 30 secondi di inattività. Per sfogliare senza illuminare, smetti prima di guidare e disattiva entrambe le opzioni di illuminazione. Mentre guidi, ogni blocco scelto si illumina anche con queste opzioni disattivate.",
-        "p3": "Senza pannello connesso, Illumina il pannello connette e illumina il blocco sullo schermo. Se arrampichi da solo, inizi anche a guidare. In una crew, un tocco illumina solo quel blocco. La lampadina in alto può riconnettere l’ultimo pannello usato.",
+        "p2": "Il resto è in Impostazioni, poi Pannello. Smetti di guidare dopo sceglie per quanto i blocchi che scegli continuano a illuminarsi dopo l’ultimo blocco illuminato: Subito (Illumina il pannello illumina solo quel blocco), da 30 secondi a 5 minuti (45 secondi per impostazione predefinita), oppure Finché non mi fermo. Anche in una session (attivo per impostazione predefinita) ti fa guidare con Illumina il pannello anche in una crew. Disconnetti il Bluetooth quando smetti di guidare (disattivato per impostazione predefinita) libera il pannello per il prossimo climber quando la guida finisce. Ha preso il posto di Disconnessione automatica: se l’avevi attiva, questa è attiva, e il tuo vecchio tempo, arrotondato per eccesso alla scelta successiva (al massimo 5 minuti), è diventato il tuo tempo in Smetti di guidare dopo.",
+        "autoLight": "Guida sempre il pannello (disattivato per impostazione predefinita) ti tiene alla guida ogni volta che il tuo telefono ha il pannello: ogni blocco che scegli si illumina in parete, senza cronometro, quindi Smetti di guidare dopo non si applica. In una session serve Anche in una session. Tocca Guidi tu il pannello per smettere; i blocchi che scegli si aprono in anteprima finché non ti disconnetti o tocchi Illumina il pannello. Il menu della lampadina in alto ha quasi tutte queste opzioni.",
+        "p3": "Senza pannello connesso, Illumina il pannello connette, illumina il blocco sullo schermo e ti fa guidare; in una crew, solo sul telefono che tiene il pannello e con Anche in una session attivo. Dopo Disconnetti il Bluetooth quando smetti di guidare, Illumina il pannello si riconnette allo stesso pannello. Dopo Disconnetti il pannello, l’app dimentica quel pannello e la connessione successiva lo cerca di nuovo.",
         "shotAlt": "I controlli di un pannello connesso",
-        "shotCaption": "Illumina di nuovo, spegni tutte le luci o disconnetti. Illumina ogni blocco avvia la guida quando disponibile."
+        "shotCaption": "Illumina di nuovo, spegni tutte le luci o disconnetti, e cambia Smetti di guidare dopo senza lasciare la parete. Illumina ogni blocco avvia la guida quando disponibile.",
+        "lightingShotAlt": "Impostazioni di illuminazione del pannello con durata della guida e illuminazione automatica",
+        "lightingShotCaption": "Scegli quando smettere di guidare, se vale anche in una session e se al termine si disconnette il Bluetooth."
       },
       "failed": {
         "title": "Quando non si connette",
@@ -749,12 +757,12 @@
       },
       "twoBoards": {
         "title": "Due pannelli nel raggio",
-        "p1": "Leggi il numero di serie prima di toccare. Le barre del segnale non si aggiornano mentre stai fermo lì.",
+        "p1": "Quando ti connetti a un pannello che hai già usato o a quello di una palestra, è in cima, poi quelli che l’app non sa riconoscere. I pannelli che l’app sa essere un altro restano nascosti finché non tocchi Cerca qualsiasi pannello. Leggi il numero di serie prima di toccare. Le barre del segnale non si aggiornano mentre stai fermo lì.",
         "p2": "Un avviso La configurazione del pannello non corrisponde significa che il controller appartiene a un'altra configurazione. Scegli Annulla, Connetti comunque o Cambia configurazione del pannello."
       },
       "duplicate": {
         "title": "Lo stesso pannello elencato due volte",
-        "p1": "Due righe con numeri di serie diversi sono due controller. Una riga che dice solo Kilter Board, senza numero di serie, è una scatola LED più recente costruita dal produttore. Due di queste nella stessa palestra compaiono come due righe. Quella con più barre di segnale di solito è il pannello davanti a cui ti trovi. Se si illumina il pannello sbagliato, apri Controlli del pannello, tocca Disconnetti il pannello e riprova.",
+        "p1": "Due righe con numeri di serie diversi sono due controller. Una riga che dice solo Kilter Board, senza numero di serie, è una scatola LED più recente costruita dal produttore. Due di queste nella stessa palestra compaiono come due righe, dopo il tuo pannello. Quella con più barre di segnale di solito è il pannello davanti a cui ti trovi. Se si illumina il pannello sbagliato, apri Controlli del pannello, tocca Disconnetti il pannello e riprova.",
         "p2": "Non esiste una lista per dimenticare un dispositivo. L'app ricorda solo l'ultimo pannello.",
         "p3": "Un pannello che compare due volte sotto I tuoi pannelli è un'altra cosa. Tocca Modifica accanto a I tuoi pannelli, poi Elimina o Smetti di seguire."
       },
@@ -767,8 +775,8 @@
       "liveActivity": {
         "title": "Controlla il pannello dalla schermata di blocco (Live Activity)",
         "intro": "Prima avvia una session o unisciti a una. Una coda personale non ce l'ha.",
-        "p1": "Su iPhone, una session mette una Live Activity nella schermata di blocco e nella Dynamic Island con il blocco, il suo grado e il tuo posto in coda. Mentre il tuo telefono gestisce il pannello ha anche Precedente, Successivo, una lampadina che illumina di nuovo il pannello e Specchia il blocco dove supportato.",
-        "p2": "Android mostra gli stessi controlli in una notifica persistente chiamata Session di arrampicata attiva.",
+        "p1": "Su iPhone, una session mette una Live Activity nella schermata di blocco e nella Dynamic Island con il blocco in parete, il suo grado e il tuo posto in coda. Le anteprime che apri nell’app non la cambiano. Mentre il tuo telefono gestisce il pannello ha anche Precedente, Successivo, una lampadina che illumina di nuovo il pannello e Specchia il blocco dove supportato. Precedente e Successivo spostano la coda, illuminano il blocco e avviano o rinnovano la guida come Illumina il pannello. Mentre guidi, un anello ambra intorno alla lampadina si svuota man mano che il tempo passa, con il tempo rimasto accanto; senza limite di tempo, la lampadina sta su un disco ambra pieno.",
+        "p2": "Android mostra gli stessi controlli in una notifica persistente chiamata Session di arrampicata attiva. Mentre guidi, dice Guidi tu il pannello, con un conto alla rovescia se la guida ha un limite di tempo.",
         "p3": "Bloccare lo schermo non disconnette il pannello."
       },
       "next": {
@@ -778,48 +786,53 @@
       },
       "driving": {
         "title": "Riconosci quando guidi il pannello",
-        "p1": "Il pulsante parete satinato controlla il pannello fisico. Leggi l’etichetta: Illumina il pannello connette se serve e illumina il blocco sullo schermo; Guidi tu il pannello significa che ogni blocco scelto si illumina, anche in una crew. Da solo, toccare Illumina il pannello avvia la guida; in una crew, un tocco illumina un blocco.",
-        "p2": "Per guidare quando il pulsante mostra ‹‹, scorri il pulsante parete verso sinistra. Rilascia quando dice Rilascia per illuminare ogni blocco. Si connette se serve, illumina il blocco sullo schermo e quelli che scegli dopo. Scorrere sul disegno del pannello cambia blocco.",
-        "p3": "Tocca Guidi tu il pannello per smettere di guidare e sfogliare restando connesso. L’etichetta cambia in Disconnetti pannello; toccarla disconnette. Puoi iniziare anche con Illumina ogni blocco in ⋯, poi Controlli del pannello, o nelle azioni del lettore di schermo del pulsante.",
+        "p1": "Un tocco su un blocco apre un’anteprima, e il blocco in parete resta lo stesso. Illumina il pannello lo illumina e guidi tu il pannello: il pulsante diventa smerigliato e dice Guidi tu il pannello, e anche ogni blocco che scegli si illumina. Se la guida ha un limite di tempo, accanto all’etichetta compare un cronometro; ogni blocco illuminato lo fa ripartire, e lo smerigliato si restringe verso la lampadina man mano che il tempo finisce. Dopo, il prossimo blocco che scegli si apre di nuovo in anteprima. Scegli il tempo in Smetti di guidare dopo, in Impostazioni, poi Pannello: 45 secondi per impostazione predefinita, Finché non mi fermo (senza cronometro) oppure Subito per illuminare solo quel blocco. Scorri il pulsante a sinistra, o con il pannello connesso tienilo premuto e scegli Illumina ogni blocco, per guidare senza cronometro finché non lo tocchi. Smerigliato vuol sempre dire che stai guidando.",
+        "p2": "Per guidare quando il pulsante mostra ‹‹, scorri il pulsante parete verso sinistra. Rilascia quando dice Rilascia per illuminare ogni blocco. Si connette se serve, illumina il blocco sullo schermo e quelli che scegli dopo. Se stai già guidando con il cronometro, lo stesso scorrimento ti fa guidare finché non smetti. Scorrere sul disegno del pannello cambia blocco.",
+        "p3": "Tocca Guidi tu il pannello per smettere di guidare e sfogliare. Il telefono resta connesso e l’etichetta cambia in Disconnetti pannello; toccarla disconnette. Con Disconnetti il Bluetooth quando smetti di guidare attivo, quando ti fermi il telefono libera il pannello e il pulsante torna a dire Illumina il pannello. La guida avviata da Illumina il pannello finisce anche da sola quando scade il cronometro; il prossimo blocco che scegli si apre in anteprima. Puoi iniziare anche con Illumina ogni blocco in ⋯, poi Controlli del pannello, o nelle azioni del lettore di schermo del pulsante.",
+        "p4": "La prima volta che apri un’anteprima su un pannello con le luci, una scheda sotto il pulsante parete spiega l’anteprima e lo smerigliato. Il suo pulsante Impostazioni di illuminazione apre Impostazioni, poi Pannello.",
         "clipAlt": "Scorrere il pulsante parete a sinistra per guidare, poi toccarlo per smettere",
-        "clipCaption": "Scorri il pulsante a sinistra e rilascia per illuminare ogni blocco. Tocca Guidi tu il pannello per smettere di guidare senza disconnetterti."
+        "clipCaption": "Scorri il pulsante a sinistra e rilascia per illuminare ogni blocco. Tocca Guidi tu il pannello per fermarti; il telefono resta connesso, a meno che Disconnetti il Bluetooth quando smetti di guidare sia attivo."
       }
     },
     "climbActions": {
       "breadcrumb": "Azioni sul blocco",
       "hero": {
         "title": "Tieni premuto un blocco",
-        "subtitle": "Ogni azione su un blocco sta dietro una pressione prolungata sulla sua riga."
+        "subtitle": "Tocca un blocco per vederne l’anteprima. Tieni premuta la sua riga per tutto il resto."
       },
       "open": {
         "title": "Apri il menu",
-        "p1": "Tieni premuta la riga di un blocco. Si solleva in una scheda con Registra una salita, Aggiungi alla playlist e Condividi in alto e il resto sotto.",
-        "p2": "Preferisci un tocco? In Impostazioni, poi Blocchi e gradi, poi Elenco dei blocchi, attiva Mostra il pulsante azioni rapide per avere un ⋮ su ogni riga dei Blocchi.",
-        "shotAlt": "La scheda delle azioni sul blocco",
-        "shotCaption": "Tre pulsanti rapidi in alto, la lista completa sotto.",
+        "p1": "Tieni premuta la riga di un blocco e le sue azioni si aprono in un menu. Su iPhone la riga si solleva sopra la lista oscurata, con il menu sotto. Tocca un'azione, o tocca fuori per chiuderlo.",
+        "p2": "Preferisci un tocco? In Impostazioni, poi Blocchi e gradi, poi Elenco dei blocchi, attiva Mostra il pulsante azioni rapide per avere un ⋮ su ogni riga dei Blocchi. Apre lo stesso menu.",
+        "shotAlt": "La riga di un blocco sollevata sopra la lista, con le sue azioni sotto",
+        "shotCaption": "La riga in alto, le sue azioni a gruppi sotto.",
         "clipAlt": "Tenere premuta la riga di un blocco",
-        "clipCaption": "Tieni premuta la riga e la scheda si solleva da sola."
+        "clipCaption": "Tieni premuta la riga e il menu si apre da solo."
       },
       "preview": {
-        "title": "Guarda l'anteprima di un blocco senza illuminare il pannello",
-        "intro": "Anteprima è la prima voce della lista.",
-        "p1": "Anteprima apre il blocco nel lettore senza toccare la tua coda. Quando l’anteprima ha una lista, gli scorrimenti seguono quella lista. Un’anteprima singola potrebbe non avere un blocco successivo da raggiungere.",
-        "p2": "Quando sfogli senza illuminare, il pulsante in alto ti riporta indietro: La mia scelta al tuo blocco, In parete al blocco illuminato. Sotto il nome leggi Lo vedi solo tu in una session, oppure Anteprima, non illuminato quando un pannello è connesso o un blocco è illuminato. Tocca Illumina il pannello (o Imposta attivo) quando vuoi il blocco. Se il pulsante del lettore dice Guidi tu il pannello, i cambi di blocco successivi illuminano il pannello; toccalo prima per smettere di guidare.",
+        "title": "Tocca un blocco per vederne l'anteprima",
+        "intro": "Un tocco su un blocco in qualsiasi lista o nella tua coda lo apre in anteprima, come il pulsante play di una playlist. Il blocco in parete resta lo stesso.",
+        "p1": "L’anteprima apre il blocco nel lettore senza toccare la tua coda né il blocco in parete. Gli scorrimenti seguono la lista indicata in alto. La tua coda parte dal tuo blocco, poi riprende la sua lista. Un’anteprima singola potrebbe non avere un blocco successivo da raggiungere. Mentre guidi tu il pannello, un tocco illumina invece il blocco. Per guidare ogni volta che il tuo telefono ha il pannello, attiva Guida sempre il pannello in Impostazioni, poi Pannello.",
+        "p2": "Durante l’anteprima, la freccia in alto a sinistra la chiude e ti riporta indietro: al tuo blocco o, quando mostra un volto, al blocco in parete. Sotto il nome leggi Lo vedi solo tu in una session, oppure Anteprima · non in parete quando il tuo telefono tiene un pannello o un blocco è stato illuminato nell’ultima ora. Tocca Illumina il pannello quando vuoi il blocco. Si illumina e guidi tu il pannello: per impostazione predefinita, i blocchi che scegli dopo si illuminano fino a 45 secondi dopo l’ultimo. Imposta attivo lo sceglie senza illuminarlo. Se il pulsante del lettore dice Guidi tu il pannello, i cambi di blocco successivi illuminano il pannello; toccalo prima per smettere di guidare.",
+        "p3": "La barra in basso tiene l’ultimo blocco che hai aperto, anteprima compresa, finché la tua coda non va avanti. Toccala per riprendere con la sua lista. La sua lampadina illumina quel blocco in parete, e ✓ lo registra. Mentre guidi tu il pannello, tocca la lampadina per smettere di guidare. Aprire un’anteprima non cambia mai la tua coda né il blocco in parete. La parte alta di Blocchi, e in una session la schermata di blocco, continuano a mostrare il blocco in parete.",
         "sessionsLink": "Come una session ti fa sfogliare senza cambiare il blocco in parete",
         "clipAlt": "Sfogliare una lista nel lettore senza illuminare i suoi blocchi",
-        "clipCaption": "Sfoglia la lista mentre il blocco in parete resta lo stesso. Illumina il pannello lo illumina quando scegli tu.",
+        "clipCaption": "Sfoglia la lista mentre il blocco in parete resta lo stesso. Illumina il pannello lo illumina, e anche i blocchi che scegli dopo si illuminano finché il tuo tempo non finisce.",
+        "shotAlt": "Anteprima di un blocco con il pulsante indietro, Anteprima · non in parete e un pulsante per illuminare senza smerigliatura",
+        "shotCaption": "L’anteprima resta sul tuo telefono. Il pulsante indietro torna al blocco in parete; il pulsante per illuminare accende questo.",
         "drivingLink": "Come iniziare e smettere di guidare il pannello"
       },
       "quick": {
-        "title": "I tre pulsanti in alto",
+        "title": "Le azioni che userai di più",
         "tick": "Registra una salita apre il foglio della salita.",
-        "playlist": "Aggiungi alla playlist è una checklist. Spunta per aggiungere, togli la spunta per rimuovere.",
+        "playlist": "Aggiungi alla playlist apre una checklist delle tue playlist. Spunta per aggiungere, togli la spunta per rimuovere.",
         "share": "Condividi passa un link al foglio di condivisione del telefono.",
-        "p1": "La scheda si chiude quando parte un'azione, tranne Aggiungi alla playlist."
+        "p1": "Il menu si chiude appena scegli un'azione."
       },
       "rest": {
         "title": "Il resto della lista",
         "queue": "Metti subito dopo mette il blocco in cima a Prossimi. Metti in fondo lo mette in fondo.",
+        "replay": "Riparti da qui, quando compare su un blocco in Cronologia nella tua coda: apre quel blocco come un tocco, in anteprima per impostazione predefinita. Illumina il pannello lo rimette in parete, con i blocchi che venivano dopo di nuovo in Prossimi.",
         "favorite": "Attiva o disattiva il preferito è il cuore. I blocchi con il cuore riempiono Blocchi che ti piacciono.",
         "editEntry": "Modifica la salita, quando arrivi dal tuo diario.",
         "betaVideo": "Aggiungi un video della beta, se hai effettuato l'accesso.",
@@ -1050,9 +1063,9 @@
   },
   "privacy": {
     "title": "Informativa sulla privacy",
-    "lastUpdated": "Ultimo aggiornamento: 29 ottobre 2026",
+    "lastUpdated": "Ultimo aggiornamento: 3 novembre 2026",
     "intro1": "Boardsesh è un'app open source per controllare via Bluetooth i pannelli di allenamento in arrampicata (Kilter, Tension, MoonBoard). Questa informativa spiega quali dati raccogliamo, perché e cosa ne facciamo.",
-    "intro2ProductAnalytics": "In breve: raccogliamo solo ciò che serve a far funzionare l'app. Non vendiamo i tuoi dati, non mostriamo pubblicità e non condividiamo dati con inserzionisti terzi o data broker.",
+    "intro2ProductAnalytics": "In breve: raccogliamo solo ciò che serve a far funzionare l'app. Non vendiamo i tuoi dati, in Boardsesh non ci sono pubblicità e non condividiamo dati con data broker. Pubblicizziamo Boardsesh su Reddit e Instagram e sul nostro sito l'analisi include la misurazione di quegli annunci con Meta e Reddit, come spiegato più sotto.",
     "collect": {
       "title": "Cosa raccogliamo",
       "accountLabel": "Informazioni sull'account.",
@@ -1063,6 +1076,8 @@
       "locationBody": "Se concedi il permesso di posizione, usiamo la tua posizione approssimativa per aiutarti a scoprire le session in Modalità party vicine. Non tracciamo la tua posizione in background né conserviamo uno storico delle posizioni.",
       "productAnalyticsLabel": "Analisi di prodotto.",
       "productAnalyticsBody": "Usiamo PostHog per l'uso delle funzioni, le visualizzazioni di pagina, le prestazioni e, facoltativamente, la registrazione delle sessioni nell'app. Nell'UE, nel SEE, nel Regno Unito, in Svizzera, a Gibilterra, Jersey, Guernsey, nell'Isola di Man, in Cina, Corea del Sud, Andorra, Monaco, San Marino, Città del Vaticano, nelle Isole Fær Øer e in Québec, e ogni volta che non è possibile capire dove ti trovi, chiediamo prima e PostHog funziona solo dopo che hai consentito l'analisi. Altrove l'analisi è attiva per impostazione predefinita, in base al nostro legittimo interesse a migliorare Boardsesh, e puoi disattivarla in qualsiasi momento in Impostazioni o in Scelte sulla privacy; se il tuo browser invia un segnale Global Privacy Control, lo trattiamo come un no. Lo decidiamo in base al paese e, in Canada, alla provincia che Cloudflare riporta per la tua connessione, e non li conserviamo. L'analisi con accesso effettuato può essere collegata al tuo account Boardsesh. L'attribuzione delle installazioni richiede ovunque il tuo Consenti esplicito; l'impostazione predefinita non la attiva. Con il tuo Consenti, l'attribuzione delle installazioni su Android può includere il referrer di installazione del Play Store e le informazioni sulla campagna, e su iOS usiamo Apple AdServices tramite il nostro backend per misurare quali campagne Apple Ads portano a registrazioni e attività di arrampicata. Condividiamo con PostHog identificatori di campagna validati e lo stato del download, mai il token di attribuzione. Non usiamo questi dati per mostrarti pubblicità.",
+      "adMeasurementLabel": "Misurazione degli annunci sul nostro sito.",
+      "adMeasurementBody": "Pubblicizziamo Boardsesh su Reddit e Instagram. Quando l'analisi è attiva sul nostro sito, carichiamo il pixel di Meta e il pixel di Reddit perché Meta e Reddit ci dicano quali annunci portano visite e tocchi sugli store. Ricevono le pagine che visiti su boardsesh.com, i tuoi tocchi sui nostri pulsanti degli store (quale store e dove si trovava il pulsante) e ciò che i loro pixel leggono dal tuo browser: il tuo indirizzo IP, dati del browser e i loro cookie. Non inviamo mai la tua email, il tuo account o altri dati di contatto. Nelle regioni in cui chiediamo prima, serve un «Consenti» dato dopo che il nostro banner ha iniziato a nominare Meta e Reddit. Altrove segue l'impostazione predefinita dell'analisi e si ferma se dici di no in Scelte sulla privacy o se il tuo browser invia il segnale Global Privacy Control. Non funziona mai nell'app, sugli schermi kiosk, nei widget incorporati o nelle pagine di accesso.",
       "serviceStatsLabel": "Statistiche di servizio di prima parte.",
       "serviceStatsBody": "Registriamo il giorno attivo e la piattaforma di un account con accesso effettuato nel nostro database, indipendentemente dal consenso all'analisi, in base al legittimo interesse a capire come viene usato il servizio. Queste righe sono conservate per 13 mesi. A PostHog vengono inviati solo conteggi aggregati giornalieri, settimanali e mensili. I visitatori senza accesso non sono inclusi in questi conteggi di utenti attivi basati sull'account."
     },
@@ -1083,11 +1098,24 @@
       "body4": "Spegnerlo, eliminare la Spraywall o eliminare il tuo account tolgono la Spraywall dal nostro insieme di addestramento archiviato entro 24 ore. Una copia già scaricata per un ciclo di addestramento può essere usata per altri 7 giorni al massimo, e viene eliminata la prossima volta che recuperiamo l'insieme. I modelli già addestrati conservano ciò che hanno imparato, ma non contengono nessuna copia della tua foto.",
       "body5": "Se una Spraywall viene segnalata, un admin di Boardsesh può vedere la sua foto per esaminare la segnalazione, qualunque cosa dica l'interruttore. Quando elimini una Spraywall, eliminiamo la sua foto dopo 30 giorni. Quando elimini il tuo account, le foto delle tue Spraywall vengono eliminate con esso; una copia di addestramento esce secondo le tempistiche sopra. Reimpostare una Spraywall conserva la vecchia, foto inclusa, come Spraywall archiviata finché non elimini anche quella. Spegnere l'interruttore su una delle due Spraywall vale per entrambe."
     },
+    "connectedApps": {
+      "title": "Le app che colleghi",
+      "intro": "Puoi collegare un'altra app al tuo account Boardsesh, per esempio un'app per pianificare gli allenamenti. Prima di condividere qualsiasi cosa, Boardsesh ti mostra l'app, chi la sviluppa, un link alla sua informativa sulla privacy e cosa chiede di vedere. Non viene condiviso nulla finché non scegli Consenti.",
+      "whatItGets": "In base a ciò che consenti, l'app può vedere il tuo nome visualizzato e la foto profilo, e ogni salita del tuo diario, comprese quelle che tieni su «Solo io». Ogni salita è accompagnata dal blocco a cui si riferisce: nome, grado, pannello e layout. Questo vale anche per un blocco tracciato da qualcun altro che è ancora una bozza o non in elenco, perché la salita fa parte del tuo diario. Sulla Spraywall di un'altra persona che non è pubblica, l'app riceve la tua salita, ma non il nome del blocco né quello della Spraywall.",
+      "afterSharing": "Una volta che l'app ha i tuoi dati, quello che ne fa è regolato dalla sua informativa sulla privacy.",
+      "disconnect": "Puoi scollegare un'app in qualsiasi momento dalle impostazioni di Boardsesh. Qualsiasi modifica della password, compreso reimpostarla o impostarne una per la prima volta, scollega tutte le app. Da quel momento l'app non può leggere nulla di nuovo. Scollegarla, o eliminare il tuo account Boardsesh, non cancella ciò che l'app ha già copiato: chiedi all'app di cancellarlo."
+    },
     "thirdParty": {
       "title": "Servizi di terze parti",
       "posthogLabel": "PostHog.",
       "posthogBody": "PostHog elabora negli Stati Uniti l'analisi di prodotto facoltativa e la registrazione delle sessioni dell'app. Inviamo anche eventi operativi minimi senza identificatori di account per la stabilità del servizio, i display kiosk e lo stato degli aggiornamenti, oltre ai conteggi aggregati di utenti attivi. Vedi ",
       "posthogLink": "l'informativa sulla privacy di PostHog",
+      "adPixelsLabel": "Meta e Reddit.",
+      "adPixelsBody": "Meta Platforms e Reddit ricevono dati di misurazione degli annunci dal nostro sito finché l'analisi è attiva (vedi Cosa raccogliamo). Li usano anche secondo le proprie informative sulla privacy, il che può includere un trattamento negli Stati Uniti. Vedi ",
+      "metaLink": "l'informativa sulla privacy di Meta",
+      "adPixelsJoin": " e ",
+      "redditLink": "l'informativa sulla privacy di Reddit",
+      "adPixelsBodyEnd": ".",
       "auroraLabel": "API di Aurora Climbing.",
       "auroraBody": "Se colleghi il tuo account Aurora Climbing (usato dai pannelli Kilter e Tension), sincronizziamo i dati dei tuoi blocchi con i server di Aurora così il tuo diario resta coerente tra le app. Questa sincronizzazione avviene solo quando la avvii tu. Vedi ",
       "auroraLink": "Aurora Climbing",
@@ -1108,7 +1136,7 @@
     },
     "sharing": {
       "title": "Condivisione dei dati",
-      "body1ProductAnalytics": "Non vendiamo i tuoi dati, non mostriamo pubblicità e non condividiamo informazioni con inserzionisti o data broker. I fornitori descritti sopra elaborano dati per hosting, archiviazione, pagamenti, affidabilità del servizio e analisi facoltativa. La sincronizzazione con Aurora Climbing avviene quando la attivi.",
+      "body1ProductAnalytics": "Non vendiamo i tuoi dati, non mostriamo pubblicità in Boardsesh e non condividiamo informazioni con data broker. I fornitori descritti sopra elaborano dati per hosting, archiviazione, pagamenti, affidabilità del servizio e analisi facoltativa, che sul nostro sito include la misurazione degli annunci con Meta e Reddit. La sincronizzazione con Aurora Climbing avviene quando la attivi.",
       "body2": "Gli altri utenti di Boardsesh possono vedere il tuo nome utente, il tuo profilo e i blocchi che hai registrato se partecipi a funzioni social come la Modalità party. È visibile nell'app e fa parte di come funziona il prodotto.",
       "body3SprayPhotos": "Non diamo a nessun altro le foto delle Spraywall né le prese che segni per addestrare modelli. L'unico modello addestrato su di esse è il nostro rilevatore di prese. Gli altri vedono la foto di una Spraywall come consente la sua impostazione di visibilità, e i membri di una palestra vedono le Spraywall collegate a quella palestra, comprese quelle private. La foto di una Spraywall pubblica è sul web aperto."
     },
@@ -1148,6 +1176,7 @@
     "choices": {
       "title": "Cookie e scelte sulla privacy",
       "storageBody": "L'archiviazione necessaria include i cookie di accesso e del flusso di accesso di NextAuth, la tua preferenza di lingua (boardsesh-locale), le preferenze del dispositivo e il cookie boardsesh-consent. Il cookie del consenso dura un anno ed è condiviso tra boardsesh.com e app.boardsesh.com. Fuori dalle regioni in cui chiediamo, il sito lo imposta sul valore predefinito dell'analisi alla tua prima visita. Quando l'analisi è attiva (il tuo Consenti, oppure il valore predefinito fuori dalle regioni in cui chiediamo), PostHog memorizza identificatori ed eventi (ph_* sul sito e archiviazione dell'SDK nell'app). Rifiutare o revocare cancella gli identificatori di analisi e interrompe l'analisi facoltativa, la registrazione delle sessioni e gli eventi di attribuzione delle installazioni. Restano attive la diagnostica di base dei crash e delle prestazioni di prima parte. I feature flag usano ancora un client in memoria; i flag con accesso effettuato possono usare l'ID del tuo account.",
+      "adCookiesBody": "Finché la misurazione degli annunci è attiva, il pixel di Meta imposta _fbp (e _fbc se arrivi da un annuncio Meta) e il pixel di Reddit imposta _rdt_uuid (e _rdt_cid se arrivi da un annuncio Reddit), ciascuno per un massimo di 90 giorni. Dire di no in Scelte sulla privacy ferma subito entrambi i pixel e cancella questi cookie.",
       "changeBody": "Usa Scelte sulla privacy nel piè di pagina del sito o Analisi in Impostazioni → Privacy per cambiare la tua risposta. Salviamo la tua decisione sul dispositivo e, se hai effettuato l'accesso, sul tuo account. Dove l'analisi è attiva per impostazione predefinita, quel valore resta sul dispositivo e non viene mai salvato sul tuo account come consenso. Un rifiuto sull'account prevale sui consensi dei dispositivi; un consenso sull'account vale per i dispositivi che non hanno ancora risposto. Conserviamo lo storico delle decisioni come prova del consenso fino all'eliminazione dell'account. Gli eventi anonimi e di breve durata sullo stato degli aggiornamenti e dei kiosk restano attivi per l'affidabilità del servizio."
     }
   },

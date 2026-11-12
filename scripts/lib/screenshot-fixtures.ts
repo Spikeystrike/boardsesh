@@ -170,6 +170,33 @@ export type ReplayCompatibilityEvidence = {
   joinSessionFixtures?: () => readonly GraphqlFixtureFile[];
 };
 
+/**
+ * The operations whose pinned recordings predate a tick's nullable
+ * `characteristics` (#5245). Every tick object in them selects it straight
+ * after `isNoMatch`, sometimes twice in one document (a session's highlights
+ * and its grouped items), so the single-copy `matchesWithoutSelection` rule does
+ * not fit. Replayed as null on every tick, which is what the drawer showed for
+ * these climbs when the set was recorded. GetCrewFeed shares the session feed
+ * fragment but has no pinned recording, so it needs no entry here.
+ */
+const TICK_CHARACTERISTICS_OPERATIONS = new Set([
+  'GetSessionDetail',
+  'GetSessionGroupedFeed',
+  'GetUserGroupedAscentsFeed',
+]);
+const TICK_CHARACTERISTICS_SELECTION = 'isNoMatch characteristics';
+
+/**
+ * The operations whose pinned recordings predate each board's
+ * `litByWallDevice`, selected straight after `hasLeds` on every board object.
+ * The field is non-null, so it replays as `false`, never null: that is the
+ * value the column (`NOT NULL DEFAULT false`) gave every board row that existed
+ * when these sets were recorded, so it is a fact about the recorded boards, not
+ * an invented one. A recording that already holds the field is not this case.
+ */
+const BOARD_WALL_DEVICE_OPERATIONS = new Set(['GetBoard', 'GetMyBoards', 'GetGymBoardsForSwitcher']);
+const BOARD_WALL_DEVICE_SELECTION = 'hasLeds litByWallDevice';
+
 /** Exact optional capability-argument change; selections and fixture variable keys stay unchanged. */
 const PRESENCE_CAPABILITY_OPERATIONS = new Set([
   'BoardNowPlaying',
@@ -200,6 +227,11 @@ const PRESENCE_CAPABILITY_OPERATIONS = new Set([
  *   roster frame never is.
  * - GetSession: the non-null `isPermanent`, taken from what the set recorded
  *   (`replayGetSessionWithPermanence`), never defaulted.
+ * - GetSessionDetail / GetSessionGroupedFeed / GetUserGroupedAscentsFeed: each
+ *   tick's `characteristics`.
+ * - GetBoard / GetMyBoards / GetGymBoardsForSwitcher: each board's non-null
+ *   `litByWallDevice`, as `false` (`replayBoardsWithoutWallDevice`). It
+ *   composes with the `sprayImport` adapter above.
  */
 export function replayCompatibleFixtureResponse(
   requestQuery: string,
@@ -209,6 +241,10 @@ export function replayCompatibleFixtureResponse(
   const operationName = resolveOperationName({ query: requestQuery });
   if (operationName !== fixture.operationName) return null;
   if (operationName === 'GetSession') return replayGetSessionWithPermanence(requestQuery, fixture, evidence);
+  if (BOARD_WALL_DEVICE_OPERATIONS.has(operationName ?? '')) {
+    const adapted = replayBoardsWithoutWallDevice(requestQuery, fixture, evidence);
+    if (adapted) return adapted;
+  }
   if (PRESENCE_CAPABILITY_OPERATIONS.has(operationName ?? '')) {
     const normalized = normalizeDocument(requestQuery);
     const declaration = ', $boardUuid: ID';
@@ -223,6 +259,9 @@ export function replayCompatibleFixtureResponse(
   if (operationName === 'DiscoverPlaylists') return replayDiscoverPlaylistsWithoutGrades(requestQuery, fixture);
   if (operationName === 'GetSmartPlaylist') return replaySmartPlaylistWithoutUnfilteredCount(requestQuery, fixture);
   if (operationName === 'SessionUpdates') return replaySessionUpdatesWithoutRestCadence(requestQuery, fixture);
+  if (TICK_CHARACTERISTICS_OPERATIONS.has(operationName ?? '')) {
+    return replayTicksWithoutCharacteristics(requestQuery, fixture);
+  }
   if (!['GetBoard', 'GetMyBoards'].includes(operationName ?? '')) return null;
   const selection = 'sprayImport { wallUuid versionId detectionId stage queuePosition retryAt resetOfWallUuid }';
   if (!matchesWithoutSelection(requestQuery, selection, fixture)) return null;
@@ -374,6 +413,83 @@ function replaySmartPlaylistWithoutUnfilteredCount(
   return {
     response: { ...response, data: { ...data, smartPlaylist: { ...result, unfilteredCount: null } } },
   };
+}
+
+function replayTicksWithoutCharacteristics(
+  requestQuery: string,
+  fixture: GraphqlFixtureFile,
+): { response: unknown } | null {
+  const normalized = normalizeDocument(requestQuery);
+  const pieces = normalized.split(TICK_CHARACTERISTICS_SELECTION);
+  // Every tick selects the field, so a bare `isNoMatch` left over means some
+  // other change, and the response walk below would answer a field nobody asked for.
+  if (pieces.length < 2 || normalized.split('isNoMatch').length !== pieces.length) return null;
+  if (pieces.join('isNoMatch') !== normalizeDocument(fixture.query)) return null;
+  if (!isRecord(fixture.response) || fixture.response.data === undefined) return null;
+  // A recording that already carries the field was made with it, so it is not this case.
+  if (containsKey(fixture.response.data, 'characteristics')) return null;
+  return { response: { ...fixture.response, data: withNullCharacteristics(fixture.response.data) } };
+}
+
+/**
+ * A board document recorded before `litByWallDevice`: the request is the
+ * recorded one with the field straight after every `hasLeds`, plus any change
+ * another adapter accepts (GetBoard's `sprayImport`). Every board in the
+ * response gets `litByWallDevice: false` beside its `hasLeds`.
+ */
+function replayBoardsWithoutWallDevice(
+  requestQuery: string,
+  fixture: GraphqlFixtureFile,
+  evidence: ReplayCompatibilityEvidence,
+): { response: unknown } | null {
+  const normalized = normalizeDocument(requestQuery);
+  const pieces = normalized.split(BOARD_WALL_DEVICE_SELECTION);
+  // Every board selects it after `hasLeds`, so a stray copy anywhere else means
+  // some other change.
+  if (pieces.length < 2 || normalized.split('litByWallDevice').length !== pieces.length) return null;
+  if (!isRecord(fixture.response) || fixture.response.data === undefined) return null;
+  if (containsKey(fixture.response.data, 'litByWallDevice')) return null;
+  const withoutWallDevice = pieces.join('hasLeds');
+  // The request minus the field has no `litByWallDevice` left, so this cannot
+  // come back here: it is the recorded document, or another adapter's change.
+  const base =
+    withoutWallDevice === normalizeDocument(fixture.query)
+      ? { response: fixture.response }
+      : replayCompatibleFixtureResponse(withoutWallDevice, fixture, evidence);
+  if (!base || !isRecord(base.response)) return null;
+  return { response: { ...base.response, data: withWallDeviceOff(base.response.data) } };
+}
+
+function withWallDeviceOff(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(withWallDeviceOff);
+  if (!isRecord(value)) return value;
+  const adapted: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    adapted[key] = withWallDeviceOff(child);
+    if (key === 'hasLeds') adapted.litByWallDevice = false;
+  }
+  return adapted;
+}
+
+function containsKey(value: unknown, key: string): boolean {
+  if (Array.isArray(value)) return value.some((element) => containsKey(element, key));
+  if (!isRecord(value)) return false;
+  return key in value || Object.values(value).some((child) => containsKey(child, key));
+}
+
+/**
+ * Every object that answers `isNoMatch` here is a tick or an ascent group, and
+ * each of them now selects `characteristics` straight after it.
+ */
+function withNullCharacteristics(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(withNullCharacteristics);
+  if (!isRecord(value)) return value;
+  const adapted: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    adapted[key] = withNullCharacteristics(child);
+    if (key === 'isNoMatch') adapted.characteristics = null;
+  }
+  return adapted;
 }
 
 function toCanonicalValue(value: unknown): unknown {
@@ -1366,6 +1482,14 @@ export const REPLAY_DEFAULT_RESPONSES: Readonly<Record<string, ReplayDefaultResp
   GetSessionWorkoutHeadlines: {
     response: { data: { sessionWorkoutHeadlines: [] } },
     reason: 'no recorded session followed a workout stored on the server',
+  },
+  // query GetPartnerAppsEnabled — packages/shared/graphql/src/operations/connected-apps.ts
+  // (#6981 F16). The create-climb editor and the Spraywall visibility controls
+  // ask it whether to mention connected apps. Partner apps are off in production,
+  // where the set is recorded, and both screens draw exactly as before on false.
+  GetPartnerAppsEnabled: {
+    response: { data: { partnerAppsEnabled: false } },
+    reason: 'partner apps are off in production, where the set is recorded',
   },
 };
 

@@ -22,8 +22,12 @@ const REQUIRED_KEYS = [
   'Unmirror climb',
   'Tap to reconnect',
   'Board disconnected. Tap to reconnect',
-  'Wall lit, you are driving',
-  'Wall control',
+  "Board didn't answer. Tap again",
+  "Board didn't answer. Tap to try again",
+  'Turn on Bluetooth, then tap',
+  'Bluetooth is off. Turn it on, then tap to reconnect',
+  'Open Boardsesh to connect',
+  'Board disconnected. Open Boardsesh to connect',
   'Wall held by another climber',
   'On the wall',
   '%@ is on the wall',
@@ -38,6 +42,12 @@ const REQUIRED_KEYS = [
   "Queue's empty",
   'Since your last climb',
   'Log a climb to start',
+  'Wall lit',
+  'Picks are previews',
+  'Driving the wall',
+  'Every climb you pick lights up',
+  'Lights the climb again',
+  'Stops driving',
 ];
 
 function parseStrings(language: string): Map<string, string> {

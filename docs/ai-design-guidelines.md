@@ -48,9 +48,12 @@ The whole app renders in one resolved `variant`:
 | Variant       | When                                                  | Look                                                                                     |
 | ------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | `liquidGlass` | Every iPhone by default; opt-in on Android            | Apple Liquid Glass — floating glass capsules, soft corners, HIG type, reanimated springs |
-| `material`    | Android by default; explicit user choice any platform | Material 3 — elevation, ripple, nav active-indicator pill, M3 type and corners           |
+| `material`    | Android and the Expo browser app by default; on iOS only a legacy saved choice or the dev stories harness | Material 3 — elevation, ripple, nav active-indicator pill, M3 type and corners           |
 
 The user's stored preference is `UiVariantPreference` = `'auto' | 'liquidGlass' | 'material'`.
+There is no in-app picker: it was removed on 2026-06-28 (6af5f43df1). A value saved before then
+still resolves, and the dev stories harness (`dev/stories/use-story-appearance.ts`) is the only
+remaining `setUiVariant` caller.
 `'auto'` resolves against the **platform**, not glass capability — Liquid Glass on every iPhone
 (including iOS < 26), Material on Android:
 
@@ -79,18 +82,39 @@ older iPhone is the variant with the chrome degraded, not Material.
   - `nativeTabBar` (`useNativeTabBar()`): Liquid Glass on any iPhone or iPad, iOS 18 included, gets
     the system UIKit tab bar through `NativeTabs` (HIG, Tab bars); on iPad it adapts to a sidebar.
     Material, Android and the JS tablet shell keep the JS `Tabs` + `MaterialTabBar` / rail.
+  - **Android phones hide the bar on scroll** (M3 hide-on-scroll, the counterpart of iOS 26's
+    minimize). On a top-level tab root the bar is drawn over the content, and scrolling down 24dp
+    slides it off screen while the MiniPlayer card drops onto the gesture inset with all its
+    controls. Scrolling up 24dp, reaching the top, switching tabs or changing route brings it back.
+    It never hides on pushed sub-routes (the bar sits in flow there), on tablets, on filter boards,
+    with the keyboard open or with TalkBack or another accessibility service on. Reduce Motion
+    swaps it without the slide. The card, the rest pill, the connectivity banner, the Discover
+    create button, the Start button, snackbars and toasts move with it on one shared value
+    (`tabBarHiddenProgress`, `TabBarHideFollower`); `bottom` never animates. The bottom-chrome
+    metrics describe the shown bar, as on iOS. Kill switch: `tab-bar-hide-on-scroll-kill`.
+  - **Fades in where it overlays** (Spotify's bar): on those tab roots the bar is `m3.surface` at 92% in dark
+    and 85% in light behind the icons, labels and gesture inset (`material.navBar.overlaySurfaceAlpha`),
+    so content is faint there
+    and never legible. A 24dp fade above its top edge runs from clear to that same fill, so content dissolves into the
+    bar; it takes no touches and slides away with the bar. No blur, no top hairline, no shadow. The
+    in-flow bar on sub-routes stays opaque, and the MiniPlayer card is always opaque and draws over
+    the fade.
   - `liquidGlassTabBar`: the iOS 26 extras on that bar, also gated on `useGlassCapability()` —
     minimize-on-scroll. Climbs stays an ordinary labelled tab, the rightmost one, like Apple
     Music's Search tab, not a separated `role="search"` tab. On an iOS 27 iPhone it is the
     prominent tab, so it stays on screen when the bar collapses.
-  - `nativeAccessory`: the `BottomAccessory` platter carries the current climb (iOS 26 only), on
-    iPhone and iPad alike.
+  - `nativeAccessory`: the `BottomAccessory` platter carries the bar's climb (iOS 26 only), on
+    iPhone and iPad alike: the climb you last opened, a preview included, or the queue's current
+    climb when that changed later (`useBarClimb`; see
+    [The MiniPlayer shows your last pick](climb-lists-and-queue.md#the-miniplayer-shows-your-last-pick-owner-decision-a-2026-11-02)).
+    The Lock Screen, the Climbs wall capsule and the board history sheet still show the wall's climb.
     Like Apple Music's platter, it shows a 32pt thumbnail and the climb name over a byline (grade ·
     sends, or grade · rating when nobody has sent it), and fills the frame UIKit gives it, with
     Music's insets (artwork 16pt in, last control ~30pt from the right edge). Open
     (`regular`), the lightbulb and the tick sit at the trailing edge. Collapsed (`inline`) there is
-    one 44pt control slot: the bulb while a board is bound and nobody holds it, otherwise the tick
-    (you hold it, a teammate does, or no board is bound). The bulb is drawn solid like Music's
+    one 44pt control slot: the pick's own bulb (Put on board for the pick) while the pick is unlit
+    on a board with lights; otherwise the bulb while a board is bound and nobody holds it, otherwise
+    the tick (you hold it, a teammate does, or no board is bound). The bulb is drawn solid like Music's
     controls, and outlined when off while Differentiate Without Color is on. Both placements put a
     connection mark on the thumbnail's top-trailing corner: a 14pt neutral disc (`CornerStatusDisc`,
     shared with `BoardDriverAvatar`'s badge) with a 9pt glyph. `lightbulb.fill` in amber
@@ -99,9 +123,10 @@ older iPhone is the variant with the chrome degraded, not Material.
     (kept mounted at opacity 0, because UIKit snapshots the platter between placements) means free.
     The shape carries the state, so it survives Differentiate Without Color; amber only ever means
     lit LEDs. The collapsed platter's climb link also speaks the connection as its accessibility
-    value; the open one doesn't, because its bulb already does.
+    value, plus "Driving the wall" while this phone drives; the open one doesn't, because its bulb
+    already does.
     Wherever it is false, including the native bar on iOS 18, the floating JS `PersistentQueueBar`
-    carries the current climb, positioned above whichever bar is on screen.
+    carries the same climb, positioned above whichever bar is on screen.
 - Surfaces degrade in `GlassSurface` via `useEffectiveSurfaceMode()`: `glass` (iOS 26) → `blur`
   (iOS < 26 frosted) → `material`/`solid` (Android, Reduce Transparency). `Button` uses native
   SwiftUI on iOS, native Compose on Android, and Paper on web; the iOS outlined/tonal tier explicitly
@@ -188,7 +213,9 @@ value, plain text button) use the `primary` tint (`brandControlTint`); `primaryF
   `systemFill`, `link`, …). These adapt to light/dark and accessibility settings natively — no app
   code needed.
 - **Android (Liquid Glass fallback)** → `androidFallbackColors[light|dark]` (violet-tinted hexes).
-- **Any platform + Material** → `materialSurfaces[light|dark]` (M3 tonal surfaces, violet-tinted).
+  iOS Liquid Glass also reads these as plain strings (`chartColors`, `sheetSurface`), so they stay.
+- **Any platform + Material** → `materialSurfaces[light|dark]` ("Graphite": pure greys, violet only
+  on action and state — see below).
 
 The resolved set always has the same keys. Representative values (Android fallback / Material tonal,
 which are the explicit hexes — iOS uses `PlatformColor` for the same roles):
@@ -209,10 +236,65 @@ which are the explicit hexes — iOS uses `PlatformColor` for the same roles):
 | `error`               | iOS `systemRed` / M3 error | iOS `systemRed` / M3 error | Destructive foreground and selected favourite hearts. |
 | `tertiaryFill`        | iOS `tertiarySystemFill` | iOS `tertiarySystemFill` | Large grouped backgrounds; `fill` is reserved for small controls. |
 
-Material tonal surfaces (`materialSurfaces`) are the same shape with M3-specific values
-(`background` `#F3EFFA` light / `#15101E` dark, `secondaryBackground` `#FFFFFF` / `#221A33`, etc.).
-The neutrals are tinted toward the brand violet so Material reads as the same product as Liquid Glass
-— the Material feel comes from elevation, ripple and the nav pill, not from a different palette.
+#### Material surfaces: "Graphite"
+
+Material surfaces (`materialSurfaces`) are the same shape, with **pure grey neutrals** (R = G = B,
+chroma 0). Material reads as Boardsesh through the accent, the filled CTAs and the selected-state
+containers, not through a tinted page. The container ladder is hand-set in `colors.ts`
+(`materialSurfaceContainers`); Paper's `elevation.level1–5` and the Compose Host's
+`surfaceContainer*` roles read the same table.
+
+| Role                                              | Dark                    | Light                |
+| ------------------------------------------------- | ----------------------- | -------------------- |
+| `background` / `groupedBackground` (page)         | `#0E0E0E`               | `#F2F2F2`            |
+| `containers.lowest`                               | `#121212`               | `#EEEEEE`            |
+| `containers.low` / level1                         | `#161616`               | `#EAEAEA`            |
+| `containers.base` / level2 / `surfaceVariant`     | `#1A1A1A` (MiniPlayer)  | `#E4E4E4`            |
+| `secondaryBackground` (card, Paper `surface`)     | `#1E1E1E`               | `#FFFFFF`            |
+| `containers.high` / level3 / `tertiaryBackground` | `#262626`               | `#DFDFDF` (`tertiaryBackground` stays `#FFFFFF`) |
+| `containers.level4` / level4                      | `#2A2A2A`               | `#DCDCDC`            |
+| `containers.highest` / level5                     | `#2E2E2E`               | `#D9D9D9`            |
+| `label`                                           | `#EDEDED`               | `#1A1A1A`            |
+| `secondaryLabel`                                  | `#B0B0B0`               | `#5A5A5A`            |
+| `tertiaryLabel`                                   | `#8F8F8F`               | `#686868`            |
+| `separator` / `outlineVariant`                    | `rgba(255,255,255,0.12)`| `rgba(0,0,0,0.12)`   |
+| `fill` / `tertiaryFill`                           | white at 10% / 5%       | black at 8% / 4%     |
+| `outline`                                         | `#8A8A8A`               | `#7A7A7A`            |
+| `accent`                                          | `#A78BFA`               | `#6D28D9`            |
+
+**The violet budget.** On Material, violet is spent only on:
+
+1. Accent foreground: links, the active nav label (`m3.secondary`), the focus ring, spinners.
+2. One filled `primaryFill` CTA per region, plus switch, radio and checkbox on-states.
+3. Opaque tonal containers for a selected or current state only: the nav pill and Stepper
+   (`secondaryContainer` `#E6DAF8` / `#3C2467`), selected chips and segments, tonal buttons, the
+   connected MiniPlayer, the wall-control tonal pill. `primaryContainer` is `#EADDFF` / `#4F378B`.
+   Their ink is `#21005D` / `#EADDFF`.
+4. The selected climb-row wash.
+5. Data: the heat ramp, grade colours, holds, the playlist swatch.
+
+Everything else is grey: page, cards, containers, fills, tracks, hairlines, ripples (`onSurface` at
+10%), the lifetime-record stat tiles (`containers.high`) and the unknown-grade chart mark
+(`#B4B4B4` / `#5E5E5E`).
+
+**Tertiary-label placement.** `tertiaryLabel` clears 4.5:1 only on the lower steps. Dark: page, card,
+lowest, low, base and high (4.68:1); never on level4 or highest. Light: page, card, lowest and low
+(4.63:1); never on base or above. Put tertiary text on a higher container and it fails AA; use
+`secondaryLabel` there instead. `material-theme-contrast.test.ts` pins every pairing in this
+section (labels, outline, accent, the nav label over the overlay bar, the ladder order, chroma 0).
+
+**The Android phone nav bar** overlays its tab roots so it can hide on scroll: it is `m3.surface` at
+92% in dark and 85% in light (`material.navBar.overlaySurfaceAlpha`), with a 24dp fade above its top
+edge (see `useTabChrome()` above). Dark needs the extra cover so the violet active label stays 4.5:1
+over white content scrolling under it.
+
+**Compose.** `ComposeHost` seeds every Android Compose Host from `primaryFill` and passes
+`colorOverrides` for the surface, container, text and outline roles (`composeSurfaceColorOverrides`),
+so Compose menus, dialogs and text fields sit on the same greys as the RN surfaces around them.
+
+**www stays violet on purpose.** The marketing site keeps its own violet ladder in
+`packages/web/app/theme/theme-config.ts`; only the app went neutral. The marketing video renders read
+the frozen pre-Graphite values from `marketingSurfaces`, so already-cut footage still matches.
 
 When the Material variant is active, `theme.m3` also exposes the full MD3 colour-role palette
 (`primaryContainer`, `onSurfaceVariant`, `outlineVariant`, the `elevation.level0–5` ladder) for app
@@ -321,6 +403,21 @@ Android. Count badges use `caption2` in a min-size box capped at `1.3` (`count-b
 chart column) takes `<Text numeric>`, which sets `fontVariant: ['tabular-nums']` so digits don't
 jitter sideways.
 
+**A V-grade is never cut.** "V" always renders with its number (`V1`, `V14`, `V5+`), never "V…" or
+"V1…". When a grade doesn't fit, change the layout, not the grade:
+
+- **Rows and headers.** The climb name or title shrinks; the grade keeps its width (see the climb
+  rows, the queue capsule and the play drawer header).
+- **Charts.** Run the labels through `buildGradeBarLabels`
+  (`packages/mobile/src/lib/chart/grade-bar-labels.ts`). It prints a label whole when it fits,
+  stacks a both-formats label ("V6" over "7A") when it doesn't, and only then labels fewer bars.
+  An unlabelled bar still carries its grade in its colour and in the tap tooltip. The `YouCharts`
+  bar charts take `gradeAxis` for a grade x-axis; never hand a grade to gifted-charts' own `label`,
+  which boxes it to one bar and ellipsizes.
+
+The Font half of a both-formats label may stack or drop out on a cramped surface. The V-grade token
+stays whole.
+
 **Button sizes and weights.** `size="large"` is for the single filled call to action of a
 full-screen form, gate or dead end: auth submits, "Sign in to join", the retry on a full-screen
 error (Join, session unavailable, spray scan), send recovery. The tick action bar and the rest
@@ -393,13 +490,17 @@ baseline correction. Its row keeps the same 60pt height by using 4pt top padding
 Other inline buttons keep their existing sizes. The default row is Mirror (Angle on adjustable boards without
 mirroring), Favorite, Log, Share, Queue. Previous and next remain available in View options.
 
-**Tab bar.** `TAB_BAR_HEIGHT` = 49 (Liquid Glass / native iOS). `MATERIAL_TAB_BAR_HEIGHT` = 80 (M3
-80dp bar fitting the active-indicator pill + icon + label).
+**Tab bar.** `TAB_BAR_HEIGHT` = 49 (Liquid Glass / native iOS). `MATERIAL_TAB_BAR_HEIGHT` = 64 (M3
+Expressive short navigation bar: a 56×32 active-indicator pill, icon above a label capped at 1.2× font scale).
+On an Android phone's tab root it overlays the content and hides on scroll; elsewhere it sits in flow.
 
 **Floating toolbar.** `TOOLBAR_FAB_SIZE` 48 · `TOOLBAR_CAPSULE_HEIGHT` 44 · `TOOLBAR_CAPSULE_MAX_WIDTH`
 260 · `TOOLBAR_SIDE_MARGIN` 16 · `TOOLBAR_GAP` 8 · `TOOLBAR_GAP_ABOVE_TABBAR` 10 · `TOOLBAR_RESERVE`
-66 (bottom padding screens reserve so the last row clears the toolbar). Material docks an opaque
-active-context bar instead (`MATERIAL_ACTIVE_CONTEXT_BAR_HEIGHT` 48, `TABBAR_SEAM_OVERLAP` 1).
+66 (bottom padding screens reserve so the last row clears the toolbar). Material floats the MiniPlayer
+card instead (`FloatingMiniPlayerCard`): the iPhone accessory's row (art, name, the climber's buttons,
+Board light, Log) on an opaque `surfaceContainer` card with a 12dp corner and level-2 elevation,
+`MATERIAL_MINI_PLAYER_CARD_INSET` 8 from each edge, `MATERIAL_MINI_PLAYER_CARD_GAP` 0 so it sits
+straight on the measured tab bar (and on the gesture inset while the bar hides), `MATERIAL_MINI_PLAYER_CARD_HEIGHT` 48 (the platter's height, so it holds the same controls).
 
 **Sheet chrome** resolves per variant via `theme.sheet` (`sheetChromeByVariant`), so `Sheet`,
 `ModalSheet` and `PlayDrawer` never drift:
@@ -411,11 +512,13 @@ active-context bar instead (`MATERIAL_ACTIVE_CONTEXT_BAR_HEIGHT` 48, `TABBAR_SEA
 | Top corners   | soft (glass background) | 28dp             |
 
 **Sheet backgrounds.** On iOS with the Apple variant, let the native sheet presentation
-draw its background, including when a caller requests `surface="solid"`. iOS 26 uses
+draw its background. iOS 26 uses
 the system glass material; earlier iOS versions use the system sheet appearance.
 Material 3 on iOS uses the opaque `theme.sheetSurface` tonal colour, and Reduce
-Transparency uses that opaque surface regardless of variant. Android and web keep
-their existing sheet backgrounds. A form or list may still paint a semantic content
+Transparency uses that opaque surface regardless of variant. Android and web always
+paint an opaque colour, `theme.sheetSurface` unless a sheet picks another theme
+surface (`LogbookEntryChooserSheet` uses `systemColors.background`), so a sheet never
+picks up the phone wallpaper's Material You colours. A form or list may still paint a semantic content
 surface inside the sheet for legibility; do not use that content surface to replace
 the presentation background. The same split applies to `modal` page routes: keep
 the system presentation and paint only content that needs an opaque ground.
@@ -447,7 +550,8 @@ board art (#7000). A tester found the "Not on the wall" badge from #6939 distrac
 Live pill that said the opposite.
 
 New status goes beside the art instead: the header's back chip, the top bar's second line (the caption), or the
-action bar's rows, like the wall button's "Disconnect board" (`WallControlButton`).
+action bar's rows, like the wall button's "Disconnect board" (`WallControlButton`). The 2.7 preview-first card
+(`PlayerPreviewTip`) docks under the board as the first section above Logbook, never on it.
 
 Allowed over the board, and nothing else:
 
@@ -462,11 +566,23 @@ Allowed over the board, and nothing else:
 
 ![The wall button in each state](images/wall-button-states.png)
 
-The wall button on real phones (iPhone 13 Pro on a Tension board, Pixel 8 Pro on a MoonBoard): no board, lit, a preview, and a board that can't mirror, where the heart leads the top row. The lit shots still read "Lit on the wall"; that state now says "Disconnect board" (or "You are driving the wall" under the frost, #7113), same face.
-
-These shots predate the wall button: they show round 2's "Lit on the wall" text.
+Captured from main `3b1d9be90c` on 2026-11-02: iPhone 16 Pro Max, dark,
+local seeded Tension board and the simulated Bluetooth adapter. Left to right:
+Put on board without a link, connected but stopped, a solo preview, an open-ended
+drive, and a timed drive with its clock and frost part-way down. These show the
+app's controls, not physical Bluetooth delivery. [Capture provenance](help-screenshots.md).
 
 #### One place says "is it lit" (#7000)
+
+The wall button has two looks. Plain tonal means a preview or a single lit climb. Frost means
+driving ("You are driving the wall": every climb you pick lights up). A drive started by Put on board
+is timed, so it also shows a small m:ss clock and the frost shrinks toward the bulb as the time runs out
+(width = remaining fraction), refilling to full on each lit climb. Under Reduce Motion it shrinks in 5 s
+steps. A swipe drive ("Light every climb") is open-ended: full frost, no clock, no shrink. So is Light
+automatically's drive (Settings › Board), which keeps the phone driving whenever its link holds the board:
+it is the same frost and label, not a look of its own. There is no separate bar and no "Each pick lights"
+label; the same frost and label say "driving" for every drive.
+The preview cue ("Preview · not on the wall") lives in the top bar's second line, not on the art.
 
 Round 2 still answered "is this climb lit?" in up to four places that could disagree: the header face pill, the bulb's
 fill, the "Lit on the wall" text and the purple button. Now one board control says it, drawn from one model
@@ -495,9 +611,10 @@ way it looks like this:
   The geometry, falloff, presets and original grain texture live in `@boardsesh/frosted-bokeh`;
   the reusable native `FrostedBokeh` component draws them while `WallGlow` owns the button's label fade.
   The Climbs header's board-held capsule uses the same `WallGlow` background, hold-role
-  colours and mirrored geometry for its current climb. Its two-line label uses the glow's readable
+  colours and mirrored geometry for its current climb. Its label uses the glow's readable
   foreground and shadow, with a full-width readability fade because the text reaches the pill's edges.
-  That capsule's frost means this phone holds the board, including when a crew's swipes browse;
+  That capsule's frost means this phone holds the board,
+  including when a crew's swipes browse;
   read the Play drawer button's "You are driving the wall" label to identify driving.
   Missing hold data keeps the plain amber treatment. With no current climb, the held LED header uses just
   the frost base and grain without inventing hold colours; its words use the frost label colour and shadow.
@@ -520,11 +637,18 @@ way it looks like this:
   28 pt from the trailing edge over 250 ms, holds 150 ms and springs back (damping 20, stiffness 300), about 700 ms
   in all; under Reduce Motion the same strip fades in and out where it stands (200 + 300 + 200 ms). Shimmer was
   rejected (Liquid Glass already has a specular), and so was a draggable knob (it clashes with the face).
-  Shots: `docs/images/7113/`.
+  Current dark references in `docs/images/7113/` were captured from `3b1d9be90c`
+  on 2026-11-02: `hints-dark` shows the flat amber entering, `drag-dark` the
+  release prompt, `driving-dark` the open-ended frost, and `timed-dark` the
+  draining clock and frost. The older light and workout files are historical;
+  they do not illustrate the current swipe treatment.
 
 A tap lights the climb, on Disconnect board disconnects (a warning buzz, and "Board disconnected" for screen
-readers), or on You are driving the wall stops driving and keeps the link; a hold opens the board sheet, a named "Board options" action for screen readers. The header keeps only the
-back chip, which names where back goes: "My pick" for the climber's own climb, "On the wall" for the wall's.
+readers), or on You are driving the wall stops driving and keeps the link (unless Disconnect Bluetooth when driving
+ends is on); a hold opens the board sheet, a named "Board options" action for screen readers. The header keeps only
+the back chip: the back arrow, plus the face of whoever lit the wall when back goes to the wall's climb. It has no
+words, so the climb name keeps its room. Screen readers and the Large Content Viewer get "Back to your climb: …" /
+"Back to the climb on the wall: …".
 
 - **On the wall, not yours (QA #147).** With no live link but presence saying the climb on screen was lit on the wall
   under an hour ago, the button reads "Put on board", with "On the wall" as its screen-reader status,
@@ -604,43 +728,71 @@ keeps `systemColors.fill`. Do not apply a violet background to every content car
 
 ### Root header actions are native bar items
 
-On an iPhone or iPad running iOS 26 Liquid Glass, the root tabs' header buttons are native UIKit bar
-items (`root-bar-items.ts`, gated by `useNativeRootBarItems`), not custom glass capsules. iPhone Duo
-moves native items onto its side rail; a custom view never moves there, and neither does an item with
-a title but no icon. So every root action carries an SF Symbol and a title. UIKit shows the symbol in
-the bar and on the rail, and the title in the overflow menu and to VoiceOver. On iPad, UIKit lays the
-items out beside its own sidebar button and the portrait top tab bar, which the glass capsules
-collided with; the leading and trailing groups stay separate, as on the rail.
+On an iPhone or iPad running iOS 26 Liquid Glass, the root tabs' header buttons can be native UIKit
+bar items (`root-bar-items.ts`, gated by `useNativeRootBarItems`). iPhone Duo moves native items onto
+its side rail; a custom view never moves there, and neither does an item with a title but no icon. So
+every root action that can be a native item carries an SF Symbol and a title. UIKit shows the symbol
+in the bar and on the rail, and the title in the overflow menu and to VoiceOver. On iPad, UIKit lays
+the items out beside its own sidebar button and the portrait top tab bar, which glass capsules
+collided with.
 
-- In a horizontal bar the avatar stays the glass `UserAvatarToolbarAction` (round photo, initials
-  without one); on Climbs and Discover the glass island keeps + beside it. On the Duo rail the account
-  is a native item with `person.crop.circle.badge.ellipsis`, not the Profile tab's
-  `person.crop.circle`. A bar item's image is not clipped (a photo shows square), react-native-screens
-  loads any image source after it makes the item (a blank item on every header change, and the closed
-  Duo then kept it off the rail), and a bar item cannot draw initials.
-- The bulb is a native item only on the rail. In a horizontal bar it stays the glass bulb as a custom
-  view, because react-native-screens has no item with both a tap and a long-press menu, and the
-  long press opens Board controls.
-- The centre capsule's width comes from the items' measured widths (`nativeItemsTitleMaxWidth`: a
-  native item 44pt and 57pt for each one after it, a glass island 38pt a slot plus 8pt), so it
-  ellipsizes before the trailing group. Climbs gets 134pt at 375pt, 161pt at 402pt and 199pt at
-  440pt. An adjustable angle beside history would leave 65, 92 and 130pt; under 96pt
-  (`CENTER_CONTENT_MIN_WIDTH`, about six letters and the grade) the angle moves to the top of the ⋯
-  menu while the capsule shows, so 375pt and 402pt keep 134pt and 161pt.
-- Board history is a native item, so the showcase recorder's `board-history-button` anchor is a box
-  drawn from the bar's geometry in screenshot mode (`NativeTrailingItemShowcaseAnchor`).
+**The iPhone bar mirrors its sides (#7281).** Off the rail, Climbs and Discover draw two glass
+islands of the same 38pt slots (a 4pt hit slop takes each to 46pt, past the 44pt floor):
+
+```
+Climbs    (@ 40°)   [ Mid Range Game  ]   ((h) ...)
+                    [ V6 · 683 sends  ]
+Discover  (@ 40° +)                       ((board) (*))
+```
+
+- The leading island is the avatar, then the glass "40°", then + where it stays. The angle sits in the
+  same place on both tabs.
+- On Climbs in a compact-width bar, + is the first row of ⋯ ("Create a climb"), so the capsule gets
+  the slot. A regular-width iPad keeps + in the island. Discover keeps +: it
+  has no capsule and no ⋯.
+- The trailing island is history and ⋯ on Climbs (`ClimbListBoardActions` with `showAngle` off), the
+  board and the bulb on Discover. Equal islands centre the capsule: 151pt at 375pt, 178pt at 402pt,
+  216pt at 440pt (`nativeItemsTitleMaxWidth`).
+- Why not native items for the angle: a title-only item ("40°") got a capsule of its own, even with
+  `sharesBackground` (#7281 QA, iOS 27), and an icon would hide the number. Why not native items on
+  the trailing side: UIKit's 44pt items do not match the 38pt island slots.
+
+**Where native items stay:**
+
+- On the Duo rail every action is a native item: account (`person.crop.circle.badge.ellipsis`, not
+  the Profile tab's `person.crop.circle`) and + leading; the angle as a title item (it stays in the
+  bar), history and ⋯ or the board switcher, and the bulb, trailing. A bar item's image is not
+  clipped (a photo shows square), react-native-screens loads any image source after it makes the
+  item, and a bar item cannot draw initials, so the horizontal bar keeps the glass avatar.
+- On an iPad the trailing group stays native items (history and ⋯, or the board switcher) with the
+  glass bulb after them as a custom view: react-native-screens has no item with both a tap and a
+  long-press menu, and the long press opens Board controls. A compact-width iPad also moves + into
+  ⋯ on Climbs. The iPad's native history is where the showcase recorder's `board-history-button`
+  anchor points (`NativeTrailingItemShowcaseAnchor`); the iPhone island anchors its own glass history.
 - + (create) and the notifications bell keep `visibilityPriority: 'high'`, so they stay on screen
   longest. Board history is `'standard'`; the rest take the default.
-- The angle ("40°") stays a title-only item. An icon would hide the number on every iPhone, so it
-  gives up its place on the Duo rail. On a regular-width iPad it stays the glass "40°" as a custom
-  view, still first in the trailing group: its picker is a popover there (`useAnglePickerPopover`),
-  and a popover needs a React view to point at, which a UIKit bar item is not. For the same reason it
-  never moves into the ⋯ menu on a regular-width iPad. A compact-width iPad (Split View under 700pt)
-  behaves like an iPhone: the native title item opens the sheet and may move into the ⋯ menu. A width
-  change while the picker is open closes it first, then swaps the trigger.
-- The capsule's room and the showcase anchor measure the navigation stack's frame
-  (`useFrameSize`), not the window, so the iPad sidebar is left out.
-- Custom views stay custom: the Climbs "On the wall" capsule and the controls under the bar.
+
+**The angle's picker** is a sheet on iPhone and a popover on a regular-width iPad
+(`useAnglePickerPopover`), which needs a React view to point at: the glass "40°" is one. Moving between
+the bar and the rail swaps it for the native title item, so that move waits while the picker is open.
+
+**The Climbs capsule** (`WallStatusCapsule`, `BoardHeldCapsule`) is the climb's name over the grade
+and one fact:
+
+| State | Line 2 | Face |
+| --- | --- | --- |
+| Someone else lit it (with a name) | `V6 · Sam` | theirs, from a 130pt capsule (every iPhone but Display Zoom) |
+| Your own climb, or no named sender | `V6 · 683 sends` | none |
+| You hold the board | `V6 · 683 sends` | none (it would be yours) |
+| Lit with no live link | `V6 · 20m ago` | as above |
+
+The grade never cuts; the fact after it ends in "…" when room runs out, except the age, which a cut
+would make wrong (it may cut only in a 320pt Display Zoom bar). A climb with no name shows its grade
+as the name, and line 2 drops the grade. While a signed-in climber's id is still loading, the capsule
+shows the grade alone, so your own climb never flashes your face. The capsules carry no ×:
+a left swipe hides them, and VoiceOver gets a Hide action. The capsule's room and the showcase
+anchor measure the navigation stack's frame (`useFrameSize`), not the window, so the iPad sidebar is
+left out. The capsule and the controls under the bar are always custom views.
 
 iOS 18 and the Material variant keep the glass capsules.
 
@@ -901,10 +1053,43 @@ Source: `src/theme/top-bar.ts` (`topBarFor(variant)`), the `label` text variant,
 - **Disabled:** 40% opacity on iOS, keeping the colour. Material: onSurface at 38%.
 - **Loading:** a spinner takes the label's or glyph's place, in its colour, without changing the width.
 - **Dynamic Type:** bar labels hold at 1.0 on iOS (UIKit bar items don't scale) and 1.2 on Android.
+- **Large Content Viewer:** glyph buttons wrap in `LargeContentViewer`. The known exception is the
+  `AppMenu` ⋯ anchor (the player's and the queue sheet's): on iOS it is a SwiftUI menu with no
+  viewer yet, so a long press at accessibility text sizes shows no HUD on it.
 - **Kind:** callers pass `kind: 'confirm' | 'send' | 'forward'`. Unset, a `prominent` action is a
   confirm and any other a forward. A confirm may pass `icon` (the create drawer's lock) for the ✓.
 - **Header tint** is the theme's label colour (`useStackScreenOptions`, and the root navigation theme's
   `primary`), so no bar glyph falls back to React Navigation's iOS blue.
+
+### Material Climbs bar
+
+The Android Climbs header (`ClimbTopChrome`, Material branch) follows the iOS bar: avatar, title
+slot, then history and ⋮. It is about 112dp under the status bar (a 64dp app bar over a 48dp chip
+row), with or without a climb on the wall. Only Climbs looks like this; the other root tabs keep
+their titled bars.
+
+- **Empty title slot.** No "Climbs", no board name. The slot holds an empty `header` view whose
+  spoken label is "Climbs", so TalkBack still names the screen. Boards are switched from ⋮ → Switch board.
+- **The climb on the wall** fills the title slot as a compact M3 pill (`WallStatusCapsule`'s
+  Material skin) that says what the iOS capsule says, plus the climb's board art. It is 48dp
+  tall, full radius, filled with the amber `tertiaryContainer` so it reads as "lit" against the
+  bar (`#FFDBCA` light, `#773300` dark; `paper-theme.ts` sets it from the `#FF8A3D` accent, since
+  Paper's default is a pink). It leads with the MiniPlayer's `AccessoryClimbThumbnail` (40dp
+  slot, drawn through the shared render scheduler), then the sender's 24dp face where iOS would
+  show it. The name sits in titleSmall over the iOS byline, "grade · one fact" in labelMedium:
+  who lit it, your own or an unnamed climb's sends, or how long ago. All text is
+  `onTertiaryContainer` (13.2:1 light, 7.2:1 dark), so the grade never sits in its own hue on
+  the amber. The grade is never cut in the byline; only the fact gives way. Width rules, from
+  the pill's measured width (nothing leads before the first layout): under 130dp neither the
+  thumbnail nor the face; from 130dp the thumbnail; from 180dp the face beside it (the byline
+  names the sender either way). The pill stops at 280dp. Tap opens the wall preview; a left
+  swipe or the screen-reader Hide hides it. There is no ×. The empty `header` view stays
+  beside the pill, so TalkBack still reads "Climbs".
+- **Create** is ⋮'s first row on a compact width, as on iOS. A regular-width tablet keeps + in the bar.
+- **Chips stay pinned.** The chip row is `dense`: no vertical padding, so Compose's 48dp chip touch
+  targets are the row's whole height (8dp visible above and below each 32dp chip). Nothing pads under
+  the chips; when the sheet-only filter tokens show, their row keeps 8dp above and below its pills.
+  The Logbook and playlist rows keep their 8dp padding.
 
 **Material building blocks** (`tokens.ts` → `material`, Android branches only): nav active-indicator
 pill 64 × 32 (radius 16), surface elevation 3, pressed state-layer opacity 0.12. `androidRipple(color,
@@ -920,7 +1105,8 @@ content column**; there is no player pane, wall column or wall strip beside it. 
 the bottom accessory, Music's MiniPlayer (HIG Tab bars: "tab bars with an attached accessory, like the
 MiniPlayer in Music"), and tapping it, or any climb, opens the full-screen `/play` player, as on iPhone
 (HIG: "Don't change your app's functionality based on the space it occupies"). The accessory zooms
-into the player. `resolveCurrentClimbSurface` (`src/hooks/current-climb-surface.ts`) is the one answer
+into the player. The accessory shows the bar's climb, the last one you opened, not always the
+current one (see `nativeAccessory` above). `resolveCurrentClimbSurface` (`src/hooks/current-climb-surface.ts`) is the one answer
 to "who shows the current climb": the floating JS bar, the bottom-chrome reserve, the rest pill and the
 drawer host's tap routing all read it, so the climb never shows twice. Tab content clears the
 accessory through the measured in-tab inset (`tabBarAtBottom: false`, the same path as the iPhone
@@ -1023,8 +1209,8 @@ through to the full `BoardSheet`. Rules when adding layout-sensitive iPad compon
   own: the `Sheet` / `ModalSheet` wrappers add `useWindowBottomInset()` for it (see
   `docs/mobile-sheets-vs-routes.md`, rule 5). When a strip is
   docked above the pane, the shell sets `PlayDrawer paneTopInset={false}` so the inset isn't doubled.
-- Status may **annotate** selection (the pane shows an "On the wall" chip when the selected climb is the
-  lit one) — but never replace it.
+- Status may **annotate** selection (the wall button says whether the selected climb is lit; the header's
+  back chip, arrow + face, goes back to the wall's climb) — but never replace it.
 
 **The detail pane is width-budgeted, like the wall column** — not gated on a raw breakpoint. The
 persistent detail (play) pane mounts only when, after the sidebar and a minimum pane width, the browse
@@ -1103,13 +1289,43 @@ just did. The rules:
 
 ### Queue Undo
 
-Clear and bulk remove offer Undo inside the queue sheet, where a native modal cannot hide it.
+Clear (from Edit or from ⋯ → Clear queue), the bulk Remove bar and a row's Remove all offer Undo
+inside the queue sheet, where a native modal cannot hide it.
 The provider serializes the removals and composes Undo from the live queue when those requests
 finish, preserving crew additions, removals and order during a retry. The shared GraphQL transport
 owns bounded attempts and rate-limit retries; do not race a second deadline against that promise.
 Undo restores the current climb only if this removal cleared it, keeps live items within the
 500-climb sync limit, and expires when the session, board configuration or account changes.
 VoiceOver announcements queue behind current speech; Android uses its live region.
+
+The Undo lasts 8 s. With VoiceOver or TalkBack running it lasts 80 s, ten times as long. The
+10× is the ratio WCAG 2.2.1 (Timing Adjustable) uses for extending a time limit; borrowing it
+is not 2.2.1 conformance on its own, because a climber without a screen reader still gets 8 s
+and cannot change it. A screen-reader user has to reach the snackbar, hear it and double-tap,
+which takes far longer than a glance. On Android the 80 s grows to the climber's "Time to take
+action" setting (Android 10+) when that is longer, the same rule Material's own Snackbar
+follows; `useRecommendedTimeout` asks again each time TalkBack turns on, since Android sends no
+event when the setting changes. It still ends: the iPad side panel never closes, and an
+hour-old offer would restore a queue the crew has moved past. Switching the screen reader on or
+off while the Undo is up re-arms the timer with the new length (Paper only reads `duration`
+when it mounts, so `UndoSnackbar` keys it on the duration).
+
+Each time the Undo appears with a screen reader running, focus moves onto the Undo button half
+a second later. Every one of these removals unmounts the control the climber was on: the ⋯
+and Edit go once the queue is empty, the Remove bar goes with the selection, and the row goes
+with the climb. The half second is for ⋯ → Clear queue: when the native menu closes, iOS can
+hand VoiceOver focus back to its anchor and override an earlier move, and both snackbar
+entrances start transparent (a 220 ms fade on glass, 200 ms on Paper), which VoiceOver skips.
+On iOS the queued announcement waits for the focus move, so VoiceOver reads the Undo button
+first and the message after it. Other `UndoSnackbar` callers (logbook delete, wall change)
+keep their durations and do not move focus; `focusUndoOnShow` is opt-in.
+
+Focus is not handed back when the Undo goes away. After a tap on Undo, or when the 80 s runs
+out, the pill unmounts while it may hold focus. Issue #7243 tracks returning focus to the
+restored ⋯ or row.
+
+The browser app keeps 8 s and leaves focus alone, because react-native-web's
+`isScreenReaderEnabled` always resolves true and cannot tell who is running one.
 
 ---
 
@@ -1266,9 +1482,16 @@ The web app renders Velvet Send in **dark only**. Wiring notes specific to web:
   darkest step (`#1E1434`) and `neutral[900]` the lightest (`#F3EFFA`). 50–300 are surfaces; 400–900
   bear text. The numeric keys are a known wart — renaming them to semantic names is a follow-up.
 - **Shared source of truth.** The brand palette, surface anchors and colour helpers (`brandColors`,
-  `brandColorsDark`, `materialSurfaces`, `withAlpha`, `blendOpaque`) live in `@boardsesh/velvet-tokens`.
-  Web reads only `brandColorsDark`; **`brandColors` (light) must not be deleted as dead code** — mobile
-  re-exports it and still renders light. Change a brand hex there, not in each app.
+  `brandColorsDark`, `materialSurfaces`, `marketingSurfaces`, `withAlpha`, `blendOpaque`) live in
+  `@boardsesh/velvet-tokens`. Web reads only `brandColorsDark`; **`brandColors` (light) must not be
+  deleted as dead code** — mobile re-exports it and still renders light. Change a brand hex there, not
+  in each app.
+- **www keeps its violet surfaces on purpose.** The app's Material surfaces went neutral grey
+  ("Graphite"); the web page → card → elevated ladder in `theme-config.ts` did not, and
+  `velvet-tokens-parity.test.ts` asserts the two stay different. The `packages/web/scripts/render-*`
+  video scripts read `marketingSurfaces` (the frozen pre-Graphite app values) so they match the footage
+  already cut; `scripts/frame-screenshots.ts` reads the live `materialSurfaces`, so store frames show the
+  current app.
 - **Two synced sources.** `app/theme/theme-config.ts` feeds MUI + direct imports; `app/components/index.css`
   feeds the CSS custom properties read by the `.module.css` files. Every shared colour changes in BOTH —
   the parity test enforces it, plus the MUI split and WCAG contrast.
@@ -1297,9 +1520,6 @@ The web app renders Velvet Send in **dark only**. Wiring notes specific to web:
   4.81:1 on `background`. Don't reach for `neutral[400]` here; it lands at 2.72:1 on `surfaceElevated`.
   The parity test fences both tokens, including that `--separator` stays *below* 3:1 — that is its
   job, not a bug to fix.
-- **The one place light values survive** is `printSurfaceTokens` in `theme-config.ts`: the Satori OG
-  cards for `/api/og/{profile,setter,playlist}` render on `#FFFFFF`. It is not a light theme and must
-  not be imported into a product component.
 
 **Shared across web and mobile:** the brand palette + colour helpers (`@boardsesh/velvet-tokens`) and the
 climbing **grade colours** (`@boardsesh/board-constants`). Both are platform-agnostic and stay shared.

@@ -207,6 +207,13 @@ type BoardBleNativeModule = {
   connectPreparedBoard?(deviceId: string, preparationToken: string): Promise<void>;
   disconnect(): Promise<void>;
   /**
+   * Disconnect Bluetooth when driving ends (2.7): free the board but keep the
+   * pairing, so the Live Activity bulb and the next Put on board reconnect to
+   * it. `disconnect()` forgets it. Only on newer binaries: gate on
+   * `typeof disconnectKeepingBoard === 'function'`.
+   */
+  disconnectKeepingBoard?(): Promise<void>;
+  /**
    * Resolves the write's transport diagnostics on binaries new enough to
    * report them; older binaries resolve nothing. Treat a nullish result as
    * "no diagnostics".
@@ -322,6 +329,18 @@ export type LiveActivityStartSessionOptions = {
     connectingLabel?: string;
     /** "{{name}} is on the wall" template; Kotlin substitutes holderDisplayName. */
     onWallTemplate: string;
+    /**
+     * The header's line while driving the wall (2.7), "Driving the wall". For
+     * Put on board's timed drive the system draws the countdown beside it; an
+     * open-ended drive has no clock. An older binary ignores it.
+     */
+    lightDrivingLabel?: string;
+    /**
+     * The lit bulb's label while this phone drives: a tap stops driving
+     * (`boardControl` `stopDriving`). Without it (an older bundle) the lit bulb
+     * keeps re-lighting. An older binary ignores it.
+     */
+    stopDrivingLabel?: string;
   };
 };
 
@@ -421,6 +440,95 @@ export type LiveActivityRestTimerOptions = {
   androidOverCaption?: string | null;
 };
 
+/**
+ * What the wall does with this phone's next pick (2.7), as the Lock Screen,
+ * the Dynamic Island and the Android notification draw it: `off` (previews),
+ * `window` (Put on board's timed drive, Stop driving after, until `endsAtMs`)
+ * or `driving` (an open-ended drive, until the climber stops). Both drives
+ * read "Driving the wall"; only the timed one has a clock.
+ */
+export type LiveActivityLightingMode = 'off' | 'window' | 'driving';
+
+/** Which Stop driving after choice started the timed drive: the general one or the MoonBoard one. */
+export type LiveActivityLightingFamily = 'general' | 'moonboard';
+
+/** JS's drive, sent through `updateLightingWindow`. */
+export type LiveActivityLightingWindowOptions = {
+  sessionId: string;
+  mode: LiveActivityLightingMode;
+  /** Epoch ms the timed drive ends. null outside one. */
+  endsAtMs: number | null;
+  /** The timed drive's length: the iOS ring drains from it, and an iOS lock-screen press renews the drive by it. null outside one. */
+  windowSeconds: number | null;
+  family: LiveActivityLightingFamily | null;
+};
+
+/**
+ * The stored drive as `getLightingWindow` reads it back. `source` says who
+ * wrote it: `app` (JS) or, on iOS only, `lockScreen` (a Lock Screen or Dynamic
+ * Island Next or Previous that lit the wall, written natively while JS may
+ * have been suspended). Optional fields are absent rather than null.
+ */
+export type LiveActivityLightingWindowSnapshot = {
+  sessionId: string;
+  mode: LiveActivityLightingMode;
+  endsAtMs?: number | null;
+  windowSeconds?: number | null;
+  family?: LiveActivityLightingFamily | null;
+  source: 'app' | 'lockScreen';
+  updatedAtMs: number;
+};
+
+/**
+ * Settings › Board's Stop driving after choices, mirrored for the iOS Lock
+ * Screen and Dynamic Island Next / Previous, which start or renew a drive
+ * natively the way `resolveKeepLightingPlan` (src/lib/keep-lighting.ts) would.
+ * Right away (`off`) starts none: the press lights its one climb. iOS only.
+ */
+export type LiveActivityKeepLightingConfig = {
+  /** The general `KeepLightingChoice` ('off' | '30' | '45' | '60' | '120' | '300' | 'until_stopped'). */
+  keepLighting: string;
+  /**
+   * The retired MoonBoard `KeepLightingChoice`. A MoonBoard takes the general
+   * choice, so JS sends `keepLighting` here too. Only a binary from before the
+   * lock-screen press stamp reads it; a later one drops it.
+   */
+  moonboardKeepLighting: string;
+  /** "In a session too". */
+  drivesInSession: boolean;
+  /** A crew is in the session (the roster's crew). */
+  inCrew: boolean;
+  /**
+   * The session's board is a MoonBoard, for an older binary's MoonBoard rule.
+   * JS sends false on every board, so a press follows the general rule. A
+   * later binary drops it and treats `true` from an older bundle the same way.
+   */
+  moonboard: boolean;
+  /** False where a press would not start a drive in the app either. */
+  enabled: boolean;
+  /**
+   * This JS adopts a lock-screen stop, so the bulb may offer Stop driving
+   * while a drive is on the card. An older binary ignores it.
+   */
+  lockScreenStop?: boolean;
+};
+
+/**
+ * The last iOS Lock Screen or Dynamic Island Next / Previous, as
+ * `getLockScreenPress` reads it. The intent stamps it in flight before its
+ * server request and board write, and settles it just before the Darwin post
+ * that becomes `queueNavigate`. A press the party server turns down settles
+ * too, with no `queueNavigate` after: its stamp may cover an earlier press
+ * still writing the board. Epoch ms.
+ */
+export type LiveActivityLockScreenPress = {
+  pressId: string;
+  /** An unsettled press stops counting as in flight here: iOS ended the intent first. */
+  expiresAtMs: number;
+  /** When the press settled; absent while it is in flight. */
+  settledAtMs?: number | null;
+};
+
 export type WidgetMirrorEvent = {
   sessionId: string;
   queueItemUuid: string;
@@ -441,7 +549,8 @@ export type LiveActivityIntentDiagnosticKind =
   | 'nextClimb'
   | 'previousClimb'
   | 'takeControl'
-  | 'reconnectBoard';
+  | 'reconnectBoard'
+  | 'stopDriving';
 
 export type LiveActivityIntentDiagnosticStage =
   | 'entered'
@@ -465,7 +574,8 @@ export type LiveActivityIntentCompletionClass =
   | 'localNavigationEnabled'
   | 'alreadyAllowed'
   | 'bleFailure'
-  | 'mirrorNotCommitted';
+  | 'mirrorNotCommitted'
+  | 'nothingDriving';
 
 export type InterruptedLiveActivityIntentDiagnostic = {
   schemaVersion: 1;
@@ -485,10 +595,14 @@ export type InterruptedLiveActivityIntentDiagnostic = {
  * - `reconnect`: bulb was out (heldByPeer / disconnected) → reconnect to the
  *   last board, taking it back from a peer (Aurora is last-connection-wins).
  * - `reassert`: bulb was lit (connectedByMe) → re-push the current climb to the
- *   wall. iOS drives the equivalent through App Intents, not this event.
+ *   wall.
+ * - `stopDriving`: bulb was lit and this phone was driving when the
+ *   notification was drawn → stop driving (only sent when JS supplied
+ *   `stopDrivingLabel`).
+ * iOS drives the equivalent through App Intents, not this event.
  */
 export type BoardControlEvent = {
-  action: 'reconnect' | 'reassert';
+  action: 'reconnect' | 'reassert' | 'stopDriving';
   correlationId: string;
 };
 
@@ -510,8 +624,25 @@ type LiveActivityNativeModule = {
   supportsRestTimer?: boolean;
   /** Optional for OTA compatibility with binaries predating #6513; `null` clears it. */
   updateRestTimer?(options: LiveActivityRestTimerOptions | null): Promise<void>;
+  /** True on binaries that draw driving the wall (2.7). */
+  supportsLightingWindow?: boolean;
+  /** Optional for OTA compatibility with binaries predating 2.7; `null` clears it. */
+  updateLightingWindow?(options: LiveActivityLightingWindowOptions | null): Promise<void>;
+  /** Optional for OTA compatibility with binaries predating 2.7; `null` clears it. */
+  updateKeepLightingConfig?(config: LiveActivityKeepLightingConfig | null): Promise<void>;
+  /** Synchronous. Optional for OTA compatibility with binaries predating 2.7. */
+  getLightingWindow?(): LiveActivityLightingWindowSnapshot | null;
+  /** Synchronous. Optional: binaries before the press stamp have none. */
+  getLockScreenPress?(): LiveActivityLockScreenPress | null;
+  /**
+   * True on binaries whose Lock Screen bulb can stop a drive
+   * (`StopDrivingIntent`), which then emit `lockScreenDriveStop`.
+   */
+  supportsLockScreenDriveStop?: boolean;
   addListener(event: 'queueMirror', listener: (payload: WidgetMirrorEvent) => void): EventSubscription;
   addListener(event: 'queueNavigate', listener: (payload: WidgetQueueNavigateEvent) => void): EventSubscription;
+  /** A Lock Screen stop was stored: adopt it from `getLightingWindow`. Carries nothing. */
+  addListener(event: 'lockScreenDriveStop', listener: () => void): EventSubscription;
 };
 
 export const liveActivityNative = requireOptionalNativeModule<LiveActivityNativeModule>('LiveActivity');
@@ -536,6 +667,16 @@ type SessionPresenceNativeModule = {
   supportsRestTimer?: boolean;
   /** Optional for OTA compatibility with binaries predating #6513; `null` clears it. */
   updateRestTimer?(options: LiveActivityRestTimerOptions | null): Promise<void>;
+  /** True on binaries that draw driving the wall (2.7). */
+  supportsLightingWindow?: boolean;
+  /**
+   * Optional for OTA compatibility with binaries predating 2.7; `null` clears
+   * it. JS is the only writer here: a notification Previous / Next writes no
+   * drive natively, so there are no settings to mirror either.
+   */
+  updateLightingWindow?(options: LiveActivityLightingWindowOptions | null): Promise<void>;
+  /** Synchronous. Optional for OTA compatibility with binaries predating 2.7. */
+  getLightingWindow?(): LiveActivityLightingWindowSnapshot | null;
   /**
    * Resolves after `ms` on a native clock that keeps running while the activity
    * is paused, when Android stops firing JS timers (#7038). Optional for OTA

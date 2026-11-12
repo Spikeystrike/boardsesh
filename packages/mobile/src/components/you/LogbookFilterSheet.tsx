@@ -37,7 +37,7 @@ import { filterSheetStyles } from '../filter-sheet/filter-sheet-styles';
 import { androidSafeSnapPoints } from '../sheet-snap-points';
 import { useSheetColumnStyle } from '../use-sheet-column-style';
 import { useSheetKeyboardInset } from '../sheet-keyboard-inset';
-import { useIosSheetBackgroundStyle } from '../use-ios-sheet-background-style';
+import { useSheetBackgroundStyle } from '../use-sheet-background-style';
 import { useWindowBottomInset } from '../../hooks/use-window-bottom-inset';
 import { useSheetSubRoute } from '../../hooks/use-sheet-sub-route';
 import { useManagedSheet } from '../../providers/sheet-presentation-provider';
@@ -58,6 +58,7 @@ import {
   logbookStatusLabel,
 } from './logbook-capsules';
 import type { LogbookBoardOption } from './use-logbook-board-options';
+import { isVerifiedBoard } from '../../lib/benchmark-term';
 
 type LogbookFilterSheetProps = {
   onDismiss: () => void;
@@ -124,7 +125,7 @@ export function LogbookFilterSheet({
 }: LogbookFilterSheetProps) {
   const { t } = useTranslation('you');
   const { systemColors } = useTheme();
-  const iosBackgroundStyle = useIosSheetBackgroundStyle();
+  const sheetBackgroundStyle = useSheetBackgroundStyle();
   const windowInsetBottom = useWindowBottomInset();
   const sheetRef = useRef<BottomSheetModal>(null);
 
@@ -312,6 +313,7 @@ export function LogbookFilterSheet({
 
   // --- The climb
   const selectedBoard = boardOptions.find((board) => board.boardType === filters.boardType);
+  const verifiedBoard = isVerifiedBoard(filters.boardType);
   const showBoardControl = boardOptions.length >= 2 || filters.boardType !== '';
   const boardChoices = useMemo(() => {
     const choices = boardOptions.map((board) => ({ value: board.boardType, label: board.label }));
@@ -393,7 +395,7 @@ export function LogbookFilterSheet({
       onChange={managed.onChange}
       onFullyDismissed={managed.onFullyDismissed}
       handleIndicatorStyle={[styles.indicator, { backgroundColor: systemColors.separator }]}
-      backgroundStyle={iosBackgroundStyle}
+      backgroundStyle={sheetBackgroundStyle}
     >
       {/* One column child bounded to the detent. The iOS sibling measures the
           keyboard-safe host height so overflow can be padded away. */}
@@ -589,9 +591,18 @@ export function LogbookFilterSheet({
               />
 
               <View style={filterSheetStyles.subsectionGap} />
-              <FilterLabelRow label={t('mobile.logbook.filterSheet.benchmarks')} {...pinProps('benchmarks')} />
+              <FilterLabelRow
+                label={
+                  verifiedBoard ? t('mobile.logbook.filterSheet.verified') : t('mobile.logbook.filterSheet.benchmarks')
+                }
+                {...pinProps('benchmarks')}
+              />
               <SwitchRow
-                label={t('mobile.logbook.filterSheet.onlyBenchmarks')}
+                label={
+                  verifiedBoard
+                    ? t('mobile.logbook.filterSheet.onlyVerified')
+                    : t('mobile.logbook.filterSheet.onlyBenchmarks')
+                }
                 value={filters.benchmarkOnly}
                 onValueChange={handleBenchmarks}
               />

@@ -45,16 +45,74 @@ and configuration control the hop. Reconnect waits for that UUID, board type,
 layout, size and normalized hold sets to reach the provider, including a change
 that affects only the UUID or hold sets. The one-shot still expires and fires once.
 
-Connecting to a known board initially lists only controllers resolving to that
-exact board UUID. Each controller's advertised board type must agree too, since
-Kilter and Tension serial numbers can overlap. The broad scan continues to feed
-serial resolution; a delayed lookup can add a matching row but never selects it.
-"Search for any board" reveals the full scan, including unresolved controllers,
-and keeps that choice through sheet-host changes for this connect. A new connect
-starts with its own target again. Saved-device reconnects keep their existing
-search and auto-selection; using their search escape also reveals the full list.
-No matching target is distinct from an empty scan, so other boards being hidden
-does not trigger location-permission or no-lights advice.
+Connecting to a known board sorts each controller into one of three groups
+(`classifyPickerDevice`). **Target**: its serial resolves to that exact board
+UUID, or nothing on record names its board and it is the box this phone
+remembers for that board by BLE device id (`PickerBoardTarget.rememberedDeviceId`:
+a MoonBoard or a serial-less Kilter-built box, unless a hang-up's 10 minutes
+ran out). **Other**: its serial resolves to a different board, or its advertised
+board type is not the target's, since Kilter and Tension serial numbers can
+overlap. **Unknown**: nothing says either way, which covers every stock
+MoonBoard and every bare-name Kilter or Tension box this phone doesn't remember
+(they advertise no serial), a serial nobody has recorded, and a recording that
+names no board. The picker
+lists target rows first, then unknown rows, strongest signal first within each,
+and hides only other rows. #7125 first shipped hiding unknown rows too. In the
+30 days to 2026-10-31 nothing resolved in 2,521 of 2,522 MoonBoard pickers and
+1,265 of 2,512 Android Kilter pickers, so a gym connect there listed nothing but
+"Your selected board was not found". The broad scan keeps feeding serial
+resolution; a delayed lookup can move a row between groups but never selects it.
+"Search for any board" reveals the full scan and keeps that choice through
+sheet-host changes for this connect. A new connect starts with its own target
+again. Saved-device reconnects keep their existing search and auto-selection;
+using their search escape also reveals the full list. "Your selected board was
+not found" shows only when every controller heard is another board. That is
+distinct from an empty scan, so it does not trigger location-permission or
+no-lights advice. `BLE Picker Devices Resolved` counts the three groups as
+`targetMatchedDevices`, `targetUnknownDevices` and `targetOtherDevices`. It
+counts by serial resolution alone, so a box the sheet lists in the target group
+because this phone remembers it by id still counts where its serial puts it.
+
+**Tips while the scan runs.** "Don't see your board?" and its tips come in 5 s
+into the scan (`SCAN_TIPS_DELAY_MS` in `lib/ble/scan-tips.ts`), while the scan
+goes on, instead of after the 30 s scan ends empty. They show while nothing is
+there to pick: no board heard at all, or for a known board nothing listed. Every
+listed box may be the climber's, the unknown group included: a MoonBoard or a
+Kilter-built box has nothing but its BLE id to tell it apart, a serial is
+recorded only on a connect (so the first Boardsesh connect at a board lists its
+box as unknown), and a box whose serial lookup is still out is unknown until the
+reply lands. A same-type neighbour with an unrecorded serial therefore keeps the
+tips off too; that is the rarer case. They stay once the scan ends and go as
+soon as a board is there. A `searching` picker shows none; it hands over to the
+list at 10 s, where they are already due. One line per tip, in this order:
+power, distance, Bluetooth, then another phone. On a MoonBoard (the target's
+board, or the active board) another phone comes second, in its own wording: an
+older box can keep the first phone until it is switched off and on. The Android
+location hints replace the tips from the same 5 s, but only when nothing at all
+was heard; once location is sorted their copy asks for a fresh connect, so Scan
+again comes with it while the scan still runs. "Browse for now" sits under the
+tips: it closes the picker without connecting, so the climber keeps picking
+climbs as previews. It is not "This wall has no lights", which still shows only
+after an empty scan and takes the wall with no Bluetooth. `BLE Picker Devices
+Resolved` carries `tipsShownAtMs` and `browsedForNow`. The sheet opens at a
+medium detent, so the hints never sit pinned under the rest: with boards listed
+they are the list's footer, and with none the state above them ("No boards
+found", "not found", the spinner) scrolls with them. The `/boards` Bluetooth
+quickstart (`BluetoothQuickstartSheet`) shows the same tips 5 s into its 15 s
+scan while it has heard no board, with no Browse for now.
+
+**Remembered boards.** A connect remembers the box for the board in view: by
+serial for Aurora boxes, by BLE device id for a MoonBoard or a serial-less
+Kilter-built box named for that board type (`Kilter Board`, `isKilterBuiltBox`).
+The next tap on the bulb reconnects to it while the picker shows "searching",
+with no board list. A drop, a config switch and Disconnect Bluetooth when
+driving ends keep it with no limit. A hang-up keeps it for 10 minutes, then it
+is forgotten, the iOS native pairing included, unless the Lock Screen bulb
+already reconnected it: that link is kept and the board is remembered again.
+That pairing, which lets the Lock Screen bulb reconnect, goes sooner when the
+route moves to another board.
+A hang-up after a wrong-box connect, and a sign-out, forget it at once. The rules and their reasons are in
+`docs/board-connection-holder.md`.
 
 The simulator comparison uses the same resolved QA gym fixtures with a stronger
 Tension signal. The [expanded list](../images/7125-picker-all.png) follows an
@@ -166,7 +224,8 @@ non-fatal.
 
 - Updates state synchronously for immediate UI feedback.
 - Consumes the active adapter generation exactly once, unsubscribes the adapter disconnect listener, and nulls the adapter ref.
-- Fires `Bluetooth Disconnected` analytics with `reason: 'user'`, a low-cardinality `disconnectTrigger` (`explicit_user`, `config_switch`, or `connection_replacement`), and `connectionDurationSec`.
+- Fires `Bluetooth Disconnected` analytics with `reason: 'user'`, a low-cardinality `disconnectTrigger` (`explicit_user`, `driving_ended`, `config_switch`, or `connection_replacement`), and `connectionDurationSec`.
+- A hang-up (`explicit_user`) keeps the board remembered, and on iOS its native pairing, for 10 minutes. After a wrong-box connect it forgets both at once. `driving_ended` keeps both with no limit; `config_switch` keeps the JS memory and forgets the native pairing.
 - Uses the board config and analytics session state captured when that generation started. Its board ID is attached only through the matching generation's guarded resolve, including cached identities for already-bound reconnects, so every holder is released while a config switch still releases the old wall, never the newly rendered route.
 - Calls session wall-disconnect cleanup unconditionally against the current queue session (a no-op in solo). This safely handles a connection that opened solo and joined later, or moved from one session to another; the snapshotted session boolean remains analytics-only.
 

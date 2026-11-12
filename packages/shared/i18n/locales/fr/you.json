@@ -136,8 +136,7 @@
         "a11yHasBetaVideo": "avec vidéo de beta",
         "a11yMirrored": "en miroir",
         "editAction": "Modifier l'entrée",
-        "deleteAction": "Supprimer l'entrée",
-        "moreActions": "Plus d'actions"
+        "deleteAction": "Supprimer l'entrée"
       },
       "day": {
         "today": "Aujourd'hui",
@@ -179,6 +178,7 @@
         "setters_one": "{{count}} ouvreur",
         "setters_other": "{{count}} ouvreurs",
         "benchmarks": "Benchmarks",
+        "verified": "Vérifiés",
         "gradeOpenHint": "Affiche la ligne des cotations",
         "gradeCloseHint": "Masque la ligne des cotations",
         "angleOpenHint": "Affiche la ligne des angles",
@@ -231,6 +231,8 @@
         "setterAny": "Tous",
         "benchmarks": "Benchmarks",
         "onlyBenchmarks": "Blocs benchmark uniquement",
+        "verified": "Vérifiés",
+        "onlyVerified": "Blocs vérifiés uniquement",
         "sectionSort": "Tri",
         "sortBy": "Trier par",
         "order": "Ordre",

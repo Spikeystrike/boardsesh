@@ -433,13 +433,13 @@ hand-written server) since the standalone `server.js` is generated at build time
 
 `overlapSeconds` (the other teardown knob) keeps both deployments serving at
 once. It is deliberately unset. With the C15 code defaults, the two backend
-replicas use 2 x (`DB_POOL_MAX` 5 + `PGBOSS_POOL_SIZE` 2) = 14 connections,
-down from 28 before the pool change. On a 15 s drain, the full-fleet ceiling is
-79 while the web service's explicit `DB_POOL_MAX=10` is unchanged; setting the
-separate web cap to 4 lowers that ceiling to 73. Both fit under the 97
+replicas use 2 x (`DB_POOL_MAX` 5 + the 2-connection admission pool +
+`PGBOSS_POOL_SIZE` 2) = 18 connections. On a 15 s drain, the full-fleet ceiling
+is 87 while the web service's explicit `DB_POOL_MAX=10` is unchanged; setting
+the separate web cap to 4 lowers that ceiling to 81. Both fit under the 97
 non-superuser slots of `max_connections=100`. The homelab sync runners still
 set `max: 5` in code and ignore `DB_POOL_MAX`, so a cap of 3 needs a separate
-code follow-up before relying on the 53 steady / 67 draining projection.
+code follow-up before relying on the 57 steady / 75 draining projection.
 PgBouncer remains parked; see
 [db-connectivity.md](./db-connectivity.md#pgbouncer-parked) for why and when to
 revisit it. Railway only sends SIGTERM once the replacement deployment is
@@ -691,6 +691,28 @@ backend back to `549969d683` or any other build containing #6339's code
 which `0275` dropped, so every deletion sync would fail. Any build from #6431 on
 is a safe target. See [sync-deletions-cutoff.md](sync-deletions-cutoff.md).
 
+### Credential cutoff rollback floor
+
+BA-04 PR 2 (#7420) makes every backend reader refuse a credential stamped
+before the climber's last password reset, change, set or deletion
+([better-auth-migration.md](better-auth-migration.md), "Credential cutoffs").
+An older backend ignores `auth_subject_cutoffs.generation`, so rolling back below
+it brings every session that a reset ended back to life, and no code can stop it.
+
+- **The floor is the merge commit of #7420.** Record its SHA here when it merges:
+  `floor: (not merged yet)`.
+- **It binds once any cutoff row exists.** Check on the standby:
+  `SELECT count(*) FROM auth_subject_cutoffs;` Zero means no staged writer has run
+  and any build is still a safe rollback target. One or more means never deploy a
+  backend build older than the floor.
+- **Below the floor is never the rollback.** To undo PR 2's behaviour, set
+  `AUTH_CUTOFF_ENFORCEMENT=observe` on the backend service: readers then admit
+  what only a cutoff refuses, as the build before did. The backend refuses to
+  start with `observe` while any `CURRENT_STORE_*` writer mode is on, so turn
+  those modes back to `legacy` first.
+- Never delete cutoff rows to make a rollback safe. They are the record of who
+  was signed out.
+
 ## Required GitHub configuration
 
 Web-specific config lives in the **Production** GitHub environment alongside
@@ -706,6 +728,9 @@ web deploy targets:
 | `RAILWAY_TOKEN`             | secret | Production-environment Railway project token used by both verified deploy paths. |
 | `NEXT_PUBLIC_WS_URL`        | var    | Backend WS URL baked into the web image.                                        |
 | `NEXT_PUBLIC_POSTHOG_KEY`   | var    | Public PostHog key baked into the web image. Client analytics goes dark without it. |
+| `NEXT_PUBLIC_APP_STORE_PROVIDER_ID` | var | App Store provider id (digits) baked into the web image for the `pt` param on App Store links. Empty is harmless: links carry `ct` and `mt` only. |
+| `NEXT_PUBLIC_META_PIXEL_ID` | var | Meta Pixel id (digits) baked into the web image. Unset: no Meta script loads. See [ad pixels](./analytics-consent.md#ad-pixels). |
+| `NEXT_PUBLIC_REDDIT_PIXEL_ID` | var | Reddit Pixel id (`a2_…`) baked into the web image. Unset: no Reddit script loads. |
 | `SENTRY_AUTH_TOKEN`         | secret | Source-map upload during the web image build.                                    |
 | `SMOKE_KIOSK_GYM_SLUG`      | var    | Fixture the post-deploy smoke reads.                                             |
 | `SMOKE_EMBED_BOARD_UUID`    | var    | Fixture the post-deploy smoke reads.                                             |

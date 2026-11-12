@@ -102,6 +102,15 @@ holds drew seconds late only in Low Power Mode, and no event could say which
 sessions were in it). Split `Board Render Failed` by it before reading a
 `render_stalled` or `paint_timeout` rate as a fleet-wide number.
 
+`color_scheme` (`light` | `dark`) and `ui_variant` (`liquidGlass` | `material`) are
+super properties too, registered by `ThemeAnalyticsTracker` from the resolved
+theme (after the in-app Appearance override) on launch and on every change. They
+are written again once the PostHog client finishes initialising, after
+`analytics.reset()`, and after every consent-path reset in `applyPosthogConsent`
+(`analytics-super-properties-cleared.ts`), so a fresh install that grants consent
+mid-launch still carries them. Use them to split any metric by light/dark and by
+UI variant.
+
 ## `Board Render Failed` — when the board does not draw
 
 Every other event on this page describes a render that worked. This one is the
@@ -156,9 +165,9 @@ type is what stops a call site inventing a combination no query would match.
 #### `surface` is opt-in, and `play` means exactly one board
 
 `play` is the play drawer's CURRENT card and nothing else — `SwipeBoardCarousel`
-passes `playSurface` to it explicitly. Twelve other call sites render a board at
+passes `playSurface` to it explicitly. Eleven other call sites render a board at
 full size and none of them do: the board-look preview cards and rails,
-`CustomLookPreview`, `BoardPreviewSheet`, `ClimbReactionMenu`, `WallHeroStage`,
+`CustomLookPreview`, `BoardPreviewSheet`, `WallHeroStage`,
 and the carousel's own two neighbours, which stay mounted off screen. They are
 all `full`. A neighbour that is swiped onto becomes `play` without being
 remounted, so a failure is reported under the surface the board has when it

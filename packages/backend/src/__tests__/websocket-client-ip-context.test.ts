@@ -19,9 +19,40 @@ import type { ConnectionContext } from '@boardsesh/shared-schema';
 const { createdContexts } = vi.hoisted(() => ({
   createdContexts: [] as Pick<
     ConnectionContext,
-    'connectionId' | 'clientIp' | 'socketPeerIp' | 'clientIdentity' | 'clientIdentityRaw'
+    | 'connectionId'
+    | 'clientIp'
+    | 'socketPeerIp'
+    | 'trustedClientIp'
+    | 'clientIdentity'
+    | 'clientIdentityRaw'
+    | 'userId'
+    | 'isAuthenticated'
+    | 'controllerId'
+    | 'controllerOwnerUserId'
   >[],
 }));
+
+// One known controller key; every other key is unknown, like a real lookup miss.
+const DEVICE_KEY = 'wall-device-test-key';
+vi.mock('../middleware/auth', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../middleware/auth')>();
+  return {
+    ...actual,
+    validateControllerApiKey: vi.fn(async (apiKey: string) =>
+      apiKey === DEVICE_KEY
+        ? {
+            controllerId: 'wall-device-controller',
+            controllerApiKey: apiKey,
+            userId: 'wall-device-owner',
+            boardName: 'kilter',
+            layoutId: 1,
+            sizeId: 10,
+            setIds: '1',
+          }
+        : null,
+    ),
+  };
+});
 
 // graphql-ws checks returned errors with instanceof. Match its external Node
 // constructor instead of Vite's separate graphql/index.mjs module instance.
@@ -147,6 +178,25 @@ describe('WebSocket connection context client IP', () => {
     expect(context.socketPeerIp).toBe('127.0.0.1');
   });
 
+  it('puts a trusted limit key beside clientIp: no cf-connecting-ip from a non-edge peer, IPv6 as its /64', async () => {
+    const spoofed = await connectAndReadContext({
+      'cf-connecting-ip': '203.0.113.7',
+      'x-forwarded-for': '198.51.100.9, 198.51.100.20',
+    });
+    // Loopback stands in for the private ingress, whose appended hop counts.
+    // That hop is no Cloudflare edge, so its cf-connecting-ip is not believed.
+    expect(spoofed.clientIp).toBe('203.0.113.7');
+    expect(spoofed.trustedClientIp).toBe('198.51.100.20');
+    // Through a Cloudflare edge hop, the edge's header is the key.
+    const throughEdge = await connectAndReadContext({
+      'cf-connecting-ip': '203.0.113.7',
+      'x-forwarded-for': '172.68.1.1',
+    });
+    expect(throughEdge.trustedClientIp).toBe('203.0.113.7');
+    const ipv6 = await connectAndReadContext({ 'x-forwarded-for': '2001:db8:51:7::beef' });
+    expect(ipv6.trustedClientIp).toBe('2001:db8:51:7::/64');
+  });
+
   it('keys on the last forwarded hop, ignoring an attacker-prefixed entry', async () => {
     const context = await connectAndReadContext({ 'x-forwarded-for': '198.51.100.9, 172.68.1.1' });
 
@@ -189,6 +239,25 @@ describe('WebSocket connection context client IP', () => {
 
     expect(context.clientIdentity).toEqual({ name: 'boardsesh-mobile-web', version: '2.6.0', platform: 'web' });
     expect(context.clientIdentityRaw).toBe('boardsesh-mobile-web/2.6.0 (web)');
+  });
+
+  it("carries a controller key's owner as read-only identity, never as the signed-in user", async () => {
+    const context = await connectAndReadContext({}, { controllerApiKey: DEVICE_KEY });
+
+    expect(context.controllerId).toBe('wall-device-controller');
+    expect(context.controllerOwnerUserId).toBe('wall-device-owner');
+    // The key must not log the device in: mutations, the queue and account
+    // reads all key on userId / isAuthenticated.
+    expect(context.userId).toBeUndefined();
+    expect(context.isAuthenticated).toBe(false);
+  });
+
+  it('gives an unknown controller key no owner', async () => {
+    const context = await connectAndReadContext({}, { controllerApiKey: 'not-a-real-key' });
+
+    expect(context.controllerId).toBeUndefined();
+    expect(context.controllerOwnerUserId).toBeUndefined();
+    expect(context.userId).toBeUndefined();
   });
 
   it('ignores a non-string client identity param', async () => {

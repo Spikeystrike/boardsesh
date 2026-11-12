@@ -3,7 +3,8 @@
     "home": {
       "title": "App de grimpe compatible avec Kilter, Tension et MoonBoard",
       "description": "Partage une file en direct avec ton crew et suis tes croix sur chaque board. Compatible avec Kilter, Tension, MoonBoard et plus.",
-      "ogDescription": "Partage une file en direct avec ton crew et suis tes croix sur chaque board. Compatible avec Kilter, Tension, MoonBoard et plus."
+      "ogDescription": "Allume des blocs, fais la croix et grimpe avec ton crew. Compatible avec Kilter, Tension, MoonBoard et plus.",
+      "ogTitle": "Boardsesh : une app pour tes boards"
     },
     "about": {
       "title": "Créée par des grimpeurs, ouverte à tous",
@@ -47,11 +48,11 @@
     },
     "helpBoardAndBluetooth": {
       "title": "Connecte-toi à ta board en Bluetooth",
-      "description": "Connecte Boardsesh à un contrôleur Kilter, Tension ou MoonBoard, règle une connexion qui échoue, et pilote-la depuis l'écran verrouillé avec Live Activity."
+      "description": "Connecte Boardsesh à un contrôleur Kilter, Tension ou MoonBoard, choisis combien de temps Allumer sur la board te fait piloter, règle une connexion qui échoue, et commande-la depuis l’écran verrouillé avec Live Activity."
     },
     "helpClimbActions": {
-      "title": "Aperçu, croix ou playlist depuis n'importe quelle ligne de bloc",
-      "description": "Le menu d'appui long sur une ligne de bloc dans l'app Boardsesh, de l'aperçu sans allumer la board à la croix ou à l'ajout dans une playlist."
+      "title": "Toucher pour un aperçu, appuyer long pour faire la croix ou ajouter à une playlist",
+      "description": "Comment un toucher sur une ligne de bloc dans l'app Boardsesh ouvre un aperçu sans allumer la board, et ce que fait le menu d'appui long : faire la croix ou ajouter à une playlist."
     },
     "helpBetaVideos": {
       "title": "Partager un reel Instagram ou TikTok en beta",
@@ -167,8 +168,8 @@
       "otherWays": "Pas de budget ?"
     },
     "supportBanner": {
-      "text": "Boardsesh reste gratuit parce que des grimpeurs participent. Soutenez-le chaque mois et payez le temps qu'il faut pour le construire.",
-      "cta": "Soutenir chaque mois",
+      "text": "Boardsesh reste gratuit et sans pub grâce aux grimpeurs qui participent. Chaque contribution aide, ponctuelle ou mensuelle.",
+      "cta": "Soutenez-nous",
       "close": "Fermer"
     }
   },
@@ -220,7 +221,7 @@
     "hero": {
       "title": "Gardez Boardsesh en vie",
       "subtitle": "Gratuit, open source, et payé par des grimpeurs",
-      "ctaMonthly": "Soutenir chaque mois"
+      "ctaMonthly": "Soutenez-nous"
     },
     "promise": "Pas d'écran verrouillé, pas de deuxième catégorie, pas de pub. Participer paie la facture, rien d'autre.",
     "promiseMonthly": "Pas d'écran verrouillé, pas de deuxième catégorie, pas de pub. Participer paie les heures passées à construire Boardsesh, rien d'autre.",
@@ -415,7 +416,7 @@
       "title": "Dans l'app",
       "intro": "Tout ce qui touche au mur ou à ton carnet se passe dans l'app.",
       "item1": "Monte une file et enchaîne les blocs avec ta crew.",
-      "item2": "Lancer une session en direct pour que tous les téléphones pilotent une seule file.",
+      "item2": "Lancer une session en direct pour que tous les téléphones partagent une seule file.",
       "item3": "Allumer les prises en Bluetooth sur les murs Kilter, Tension et MoonBoard.",
       "item4": "Noter tes croix et tes essais, et joindre des vidéos de beta."
     },
@@ -457,7 +458,7 @@
       },
       "climbActions": {
         "title": "Actions sur un bloc",
-        "body": "Garde un bloc appuyé pour le voir sans allumer le mur, faire la croix ou l'ajouter à une playlist."
+        "body": "Touche un bloc pour le voir en aperçu sans allumer le mur. Garde-le appuyé pour faire la croix ou l'ajouter à une playlist."
       },
       "sessions": {
         "title": "Sessions en direct",
@@ -473,7 +474,7 @@
       },
       "bluetooth": {
         "title": "Board et Bluetooth",
-        "body": "Te connecter à la board, régler une connexion qui échoue, et la piloter depuis l'écran verrouillé avec Live Activity."
+        "body": "Te connecter à la board, choisir combien de temps Allumer sur la board continue d’allumer, régler une connexion qui échoue, et utiliser l’écran verrouillé."
       },
       "betaVideos": {
         "title": "Vidéos beta",
@@ -515,9 +516,9 @@
       },
       "queue": {
         "title": "Grimper toute la liste",
-        "intro": "Touche un bloc dans une playlist et tu parcours cette playlist. Ta file reste telle quelle.",
-        "p1": "Fais défiler pour parcourir la liste dans l'ordre à partir du bloc touché. Le bouton lecture de l'en-tête part du début. Mettre juste après place toute la liste en tête de ta file, Mettre à la fin la place en bas. Pour qu'un toucher charge plutôt la playlist dans ta file, active Toucher une playlist la charge dans ma file dans Paramètres, puis Board.",
-        "p2": "En session, toucher n'ouvre le bloc que pour toi. La file partagée ne bouge pas.",
+        "intro": "Touche un bloc dans une playlist et tu le vois en aperçu, en parcourant cette playlist. Ta file reste telle quelle.",
+        "p1": "Fais défiler pour parcourir la liste dans l'ordre à partir du bloc touché. Le bouton lecture de l'en-tête fait pareil depuis le premier bloc. Mettre juste après place toute la liste en tête de ta file, Mettre à la fin la place en bas. Pour qu'un toucher ou le bouton lecture charge plutôt la playlist dans ta file, active Toucher une playlist la charge dans ma file dans Paramètres, puis Board. La board garde son bloc et tu vois en aperçu celui que tu as touché. Quand tu pilotes la board, le toucher remplace plutôt toute ta file par la playlist et allume le bloc.",
+        "p2": "En session, toucher n'ouvre le bloc que pour toi et la file partagée ne bouge pas, sauf si tu pilotes la board : le bloc touché s'allume alors pour tout le monde.",
         "sessionsLink": "Comment une session partage une seule file",
         "clipAlt": "La fiche Lancer la playlist ?",
         "clipCaption": "Avec ce réglage activé et des blocs déjà en file, Lancer la playlist ? demande d'abord."
@@ -572,7 +573,7 @@
       },
       "queue": {
         "title": "Une file, tous les téléphones",
-        "p1": "Tout le monde dans la session peut ajouter, réordonner ou retirer des blocs. Ton avatar marque tes lignes.",
+        "p1": "Tout le monde dans la session peut ajouter, réordonner ou retirer des blocs. Ton avatar marque tes lignes. Touche un bloc de la file pour le voir en aperçu ; toi seul le vois jusqu’à ce que tu touches Allumer sur la board.",
         "p2": "Seul le grimpeur qui a lancé la session peut la terminer. Les autres touchent Quitter la session."
       },
       "wall": {
@@ -583,9 +584,10 @@
       },
       "crowd": {
         "title": "Explorer sans bouger le mur",
-        "p1": "Avec quelqu’un d’autre dans ta session, faire défiler permet d’explorer sans changer le mur, sauf si tu pilotes. Touche Allumer sur la board pour allumer un bloc, ou Au mur en haut pour revenir au bloc allumé.",
-        "p2": "Si le bouton du lecteur affiche Tu pilotes la board, touche-le pour arrêter de piloter en gardant la connexion. En solo, désactive Allumer la board quand je touche un bloc et Allumer la board quand je fais défiler dans Paramètres, puis Board, pour explorer sans allumer.",
-        "previewLink": "Voir un bloc depuis n'importe quelle liste",
+        "p1": "Avec quelqu’un d’autre dans ta session, faire défiler permet d’explorer sans changer le mur, sauf si ton téléphone tient la board et que tu pilotes. Touche Allumer sur la board pour allumer un bloc, ou la flèche en haut à gauche, avec le visage de qui a allumé le mur, pour revenir au bloc allumé.",
+        "p2": "Si ton téléphone tient la board et qu’Aussi en session est activé, Allumer sur la board allume le bloc et tu pilotes la board : les blocs que tu choisis ensuite s’allument aussi, jusqu’à la fin du temps réglé dans Arrêter de piloter après, compté depuis le dernier bloc (45 secondes au départ ; avec Tout de suite, seul ce bloc s’allume). Le bouton affiche Tu pilotes la board avec un chrono, et le givre rétrécit à mesure que le temps passe. Touche-le pour arrêter plus tôt ; ton téléphone reste connecté, sauf si Déconnecter le Bluetooth quand le pilotage s’arrête est activé. Un bloc allumé par quelqu’un de ta crew met fin à un pilotage avec chrono ; si tu as glissé pour piloter, tu continues et son bloc s’allume.",
+        "p3": "Sur les autres téléphones, Allumer sur la board allume ce seul bloc. Quand tu ne pilotes pas, toucher et faire défiler ouvrent des aperçus. Toujours piloter la board ne vaut que pour le téléphone qui a la board et, en session, seulement si Aussi en session est activé.",
+        "previewLink": "Toucher un bloc pour le voir en aperçu",
         "drivingLink": "Comment commencer et arrêter de piloter la board"
       },
       "history": {
@@ -668,7 +670,7 @@
       },
       "log": {
         "title": "Enregistre-la au pied du mur",
-        "p1": "Touche la grosse coche dans le lecteur, ou Enregistrer la croix sur la barre de file. Date et Heure sont déjà à maintenant, le reste est optionnel.",
+        "p1": "Touche la grosse coche dans le lecteur, ou ✓ sur la barre du bas, qui montre le dernier bloc que tu as ouvert. Date et Heure sont déjà à maintenant, le reste est optionnel.",
         "p2": "Essai note un essai manqué. L'autre bouton affiche Flash à ton premier essai noté à cet angle, sinon Enchaîné.",
         "shotAlt": "Le bouton coche",
         "shotCaption": "La coche ouvre la fiche de notation.",
@@ -714,28 +716,34 @@
       "breadcrumb": "Board et Bluetooth",
       "hero": {
         "title": "Connecte ton téléphone à la board",
-        "subtitle": "Lis le bouton givré du mur : Allumer sur la board allume ce bloc. Tu pilotes la board signifie que chaque bloc choisi s’allume."
+        "subtitle": "Un toucher ouvre un aperçu. Allumer sur la board l’allume, et tu pilotes la board : le bouton affiche Tu pilotes la board avec un chrono, et chaque bloc choisi s’allume jusqu’à la fin du temps (45 secondes par défaut). Sans chrono, ça dure jusqu’à ce que tu le touches."
       },
       "connect": {
         "title": "Se connecter",
-        "p1": "Dans un bloc, touche le grand bouton Allumer sur la board. Il se connecte si besoin et allume le bloc à l’écran. Si Sélectionner une board s’ouvre, touche la tienne : le signal le plus fort est en premier, avec un numéro de série par ligne. L’ampoule de la barre du haut permet aussi de se connecter.",
+        "p1": "Dans un bloc, touche le grand bouton Allumer sur la board. Il se connecte si besoin, allume le bloc à l’écran, puis tu pilotes la board : les blocs suivants que tu choisis s’allument aussi (voir Savoir quand tu pilotes la board). Si Sélectionner une board s’ouvre, ta board est en premier, puis celles que l’app ne sait pas identifier, comme les MoonBoard et les boîtiers sans numéro de série. Tu ne vois pas la tienne ? Touche Chercher n’importe quelle board. L’ampoule de la barre du haut permet aussi de se connecter.",
         "p2": "La première fois, iOS demande le Bluetooth. Android demande les appareils à proximité, ou la localisation sur Android 11 et antérieur.",
         "litShotAlt": "Le lecteur avec son grand bouton du mur",
-        "litShotCaption": "Lis le bouton du mur : Tu pilotes la board signifie que le prochain bloc choisi s’allume aussi.",
+        "litShotCaption": "Lis le bouton du mur : Tu pilotes la board signifie que les blocs que tu choisis s’allument aussi. Avec un chrono, ça s’arrête tout seul ; sans chrono, ça dure jusqu’à ce que tu le touches.",
+        "timedClipAlt": "Appuyer sur Allumer sur la board lance un pilotage chronométré, avec une horloge et un fond givré qui diminue",
+        "timedClipCaption": "Appuie sur Allumer sur la board pour piloter la board. L’horloge et le givre diminuent ; changer de bloc les remplit. Appuie à nouveau pour arrêter.",
         "p3": "Sur un autre mur ? Changer de board est la première ligne derrière ton avatar.",
-        "p4": "Tu préfères l’ampoule ? Dans un bloc, touche ⋯, puis Options d’affichage, Boutons, et mets Commande de la board sur Ampoule. Elle prend le bout droit de la rangée du haut. Les deux commandes connectent et allument les blocs ; maintiens-les pour les options quand la board est connectée. Le bouton du mur permet aussi de glisser pour piloter et de toucher pour arrêter."
+        "p4": "Tu préfères l’ampoule ? Dans un bloc, touche ⋯, puis Options d’affichage, Boutons, et mets Commande de la board sur Ampoule. Elle prend le bout droit de la rangée du haut. Les deux commandes connectent et allument les blocs ; maintiens-les pour les options quand la board est connectée. Le bouton du mur permet aussi de glisser pour piloter et de toucher pour arrêter. L’ampoule n’a pas de givre : quand le pilotage a une durée limite, un anneau ambre autour d’elle se vide à mesure que le temps passe. Toucher l’ampoule pendant que tu pilotes arrête le pilotage, comme le bouton du mur."
       },
       "hidden": {
         "title": "Commandes de la board",
-        "p1": "Une fois connecté, maintiens le bouton du mur pour ouvrir Commandes de la board. Dans un bloc, ⋯ puis Commandes de la board les ouvre aussi, tout comme maintenir l’ampoule du haut. Une touche brève suit le libellé : Tu pilotes la board arrête le pilotage en gardant la connexion ; Déconnecter la board déconnecte.",
+        "p1": "Une fois connecté, maintiens le bouton du mur pour ouvrir Commandes de la board. Dans un bloc, ⋯ puis Commandes de la board les ouvre aussi, tout comme maintenir l’ampoule du haut. Dans un bloc, le menu commence par une ligne qui dit où tu en es : aperçu, allumé au mur, en train de piloter, ou le temps qui reste avant la fin du pilotage. Une touche brève sur le bouton du mur suit son libellé : Tu pilotes la board arrête le pilotage en gardant la connexion, sauf si Déconnecter le Bluetooth quand le pilotage s’arrête est activé ; alors ton téléphone libère la board et le bouton affiche de nouveau Allumer sur la board. Déconnecter la board déconnecte.",
+        "rowStopDriving": "Arrêter de piloter après. Change combien de temps Allumer sur la board te fait piloter, ou choisis Tout de suite, sans quitter le mur.",
         "row1": "Rallumer la board. Renvoie le bloc aux LED.",
-        "row2": "Tout éteindre. Ton téléphone reste connecté.",
+        "row2": "Tout éteindre. Ça arrête aussi le pilotage. Ton téléphone reste connecté, sauf si Déconnecter le Bluetooth quand le pilotage s’arrête est activé.",
         "row3": "Déconnecter la board. Sers-t'en quand tu t'es connecté au mauvais mur.",
         "row4": "Allumer la prise du dessus. MoonBoard uniquement.",
-        "p2": "Déconnexion automatique, Allumer la board quand je touche un bloc et Allumer la board quand je fais défiler sont dans Paramètres, puis Board, et dans le menu de l’ampoule du haut. La déconnexion automatique libère la board après 30 secondes d’inactivité. Pour explorer sans allumer, arrête de piloter puis désactive les deux réglages d’allumage. Quand tu pilotes, chaque bloc choisi s’allume même si ces réglages sont désactivés.",
-        "p3": "Sans board connectée, Allumer sur la board connecte et allume le bloc à l’écran. En solo, tu commences aussi à piloter. En crew, une touche n’allume que ce bloc. L’ampoule du haut peut reconnecter la dernière board utilisée.",
+        "p2": "Le reste est dans Paramètres, puis Board. Arrêter de piloter après règle combien de temps les blocs que tu choisis s’allument après le dernier bloc allumé : Tout de suite (Allumer sur la board n’allume que ce bloc), de 30 secondes à 5 minutes (45 secondes par défaut), ou Jusqu’à ce que j’arrête. Aussi en session (activé par défaut) laisse Allumer sur la board te faire piloter en crew. Déconnecter le Bluetooth quand le pilotage s’arrête (désactivé par défaut) libère la board pour le grimpeur suivant à la fin du pilotage. Il remplace Déconnexion automatique : si tu l’avais activée, il est activé, et ton ancien délai, arrondi au choix supérieur (5 minutes au plus), est devenu ton temps dans Arrêter de piloter après.",
+        "autoLight": "Toujours piloter la board (désactivé par défaut) te garde aux commandes chaque fois que ton téléphone a la board : chaque bloc que tu choisis s’allume, sans chrono, donc Arrêter de piloter après ne s’applique pas. En session, il faut Aussi en session. Touche Tu pilotes la board pour arrêter ; tes choix s’ouvrent en aperçu jusqu’à ce que tu te déconnectes ou touches Allumer sur la board. Le menu de l’ampoule du haut reprend la plupart de ces réglages.",
+        "p3": "Sans board connectée, Allumer sur la board connecte, allume le bloc à l’écran et te fait piloter ; en crew, seulement sur le téléphone qui tient la board, et si Aussi en session est activé. Après Déconnecter le Bluetooth quand le pilotage s’arrête, Allumer sur la board se reconnecte à la même board. Après Déconnecter la board, l’app oublie cette board et la connexion suivante cherche de nouveau.",
         "shotAlt": "Les commandes d’une board connectée",
-        "shotCaption": "Rallume, éteins toutes les lumières ou déconnecte. Allumer chaque bloc commence le pilotage quand l’option est disponible."
+        "shotCaption": "Rallume, éteins toutes les lumières ou déconnecte, et change Arrêter de piloter après sans quitter le mur. Allumer chaque bloc commence le pilotage quand l’option est disponible.",
+        "lightingShotAlt": "Réglages d’éclairage de la board avec durée du pilotage et éclairage automatique",
+        "lightingShotCaption": "Choisis quand le pilotage s’arrête, s’il s’applique aussi en session et si l’arrêt déconnecte le Bluetooth."
       },
       "failed": {
         "title": "Quand ça ne se connecte pas",
@@ -749,12 +757,12 @@
       },
       "twoBoards": {
         "title": "Deux boards à portée",
-        "p1": "Lis le numéro de série avant de toucher. Les barres de signal ne bougent pas pendant que tu es planté là.",
+        "p1": "Quand tu te connectes à une board que tu as déjà utilisée ou à celle d’une salle, elle est en premier, puis celles que l’app ne sait pas identifier. Les boards que l’app reconnaît comme une autre restent cachées jusqu’à ce que tu touches Chercher n’importe quelle board. Lis le numéro de série avant de toucher. Les barres de signal ne bougent pas pendant que tu es planté là.",
         "p2": "Une alerte La configuration de la board ne correspond pas veut dire que le contrôleur appartient à une autre board. Choisis Annuler, Connecter quand même ou Changer de board."
       },
       "duplicate": {
         "title": "La même board deux fois dans la liste",
-        "p1": "Deux lignes avec des numéros de série différents, ce sont deux contrôleurs. Une ligne qui affiche seulement Kilter Board, sans numéro de série, est un boîtier LED récent fait par le fabricant. Deux de ces boîtiers dans la même salle apparaissent sur deux lignes. Celle qui a le plus de barres de signal est en général le mur devant toi. Si le mauvais mur s'allume, ouvre Commandes de la board, touche Déconnecter la board et réessaie.",
+        "p1": "Deux lignes avec des numéros de série différents, ce sont deux contrôleurs. Une ligne qui affiche seulement Kilter Board, sans numéro de série, est un boîtier LED récent fait par le fabricant. Deux de ces boîtiers dans la même salle apparaissent sur deux lignes, après ta board. Celle qui a le plus de barres de signal est en général le mur devant toi. Si le mauvais mur s'allume, ouvre Commandes de la board, touche Déconnecter la board et réessaie.",
         "p2": "Il n'y a pas de liste d'appareils à oublier. L'app ne retient que ta dernière board.",
         "p3": "Une board affichée deux fois sous Tes boards, c'est autre chose. Touche Modifier à côté de Tes boards, puis Supprimer ou Se désabonner."
       },
@@ -767,8 +775,8 @@
       "liveActivity": {
         "title": "Piloter la board depuis l'écran verrouillé (Live Activity)",
         "intro": "Lance ou rejoins une session d'abord. Une file solo n'en a pas.",
-        "p1": "Sur iPhone, une session pose une Live Activity sur l'écran verrouillé et dans la Dynamic Island, avec le bloc, sa cotation et ta place dans la file. Tant que ton téléphone tient la board, elle a aussi Précédent, Suivant, une ampoule qui rallume le mur, et Miroir du bloc là où c'est géré.",
-        "p2": "Android affiche les mêmes commandes dans une notification permanente appelée Session d'escalade active.",
+        "p1": "Sur iPhone, une session pose une Live Activity sur l'écran verrouillé et dans la Dynamic Island, avec le bloc allumé au mur, sa cotation et ta place dans la file. Les aperçus que tu ouvres dans l'app ne la changent pas. Tant que ton téléphone tient la board, elle a aussi Précédent, Suivant, une ampoule qui rallume le mur, et Miroir du bloc là où c'est géré. Précédent et Suivant font bouger la file, allument le bloc et lancent ou prolongent le pilotage comme Allumer sur la board. Pendant que tu pilotes, un anneau ambre autour de l'ampoule se vide à mesure que le temps passe, avec le temps restant à côté ; sans durée limite, l'ampoule repose sur un disque ambre plein.",
+        "p2": "Android affiche les mêmes commandes dans une notification permanente appelée Session d'escalade active. Pendant que tu pilotes, elle affiche Tu pilotes la board, avec un compte à rebours si le pilotage a une durée limite.",
         "p3": "Verrouiller l'écran ne déconnecte pas la board."
       },
       "next": {
@@ -778,48 +786,53 @@
       },
       "driving": {
         "title": "Savoir quand tu pilotes la board",
-        "p1": "Le bouton givré du mur commande la board physique. Lis son libellé : Allumer sur la board connecte si besoin et allume le bloc à l’écran ; Tu pilotes la board signifie que chaque bloc choisi s’allume, même en crew. En solo, toucher Allumer sur la board commence le pilotage ; en crew, une touche allume un seul bloc.",
-        "p2": "Pour piloter quand le bouton affiche ‹‹, glisse le bouton du mur vers la gauche. Relâche quand il affiche Relâche pour allumer chaque bloc. Il se connecte si besoin, allume le bloc à l’écran et ceux que tu choisis ensuite. Glisser sur le dessin de la board change de bloc.",
-        "p3": "Touche Tu pilotes la board pour arrêter de piloter et explorer en restant connecté. Le libellé devient Déconnecter la board ; le toucher déconnecte. Tu peux aussi commencer avec Allumer chaque bloc dans ⋯, puis Commandes de la board, ou dans les actions du lecteur d’écran du bouton.",
+        "p1": "Un toucher sur un bloc ouvre un aperçu, et le mur garde son bloc. Allumer sur la board l’allume et tu pilotes la board : le bouton devient givré et affiche Tu pilotes la board, et chaque bloc choisi s’allume aussi. Si le pilotage a une durée limite, un chrono s’affiche à côté du libellé ; chaque bloc allumé le relance, et le givre rétrécit vers l’ampoule à mesure que le temps passe. Ensuite, le bloc suivant que tu choisis s’ouvre de nouveau en aperçu. Choisis la durée dans Arrêter de piloter après, dans Paramètres, puis Board : 45 secondes par défaut, Jusqu’à ce que j’arrête (sans chrono) ou Tout de suite pour n’allumer que ce bloc. Glisse le bouton vers la gauche, ou, une fois la board connectée, garde-le appuyé et choisis Allumer chaque bloc, pour piloter sans chrono jusqu’à ce que tu le touches. Le givre veut toujours dire que tu pilotes.",
+        "p2": "Pour piloter quand le bouton affiche ‹‹, glisse le bouton du mur vers la gauche. Relâche quand il affiche Relâche pour allumer chaque bloc. Il se connecte si besoin, allume le bloc à l’écran et ceux que tu choisis ensuite. Si tu pilotes déjà avec un chrono, le même glissement te fait piloter jusqu’à ce que tu arrêtes. Glisser sur le dessin de la board change de bloc.",
+        "p3": "Touche Tu pilotes la board pour arrêter de piloter et explorer. Ton téléphone reste connecté et le libellé devient Déconnecter la board ; le toucher déconnecte. Avec Déconnecter le Bluetooth quand le pilotage s’arrête activé, l’arrêt libère la board et le bouton affiche de nouveau Allumer sur la board. Le pilotage lancé par Allumer sur la board s’arrête aussi tout seul à la fin de son chrono ; le bloc suivant que tu choisis s’ouvre en aperçu. Tu peux aussi commencer avec Allumer chaque bloc dans ⋯, puis Commandes de la board, ou dans les actions du lecteur d’écran du bouton.",
+        "p4": "La première fois que tu ouvres un aperçu sur une board avec des lumières, une carte sous le bouton du mur explique l’aperçu et le givre. Son bouton Paramètres d’éclairage ouvre Paramètres, puis Board.",
         "clipAlt": "Glisser le bouton du mur à gauche pour piloter, puis le toucher pour arrêter",
-        "clipCaption": "Glisse le bouton à gauche et relâche pour allumer chaque bloc. Touche Tu pilotes la board pour arrêter de piloter en gardant la connexion."
+        "clipCaption": "Glisse le bouton à gauche et relâche pour allumer chaque bloc. Touche Tu pilotes la board pour arrêter ; ton téléphone reste connecté, sauf si Déconnecter le Bluetooth quand le pilotage s’arrête est activé."
       }
     },
     "climbActions": {
       "breadcrumb": "Actions sur un bloc",
       "hero": {
         "title": "Fais un appui long sur un bloc",
-        "subtitle": "Chaque action sur un bloc est derrière un appui long sur sa ligne."
+        "subtitle": "Touche un bloc pour le voir en aperçu. Fais un appui long sur sa ligne pour tout le reste."
       },
       "open": {
         "title": "Ouvrir le menu",
-        "p1": "Garde une ligne de bloc appuyée. Elle se soulève en carte, avec Enregistrer une croix, Ajouter à la playlist et Partager en haut et le reste en dessous.",
-        "p2": "Tu préfères une touche ? Sous Paramètres, puis Blocs et cotations, puis Liste des blocs, active Afficher le bouton d'actions rapides pour un ⋮ sur chaque ligne de Blocs.",
-        "shotAlt": "La carte d'actions d'un bloc",
-        "shotCaption": "Trois boutons rapides en haut, la liste complète en dessous.",
+        "p1": "Garde une ligne de bloc appuyée et ses actions s'ouvrent dans un menu. Sur iPhone, la ligne se soulève au-dessus de la liste assombrie, avec le menu en dessous. Touche une action, ou touche à côté pour fermer.",
+        "p2": "Tu préfères une touche ? Sous Paramètres, puis Blocs et cotations, puis Liste des blocs, active Afficher le bouton d'actions rapides pour un ⋮ sur chaque ligne de Blocs. Il ouvre le même menu.",
+        "shotAlt": "Une ligne de bloc soulevée au-dessus de la liste, avec ses actions en dessous",
+        "shotCaption": "La ligne en haut, ses actions en groupes en dessous.",
         "clipAlt": "Garder une ligne de bloc appuyée",
-        "clipCaption": "Garde la ligne appuyée et la carte se soulève toute seule."
+        "clipCaption": "Garde la ligne appuyée et le menu s'ouvre tout seul."
       },
       "preview": {
-        "title": "Voir un bloc sans allumer la board",
-        "intro": "Aperçu est le premier élément de la liste.",
-        "p1": "Aperçu ouvre le bloc dans le lecteur sans toucher à ta file. Quand un aperçu vient avec une liste, les glissements suivent cette liste. Un aperçu isolé peut ne pas avoir de bloc suivant.",
-        "p2": "Quand tu explores sans allumer, le bouton du haut te ramène : Mon choix à ton bloc, Au mur au bloc allumé. Sous le nom, tu lis Toi seul le vois en session, ou Aperçu, pas allumé quand une board est connectée ou un bloc allumé. Touche Allumer sur la board (ou Activer) quand tu veux ce bloc. Si le bouton du lecteur affiche Tu pilotes la board, les changements de bloc suivants allument le mur ; touche-le d’abord pour arrêter de piloter.",
+        "title": "Touche un bloc pour le voir en aperçu",
+        "intro": "Toucher un bloc dans n’importe quelle liste ou dans ta file l’ouvre en aperçu, tout comme le bouton lecture d’une playlist. Le mur garde son bloc.",
+        "p1": "Un aperçu ouvre le bloc dans le lecteur sans toucher à ta file ni au mur. Les glissements parcourent la liste nommée en haut. Ta file démarre depuis ton propre bloc, puis sa liste reprend. Un aperçu isolé peut ne pas avoir de bloc suivant. Quand tu pilotes la board, un toucher allume le bloc. Pour piloter chaque fois que ton téléphone a la board, active Toujours piloter la board dans Paramètres, puis Board.",
+        "p2": "Pendant un aperçu, la flèche en haut à gauche le ferme et te ramène : à ton bloc ou, quand elle montre un visage, au bloc allumé au mur. Sous le nom, tu lis Toi seul le vois en session, ou Aperçu · pas au mur quand ton téléphone tient une board ou qu’un bloc a été allumé dans la dernière heure. Touche Allumer sur la board quand tu veux ce bloc. Il s’allume et tu pilotes la board : par défaut, les blocs suivants que tu choisis s’allument jusqu’à 45 secondes après le dernier. Activer le choisit sans l’allumer. Si le bouton du lecteur affiche Tu pilotes la board, les changements de bloc suivants allument le mur ; touche-le d’abord pour arrêter de piloter.",
+        "p3": "La barre du bas garde le dernier bloc que tu as ouvert, aperçu compris, jusqu’à ce que ta file passe à un autre. Touche-la pour y revenir avec sa liste. Son ampoule allume ce bloc sur la board, et ✓ fait la croix. Quand tu pilotes la board, touche l’ampoule pour arrêter de piloter. Ouvrir un aperçu ne change jamais ta file ni le mur. Le haut de Blocs, et l’écran verrouillé en session, montrent toujours le bloc allumé au mur.",
         "sessionsLink": "Comment une session garde le mur tranquille",
         "clipAlt": "Explorer une liste dans le lecteur sans allumer ses blocs",
-        "clipCaption": "Explore la liste pendant que le mur garde son bloc. Allumer sur la board l’allume quand tu le choisis.",
+        "clipCaption": "Explore la liste pendant que le mur garde son bloc. Allumer sur la board l’allume, et les blocs que tu choisis ensuite s’allument aussi jusqu’à la fin de ton temps.",
+        "shotAlt": "Aperçu d’un bloc avec le bouton de retour, Aperçu · pas au mur et un bouton d’éclairage sans givre",
+        "shotCaption": "L’aperçu reste sur ton téléphone. Le bouton de retour revient au bloc sur la board ; le bouton d’éclairage allume celui-ci.",
         "drivingLink": "Comment commencer et arrêter de piloter la board"
       },
       "quick": {
-        "title": "Les trois boutons du haut",
+        "title": "Les actions que tu utiliseras le plus",
         "tick": "Enregistrer une croix ouvre la fiche d'ascension.",
-        "playlist": "Ajouter à la playlist est une liste à cocher. Coche pour ajouter, décoche pour retirer.",
+        "playlist": "Ajouter à la playlist ouvre une liste à cocher de tes playlists. Coche pour ajouter, décoche pour retirer.",
         "share": "Partager passe un lien à la fiche de partage de ton téléphone.",
-        "p1": "La carte se ferme dès qu'une action part, sauf Ajouter à la playlist."
+        "p1": "Le menu se ferme dès que tu choisis une action."
       },
       "rest": {
         "title": "Le reste de la liste",
         "queue": "Mettre juste après place le bloc en tête de ta file. Mettre à la fin le place en bas.",
+        "replay": "Reprendre d'ici, quand il apparaît sur un bloc de l'Historique de ta file : ouvre ce bloc comme un toucher, en aperçu par défaut. Allumer sur la board le rallume, et les blocs qui venaient après lui redeviennent les suivants.",
         "favorite": "Basculer favori, c'est le cœur. Les blocs avec un cœur remplissent Voies aimées.",
         "editEntry": "Modifier l'entrée du carnet, quand tu viens de ton carnet.",
         "betaVideo": "Ajouter une vidéo beta, quand tu es connecté.",
@@ -1050,9 +1063,9 @@
   },
   "privacy": {
     "title": "Politique de confidentialité",
-    "lastUpdated": "Dernière mise à jour : 29 octobre 2026",
+    "lastUpdated": "Dernière mise à jour : 3 novembre 2026",
     "intro1": "Boardsesh est une app open source pour piloter les boards d'entraînement (Kilter, Tension, MoonBoard) en Bluetooth. Cette politique explique quelles données nous collectons, pourquoi, et ce que nous en faisons.",
-    "intro2ProductAnalytics": "La version courte : nous collectons uniquement ce qui est nécessaire au fonctionnement de l'app. Nous ne vendons pas vos données, nous n'affichons pas de publicités, et nous ne partageons pas vos données avec des marketeurs tiers ou des courtiers en données.",
+    "intro2ProductAnalytics": "La version courte : nous collectons uniquement ce qui est nécessaire au fonctionnement de l'app. Nous ne vendons pas vos données, il n'y a pas de publicité dans Boardsesh, et nous ne partageons pas vos données avec des courtiers en données. Nous faisons de la pub pour Boardsesh sur Reddit et Instagram, et sur notre site les statistiques incluent la mesure de ces pubs avec Meta et Reddit, comme expliqué plus bas.",
     "collect": {
       "title": "Ce que nous collectons",
       "accountLabel": "Informations de compte.",
@@ -1063,6 +1076,8 @@
       "locationBody": "Si vous accordez la permission de localisation, nous utilisons votre position approximative pour vous aider à découvrir des sessions Mode Party à proximité. Nous ne suivons pas votre position en arrière-plan et ne stockons pas d'historique de localisation.",
       "productAnalyticsLabel": "Analytique produit.",
       "productAnalyticsBody": "Nous utilisons PostHog pour l’utilisation des fonctionnalités, les pages vues, les performances et l’enregistrement facultatif des sessions dans l’app. Dans l’UE, l’EEE, au Royaume-Uni, en Suisse, à Gibraltar, à Jersey, à Guernesey, sur l’île de Man, en Chine, en Corée du Sud, en Andorre, à Monaco, à Saint-Marin, dans la Cité du Vatican, aux îles Féroé et au Québec, et chaque fois que nous ne pouvons pas savoir où tu te trouves, nous te demandons d’abord et PostHog ne fonctionne que si tu autorises les statistiques. Ailleurs, les statistiques sont activées par défaut, au titre de notre intérêt légitime à améliorer Boardsesh, et tu peux les désactiver à tout moment dans les paramètres ou dans Choix de confidentialité ; si ton navigateur envoie un signal Global Privacy Control, nous le traitons comme un refus. Nous le déterminons à partir du pays et, au Canada, de la province que Cloudflare indique pour ta connexion, que nous ne conservons pas. Les statistiques des utilisateurs connectés peuvent être liées à leur compte Boardsesh. L’attribution des installations demande partout ta propre autorisation ; le réglage par défaut ne l’active pas. Avec ton autorisation, l’attribution des installations Android peut inclure la référence d’installation du Play Store et des informations de campagne, et sur iOS nous utilisons Apple AdServices via notre propre serveur pour mesurer quelles campagnes Apple Ads mènent à des inscriptions et à une activité d’escalade. Nous partageons avec PostHog les identifiants de campagne validés et le statut du téléchargement, jamais le jeton d’attribution. Nous n’utilisons pas ces données pour te montrer des publicités.",
+      "adMeasurementLabel": "Mesure publicitaire sur notre site.",
+      "adMeasurementBody": "Nous faisons de la pub pour Boardsesh sur Reddit et Instagram. Quand les statistiques sont activées sur notre site, nous chargeons le pixel Meta et le pixel Reddit pour que Meta et Reddit nous disent quelles pubs amènent des visites et des clics vers les stores. Ils reçoivent les pages que tu visites sur boardsesh.com, tes clics sur nos boutons de store (quel store, et où se trouvait le bouton) et ce que leurs pixels lisent dans ton navigateur : ton adresse IP, des infos sur le navigateur et leurs propres cookies. Nous ne leur envoyons jamais ton e-mail, ton compte ni d’autres coordonnées. Dans les régions où nous demandons d’abord, il faut un « Autoriser » donné après que notre bannière a commencé à nommer Meta et Reddit. Ailleurs, la mesure suit le réglage par défaut des statistiques et s’arrête si tu dis non dans Choix de confidentialité ou si ton navigateur envoie le signal Global Privacy Control. Elle ne tourne jamais dans l’app, sur les écrans kiosque, dans les widgets intégrés ni sur les pages de connexion.",
       "serviceStatsLabel": "Statistiques internes du service.",
       "serviceStatsBody": "Nous enregistrons dans notre propre base de données le jour d’activité et la plateforme des comptes connectés, indépendamment du consentement aux statistiques, au titre de l’intérêt légitime pour comprendre l’utilisation du service. Nous conservons ces lignes pendant 13 mois. Seuls des nombres quotidiens, hebdomadaires et mensuels agrégés sont transmis à PostHog. Les visiteurs déconnectés ne sont pas inclus dans ces nombres de comptes actifs."
     },
@@ -1083,11 +1098,24 @@
       "body4": "Si tu le désactives, supprimes le Spraywall ou supprimes ton compte, le Spraywall sort sous 24 heures du jeu de données d'entraînement que nous stockons. Une copie déjà téléchargée pour un entraînement peut encore servir pendant 7 jours au plus, et elle est supprimée au prochain téléchargement de ce jeu de données. Les modèles déjà entraînés gardent ce qu'ils ont appris, mais n'ont aucune copie de ta photo.",
       "body5": "Si un Spraywall est signalé, un admin Boardsesh peut voir sa photo pour traiter le signalement, quel que soit le réglage de l'interrupteur. Quand tu supprimes un Spraywall, nous supprimons sa photo au bout de 30 jours. Quand tu supprimes ton compte, les photos de tes Spraywalls sont supprimées avec lui ; la copie d'entraînement sort dans les délais indiqués plus haut. Quand tu réinitialises un Spraywall, l'ancien est conservé avec sa photo comme Spraywall archivé jusqu'à ce que tu le supprimes aussi. Désactiver l'interrupteur sur l'un des deux vaut pour les deux."
     },
+    "connectedApps": {
+      "title": "Les apps que tu connectes",
+      "intro": "Tu peux connecter une autre app à ton compte Boardsesh, par exemple un planificateur d'entraînement. Avant tout partage, Boardsesh te montre l'app, qui la fait, un lien vers sa politique de confidentialité et ce qu'elle demande à voir. Rien n'est partagé tant que tu n'as pas choisi Autoriser.",
+      "whatItGets": "Selon ce que tu autorises, l'app peut voir ton nom affiché et ta photo de profil, et toutes les entrées de ton carnet, y compris celles que tu gardes en « Moi uniquement ». Chaque entrée est accompagnée du bloc concerné : son nom, sa cotation, la board et le layout. Cela vaut aussi pour un bloc ouvert par quelqu'un d'autre qui est encore un brouillon ou non répertorié, car l'entrée fait partie de ton carnet. Sur le Spraywall de quelqu'un d'autre qui n'est pas public, l'app reçoit ton entrée, mais ni le nom du bloc ni celui du Spraywall.",
+      "afterSharing": "Une fois que l'app a tes données, ce qu'elle en fait relève de sa propre politique de confidentialité.",
+      "disconnect": "Tu peux déconnecter une app à tout moment dans les réglages de Boardsesh. Tout changement de mot de passe, y compris une réinitialisation ou la création d'un premier mot de passe, déconnecte toutes les apps. Ensuite, l'app ne peut plus rien lire de nouveau. La déconnecter, ou supprimer ton compte Boardsesh, ne supprime pas ce qu'elle a déjà copié : demande à l'app de le supprimer."
+    },
     "thirdParty": {
       "title": "Services tiers",
       "posthogLabel": "PostHog.",
       "posthogBody": "PostHog traite les statistiques facultatives et les enregistrements de sessions de l’app aux États-Unis. Nous envoyons aussi des événements opérationnels limités sans identifiant de compte pour la stabilité du service, les écrans des salles et l’état des mises à jour, ainsi que des nombres agrégés d’utilisateurs actifs. Voir ",
       "posthogLink": "la politique de confidentialité de PostHog",
+      "adPixelsLabel": "Meta et Reddit.",
+      "adPixelsBody": "Meta Platforms et Reddit reçoivent des données de mesure publicitaire de notre site tant que les statistiques sont activées (voir Ce que nous collectons). Ils les utilisent aussi selon leurs propres politiques de confidentialité, ce qui peut inclure un traitement aux États-Unis. Voir ",
+      "metaLink": "la politique de confidentialité de Meta",
+      "adPixelsJoin": " et ",
+      "redditLink": "la politique de confidentialité de Reddit",
+      "adPixelsBodyEnd": ".",
       "auroraLabel": "API Aurora Climbing.",
       "auroraBody": "Si vous liez votre compte Aurora Climbing (utilisé par les boards Kilter et Tension), nous synchronisons vos données de blocs avec les serveurs d'Aurora afin que votre carnet reste cohérent entre les apps. Cette synchronisation n'a lieu que lorsque vous la déclenchez. Voir ",
       "auroraLink": "Aurora Climbing",
@@ -1108,7 +1136,7 @@
     },
     "sharing": {
       "title": "Partage de données",
-      "body1ProductAnalytics": "Nous ne vendons pas tes données, n’affichons pas de publicités et ne partageons pas d’informations avec des annonceurs ou des courtiers en données. Les prestataires décrits ci-dessus traitent les données pour l’hébergement, le stockage, les paiements, la fiabilité du service et les statistiques facultatives. La synchronisation Aurora Climbing fonctionne quand tu l’actives.",
+      "body1ProductAnalytics": "Nous ne vendons pas tes données, n’affichons pas de publicités dans Boardsesh et ne partageons pas d’informations avec des courtiers en données. Les prestataires décrits ci-dessus traitent les données pour l’hébergement, le stockage, les paiements, la fiabilité du service et les statistiques facultatives, qui sur notre site incluent la mesure publicitaire avec Meta et Reddit. La synchronisation Aurora Climbing fonctionne quand tu l’actives.",
       "body2": "Les autres utilisateurs de Boardsesh peuvent voir ton nom d'utilisateur, ton profil et tes blocs enregistrés si tu participes à des fonctionnalités sociales comme le Mode Party. C'est visible dans l'app et fait partie du fonctionnement du produit.",
       "body3SprayPhotos": "Nous ne donnons à personne d'autre les photos de Spraywalls ni les prises que tu marques pour entraîner des modèles. Le seul modèle entraîné avec elles est notre propre détecteur de prises. Les autres voient la photo d'un Spraywall selon sa visibilité, et les membres d'une salle voient les Spraywalls rattachés à cette salle, Spraywalls privés compris. La photo d'un Spraywall public est sur le web ouvert."
     },
@@ -1148,6 +1176,7 @@
     "choices": {
       "title": "Cookies et choix de confidentialité",
       "storageBody": "Le stockage nécessaire comprend les cookies de connexion NextAuth, ta langue (boardsesh-locale), les préférences du téléphone et le cookie boardsesh-consent. Ce dernier dure un an et est partagé entre boardsesh.com et app.boardsesh.com. En dehors des régions où nous demandons, le site le règle sur les statistiques par défaut lors de ta première visite. Quand les statistiques sont activées (par ton autorisation, ou par défaut en dehors des régions où nous demandons), PostHog stocke des identifiants et des événements (ph_* sur le site et stockage du SDK dans l’app). Refuser ou retirer l’autorisation supprime les identifiants statistiques et arrête les statistiques facultatives, les enregistrements et les événements d’attribution des installations. Les diagnostics de base sur les erreurs et les performances sur nos propres serveurs restent activés. Les options de fonctionnalités utilisent toujours un client en mémoire ; avec une connexion, elles peuvent utiliser ton identifiant de compte.",
+      "adCookiesBody": "Tant que la mesure publicitaire est activée, le pixel Meta dépose _fbp (et _fbc si tu arrives depuis une pub Meta) et le pixel Reddit dépose _rdt_uuid (et _rdt_cid si tu arrives depuis une pub Reddit), chacun pour 90 jours maximum. Dire non dans Choix de confidentialité arrête les deux pixels tout de suite et supprime ces cookies.",
       "changeBody": "Utilise Choix de confidentialité dans le pied de page du site ou Statistiques d’utilisation dans Paramètres → Confidentialité pour changer ta réponse. Nous enregistrons ta décision sur ton appareil et, si tu es connecté, sur ton compte. Là où les statistiques sont activées par défaut, ce réglage reste sur l’appareil et n’est jamais enregistré sur ton compte comme un consentement. Un refus du compte remplace les autorisations des appareils ; une autorisation du compte s’applique aux appareils sans réponse. Nous conservons l’historique des décisions comme preuve du consentement jusqu’à la suppression du compte. Les événements anonymes et éphémères sur les mises à jour et les écrans des salles restent actifs pour la fiabilité du service."
     }
   },

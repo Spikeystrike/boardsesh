@@ -19,6 +19,12 @@ import type { CurrentChangeClock } from '../../lib/ble/stale-current-hold';
 /** What triggered a queue reorder — attribution for `SHARED_EVENTS.QueueReordered`. */
 export type QueueReorderSource = 'drag' | 'play-next';
 
+/**
+ * Which queue-sheet control cleared the queue — attribution for
+ * `SHARED_EVENTS.QueueCleared`: the edit mode's Clear, or the header's ⋯ menu.
+ */
+export type QueueClearSource = 'edit' | 'menu';
+
 export type WidgetNavigationOptions = { sendMutation?: boolean };
 
 /** A Next the climber did not press: the rest timer moving the wall on its own. */
@@ -113,9 +119,15 @@ type QueueContextValue = {
   restoreQueueItems: (before: QueueContentSnapshot, removedUuids: ReadonlySet<string>, scope: string) => void;
   /** `source` is analytics attribution only — a drag in the queue sheet vs a Play next. */
   reorderQueue: (uuid: string, oldIndex: number, newIndex: number, options?: { source?: QueueReorderSource }) => void;
-  clearQueue: () => void;
-  /** Replace the entire queue (optimistic local UPDATE_QUEUE + best-effort party sync). */
-  setQueue: (queue: ClimbQueueItem[], currentClimbQueueItem?: ClimbQueueItem | null) => void;
+  /** `source` is analytics attribution only — the edit mode's Clear vs the header's ⋯ menu. */
+  clearQueue: (options?: { source?: QueueClearSource }) => void;
+  /**
+   * Replace the entire queue (optimistic local UPDATE_QUEUE + best-effort party
+   * sync). `historyCount` is the History / Up next line while nothing is current
+   * (F3); left out, such a payload is all Up next. A current climb's index is
+   * the line whatever it says.
+   */
+  setQueue: (queue: ClimbQueueItem[], currentClimbQueueItem?: ClimbQueueItem | null, historyCount?: number) => void;
   /**
    * Read the live queue, current climb and usable playlist source without
    * subscribing to state. Stable
@@ -326,6 +338,20 @@ export function useSessionBoardPath(): string {
 }
 
 /**
+ * Whether the cold-start queue restore has landed for this viewer: the saved
+ * solo queue came back, or there was nothing to bring back. A bare boolean
+ * that flips once per launch (and again after a sign-in or sign-out), in the
+ * same render as the restored climb, so a reader can tell the restore's change
+ * of current from the climber's own. Read by `LastPickWatcher`. False outside
+ * the provider, where no current change is the restore's.
+ */
+export const QueueRestoredContext = createContext<boolean>(false);
+
+export function useQueueRestored(): boolean {
+  return useContext(QueueRestoredContext);
+}
+
+/**
  * Live session analytics + presence, split out of the main QueueContext so the
  * ≤1/2s `SessionStatsUpdated` party push (and roster deltas) re-renders only the
  * session screen — not every `useQueue()` consumer (climb list, persistent bar,
@@ -420,6 +446,8 @@ type QueueDataContextValue = {
    * then treats exactly as today.
    */
   historyCount?: number | null;
+  /** F3 now-slot mode is on: History rows can be replayed from. Absent reads as off. */
+  nowSlotMode?: boolean;
 };
 
 export const QueueDataContext = createContext<QueueDataContextValue | null>(null);

@@ -11,8 +11,10 @@ OAuth consent screen, and then:
 There is no application process and no commercial agreement. Every app gets
 the same API, the same scopes and the same limits.
 
-Status: draft v1, written before the endpoints exist. Field names and
-semantics here are what we intend to ship. Questions go to the Boardsesh team
+Status: draft v1. The milestone 1 endpoints are built and not yet open to
+apps. Early access is by invitation: registration is open only to developer
+accounts the Boardsesh team has added, and each app starts with small connection
+caps (section 1). Field names and semantics here are what we intend to ship. Questions go to the Boardsesh team
 until milestone 2 publishes a support channel with the docs. Each section says which milestone
 of [integration-platform.md](./integration-platform.md) delivers it: the
 logbook first (milestone 1), workouts next (milestone 3), webhooks after that
@@ -52,15 +54,21 @@ Everything is HTTPS.
 ## 1. Registering your app
 
 Sign in at `https://www.boardsesh.com/developers/apps` with a Boardsesh
-account whose email is verified, and create an app. It is usable immediately.
+account whose email is verified, accept the developer terms
+(`https://www.boardsesh.com/developers/terms`), and create an app. It is usable
+immediately. Registration opens once the terms are published; until then the
+console answers "Developer terms are not published yet".
+During early access the console only lets in developer accounts the Boardsesh
+team has invited; anyone else sees "App registration is invite-only for now".
 
 | Field | Notes |
 | --- | --- |
 | Name | Shown on the consent screen. Names of Boardsesh and of board brands are refused |
+| Publisher name | Required. The person or company that makes the app, shown on the consent screen as "Made by". Same rules as the name |
 | Homepage URL | Linked from the consent screen |
 | Privacy policy URL | Linked from the consent screen. Required |
 | Type | **Confidential** if the token exchange happens on your server (you get a client secret). **Public** if it happens in a mobile app, a desktop or CLI tool, or a browser (no secret; PKCE protects the code). Registration also records web versus native redirect behavior separately |
-| Redirect URIs | Up to 10, matched as exact strings. Allowed: any `https://` URL; loopback `http://127.0.0.1:{port}/…` or `http://[::1]:{port}/…` for tools running on the user's machine (the port is ignored when matching, so pick any free port at runtime); private-use schemes containing a dot, such as `com.example.app:/oauth/boardsesh`. Not allowed: other `http://` URLs, wildcards, fragments, `boardsesh.com` hosts, and the `boardsesh` and `com.boardsesh…` schemes |
+| Redirect URIs | Up to 10, matched as exact strings. Allowed: any `https://` URL; and for a native app, loopback `http://127.0.0.1:{port}/…` or `http://[::1]:{port}/…` for tools running on the user's machine (the port is ignored when matching, so register it without one and pick any free port at runtime) and private-use schemes containing a dot, such as `com.example.app:/oauth/boardsesh`. Not allowed: other `http://` URLs including `http://localhost`, wildcards, fragments, user names or passwords, `boardsesh.com` hosts, and schemes containing `boardsesh`. Write each URI the way a URL parser prints it back (lower-case scheme and host, `https://example.com/` rather than `https://example.com`) |
 
 You get an opaque `client_id`, and for a confidential app a client secret,
 shown once. Never ship a client secret inside a mobile or desktop binary:
@@ -70,8 +78,10 @@ old one stops working immediately. Coordinate the change with your token-exchang
 Limits that apply to every app (see section 6 for request rates):
 
 - 10 apps per developer account.
-- 200 new climber connections per app per day. If your app needs more, ask
-  through the form in the console.
+- During early access, 25 climbers connected to an app at once, and 20 new
+  connections in any 24 hours. A reconnect counts as new. The console shows both
+  numbers on each app. If your app needs more, ask the Boardsesh team; there is
+  no request form yet.
 - The consent screen tells climbers that Boardsesh has not reviewed your app.
   That is true of every app; it is not a warning about yours.
 - Browser-only apps work: the token, revoke and API endpoints answer CORS for
@@ -97,7 +107,12 @@ The API's resource identifier is exactly `https://api.boardsesh.com/v1`, without
 a trailing slash. Every registered app is authorized to request it. Send this
 `resource` parameter when authorizing, exchanging a code and refreshing; it
 is distinct from the issuer and redirect URI. Tokens without that audience
-cannot call the API.
+cannot call the API: a connection that names the resource at neither the
+authorization nor the code exchange gets tokens the API refuses. A refresh keeps
+the audience the connection was granted. Leave `resource` out of a refresh and
+the new tokens still call the API (RFC 8707 section 2.2); name any other
+resource, alone or beside this one, and the refresh is refused with
+`invalid_target`, leaving your refresh token unspent.
 
 ### Scopes
 
@@ -132,12 +147,18 @@ GET https://api.boardsesh.com/api/auth/oauth2/authorize
 ```
 
 PKCE is required for every client, confidential ones included. Only `S256` is
-accepted. A missing challenge, a `plain` method, an unknown client or an
-unregistered redirect URI shows an error page on boardsesh.com and never
-redirects anywhere.
+accepted. A missing challenge or a `plain` method sends the browser back to your
+registered redirect URI with `error=invalid_request` and your `state`, and no
+code. An unknown client or an unregistered redirect URI shows an error page on
+`api.boardsesh.com` and never redirects anywhere, because there is no redirect
+URI Boardsesh can trust.
 
 Boardsesh sends the browser on to the consent screen on `www.boardsesh.com`.
-If the climber is not signed in they sign in first, then see it. Once they
+If the climber is not signed in, last signed in more than 30 days ago, or last
+signed in before their password changed, they sign in first, then see it. The
+same applies to a climber who has not signed in since Boardsesh switched app
+connections on, so expect your first testers to be asked to sign in once.
+`prompt=login` is accepted and changes nothing on top of that. Once they
 approve:
 
 ```
@@ -150,6 +171,9 @@ it stops a mix-up if your app talks to several OAuth servers).
 If they decline: `?error=access_denied&state=...`.
 
 The code lives for 60 seconds and works exactly once. Reusing it is rejected.
+Reuse also ends the tokens that code issued, including when a confidential
+app's retry leaves out `code_verifier`, so an app that reloads its callback and
+sends the code again will find its new refresh token refused with `invalid_grant`.
 If you cannot tell whether an exchange succeeded, restart authorization; do
 not retry the same code expecting another token pair.
 
@@ -229,8 +253,9 @@ method. Revoking an opaque access token invalidates that token only; its
 refresh token can still work. Revoking a refresh token invalidates it and
 its associated access tokens, not every independently issued family or
 remembered consent. Unknown/already-invalid tokens return `200`; invalid
-client authentication returns `invalid_client` (`401` with a Basic challenge
-for `client_secret_basic`, `400` for `client_secret_post`).
+client authentication returns `invalid_client`: `401` with a Basic challenge
+when the request sent HTTP Basic credentials, `400` when it sent the secret in
+the body. The token endpoint answers the same way.
 
 Use this endpoint to discard a credential. Use Disconnect below to end the
 entire app/climber connection.
@@ -253,6 +278,8 @@ not confirm disconnect.
 The climber can also choose Settings → Connected apps in the Boardsesh app,
 or account settings on the web, and tap Disconnect. A password reset,
 security revocation or account deletion also ends the affected connections.
+Connected apps also shows the climber what your app can read, when they
+connected it, and when it last called the API, to within an hour.
 
 Disconnect removes remembered consent and invalidates every credential family
 for this connection. API calls then return `401 invalid_token`, refreshes
@@ -263,7 +290,8 @@ data for the climber unless they asked you to keep it.
 
 ## 3. Reading the logbook
 
-Milestone 1. Scope `logbook:read`. Every path below is on
+Milestone 1. `GET /v1/me` works with any valid access token. The rest of this
+section needs the `logbook:read` scope. Every path below is on
 `https://api.boardsesh.com` and already starts with `/v1`.
 
 ### Who is connected
@@ -278,8 +306,11 @@ GET /v1/me
 
 `id` is the climber's id **for your app**: stable across reconnects, different
 for every app, and not the id Boardsesh uses anywhere else. Use it to tell
-whether a reconnect is the same climber. `displayName` and `avatarUrl` need
-`profile:read`.
+whether a reconnect is the same climber. `displayName` and `avatarUrl` are sent
+only with `profile:read`, and either can be `null` when the climber has none.
+`avatarUrl` is always an `https` URL on Boardsesh's media host or a sign-in
+provider's image host (Google, Facebook); anything else a profile holds comes
+through as `null`.
 
 ### Syncing
 
@@ -407,6 +438,12 @@ async function sync(climber) {
   Cursors are opaque: do not parse or build them.
 - Sync when the climber opens your app, and in the background no more often
   than every 15 minutes per climber.
+- A `503` with `Retry-After` when you start or continue a full sync means the
+  snapshot cannot be made now: downloads are at capacity, or the logbook is too
+  large to download as one snapshot. Wait at least `Retry-After` seconds, which
+  can be an hour, before starting again. Starting a full sync more than twice a
+  minute for one climber answers `429`; following a sync already in progress is
+  never limited that way.
 
 What the feed guarantees:
 
@@ -431,9 +468,10 @@ What the feed guarantees:
 ### Expired cursors
 
 Incremental change history is retained for 90 days. Cursors outside retained
-history, expired snapshot cursors, or a cursor from before a database recovery
-answer `410` with `error: "cursor_expired"`. This can happen during a long
-bootstrap too; implement recovery even when syncing frequently.
+history, expired snapshot cursors, a cursor from before a database recovery,
+and a cursor from before the climber reconnected your app answer `410` with
+`error: "cursor_expired"`. This can happen during a long bootstrap too;
+implement recovery even when syncing frequently.
 
 Persist that a full sync is required, then start without a cursor. Stage and
 publish the completed replacement as above so ticks absent from the new
@@ -461,15 +499,15 @@ climber's.
   "angle": 40,
   "mirrored": false,
   "stars": 4,
-  "grade": { "v": 4, "font": "6B+", "label": "6B+/V4" },
+  "grade": { "v": 4, "font": "6B+", "label": "6b+/V4" },
   "benchmark": false,
   "comment": "Finally stuck the cross-through",
   "climb": {
     "id": "3f9c2a1e5b7d4c8e9a0b1c2d3e4f5a6b",
     "name": "Slopey Business",
     "board": { "type": "kilter", "layout": "Kilter Board Original" },
-    "grade": { "v": 4, "font": "6B+", "label": "6B+/V4" },
-    "boardseshGrade": 4.2
+    "grade": { "v": 4, "font": "6B+", "label": "6b+/V4" },
+    "boardseshGrade": null
   },
   "createdAt": "2026-10-20T18:42:15Z",
   "updatedAt": "2026-10-20T18:42:15Z"
@@ -492,13 +530,19 @@ climber's.
 | `climb.name` | Climb name. `null` for a climb on someone else's spray wall that is not public: the wall's owner shared it with the climber, not with apps |
 | `climb.board.type` | `kilter`, `tension`, `moonboard`, `decoy`, `touchstone`, `grasshopper`, `soill`, `woods`, `spray` (a climber's own spray wall). New values may be added |
 | `climb.board.layout` | Layout name, for display (`"Spray wall"` when the name is withheld) |
-| `climb.grade` | The community grade at this angle when you read it. It drifts over time without the tick changing |
-| `climb.boardseshGrade` | The Boardsesh universal grade, a decimal on the V scale, or `null`. Optional; the model behind it may change |
+| `climb.grade` | The community grade at this angle when you read it, or `null` when the climb has none at this angle. Check for `null` before reading `climb.grade.font` or `climb.grade.v`: a sync that throws on it fails on the same tick every time it retries. It drifts over time without the tick changing |
+| `climb.boardseshGrade` | The Boardsesh universal grade, a decimal on the V scale, or `null`. Always `null` for now: its V-scale form is not published yet. Optional; the model behind it may change |
 
-A grade object is `{ "v": 4, "font": "6B+", "label": "6B+/V4" }`: `v` is an
+A grade object is `{ "v": 4, "font": "6B+", "label": "6b+/V4" }`: `v` is an
 integer or `null` where the board grade has no V equivalent, `font` the
-Fontainebleau grade, `label` the board's own label. Use whichever scale your
-climber prefers.
+Fontainebleau grade in capitals, `label` the board's own label as its grade
+table spells it. Use whichever scale your climber prefers.
+
+Your app sees every climb the climber has logged, including drafts and
+unlisted climbs set by others, with the same id, name, layout and grade as any
+other climb. The climber's logbook is theirs to share. The one exception is a
+climb on someone else's spray wall that is not public, described under
+`climb.name` above.
 
 The API does not include hold positions, other climbers' ticks or full board
 catalogs. If you need a catalog, the public nightly snapshots are documented
@@ -876,15 +920,35 @@ still readable through the API.
 | Token endpoint, whole app        | 6,000 requests per minute           |
 | API, per climber                 | 120 requests per minute per app per climber |
 | API, per app                     | 6,000 requests per minute across all your climbers |
+| API, failed token lookups        | 600 per minute per client IP; past that, `429` instead of `401` |
+| Starting a full sync             | 2 per minute per connected climber  |
+| Connected climbers (early access) | 25 at once, 20 new in any 24 hours, per app |
 | Page size (`limit`)              | 200                                 |
 | Unfinished workouts per climber  | 20 per app                          |
 | Blocks per workout               | 12                                  |
-| Request body                     | 64 KB                               |
+| Request body                     | 64 KB, sent within 5 seconds        |
+
+A limit "per client IP" counts an IPv6 client as its /64. An app on Cloudflare
+Workers counts per Worker zone (the `CF-Worker` header Cloudflare adds), because
+every Worker reaches us from the same address; on the OAuth routes all Worker
+zones together share 10 times each per-IP limit. Failed token lookups on the API
+count per zone only.
 
 Every response carries `RateLimit-Limit`, `RateLimit-Remaining` and
 `RateLimit-Reset` for the tightest limit that applies. Over the limit returns
-`429` with `Retry-After` in seconds. If your app genuinely needs more, ask
-through the console.
+`429` with `Retry-After` in seconds. If your app genuinely needs more, ask the
+Boardsesh team.
+
+A `503` with `Retry-After` from any OAuth or API route means Boardsesh is busy
+or has paused app access for a moment. Wait and retry. It never means the
+climber disconnected, so do not drop their tokens on it. A body larger than
+64 KB answers `413`, and one that takes longer than 5 seconds to arrive answers
+`408`.
+
+Keep at most 8 API requests in flight from one server address (one Worker
+zone on Cloudflare Workers). Up to 8 more are still served, but they wait in a
+slower lane; past 16, or when that lane is full too, the answer is `503` with
+`Retry-After: 2`. Retry after that many seconds.
 
 Every response carries `Boardsesh-Request-Id`. Quote it when something looks
 wrong.
@@ -912,9 +976,11 @@ Errors are JSON:
 
 If your app is suspended or deleted, the token endpoint answers
 `invalid_client` and the API answers `401 invalid_token`; the console says why.
-If your app has reached its daily cap of new connections, the authorize step
-redirects back with `error=temporarily_unavailable`; existing connections are
-unaffected.
+If your app has reached its cap of connected climbers or its daily cap of new
+connections, approving redirects back with `error=temporarily_unavailable`;
+existing connections are unaffected. A connection counts from your first code
+exchange, not from the climber's approval, so if the last place goes between the
+two, the exchange answers `400 invalid_grant` with that reason.
 
 New `error` codes may be added; branch on the HTTP status first.
 
@@ -926,7 +992,8 @@ fields, new routes, new scopes, new event types, new enum values. Read what
 you know and ignore the rest. Anything that removes or renames a field becomes
 `v2`, with `v1` kept running for at least six months and a `Sunset` header on
 its responses for that whole time. Every contract change is listed on the
-changelog page at `https://www.boardsesh.com/developers/changelog`.
+changelog page at `https://www.boardsesh.com/developers/changelog`, which
+arrives with the public developer docs in milestone 2.
 
 ## Later
 

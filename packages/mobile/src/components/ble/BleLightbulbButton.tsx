@@ -30,6 +30,12 @@ type BleLightbulbButtonProps = {
   isConnected: boolean;
   /** Not lit but linked: an amber outline (see `getBleLightbulbVisualState`). */
   ready?: boolean;
+  /**
+   * Draw the lit bulb's amber halo and glow (the default). Off under Put on
+   * board's draining ring, which meets the row itself, as on the MiniPlayer
+   * and the Live Activity: amber on its own halo falls under 3:1.
+   */
+  halo?: boolean;
   isScanning: boolean;
   onPress: () => void;
   /**
@@ -50,8 +56,6 @@ type BleLightbulbButtonProps = {
   accessibilityValueText?: string;
   /** What a tap does ("Turns the lights off"), when the label doesn't say it. */
   accessibilityTapHint?: string;
-  /** Subtle visual warning that auto-disconnect is in its final ten seconds. */
-  autoDisconnectWarning?: boolean;
   scanningAccessibilityHint?: string;
   /** Announces the foreground wall write while preserving the button's action label. */
   writingAccessibilityHint?: string;
@@ -78,6 +82,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 export function BleLightbulbButton({
   isConnected,
   ready = false,
+  halo = true,
   isScanning,
   onPress,
   onLongPress,
@@ -85,7 +90,6 @@ export function BleLightbulbButton({
   accessibilitySelected,
   accessibilityValueText,
   accessibilityTapHint,
-  autoDisconnectWarning = false,
   scanningAccessibilityHint,
   writingAccessibilityHint,
   longPressAccessibilityHint,
@@ -101,7 +105,6 @@ export function BleLightbulbButton({
   const liveWriting = useBluetoothWriteInProgress();
   const isWriting = writing ?? liveWriting;
   const pulseOpacity = useSharedValue(1);
-  const warningPulse = useSharedValue(0);
 
   useEffect(() => {
     if (isScanning) {
@@ -112,19 +115,8 @@ export function BleLightbulbButton({
     }
   }, [isScanning, pulseOpacity]);
 
-  useEffect(() => {
-    if (autoDisconnectWarning) {
-      warningPulse.value = withRepeat(withTiming(1, { duration: timing.slow }), -1, true);
-    } else {
-      cancelAnimation(warningPulse);
-      warningPulse.value = withTiming(0, { duration: timing.fast });
-    }
-  }, [autoDisconnectWarning, warningPulse]);
-
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: pulseOpacity.value,
-    borderWidth: warningPulse.value * 2,
-    borderColor: brandColors.warning,
   }));
 
   const handlePress = () => {
@@ -190,11 +182,12 @@ export function BleLightbulbButton({
         styles.container,
         { width: containerSize, height: containerSize, borderRadius: containerSize / 2 },
         animatedStyle,
-        isConnected && {
-          backgroundColor: visualState.backgroundColor,
-          shadowColor: visualState.shadowColor,
-        },
-        isConnected && styles.connected,
+        isConnected &&
+          halo && {
+            backgroundColor: visualState.backgroundColor,
+            shadowColor: visualState.shadowColor,
+          },
+        isConnected && halo && styles.connected,
         pressed && styles.pressed,
       ]}
     >

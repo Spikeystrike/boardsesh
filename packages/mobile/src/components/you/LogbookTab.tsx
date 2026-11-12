@@ -1,6 +1,7 @@
 import { ReadableColumn } from '../ReadableColumn';
 import { useNativeRootHeader } from '../../hooks/use-native-root-header';
 import { ScrollEdgeListReset, type ScrollEdgeBackdrop } from '../../hooks/use-scroll-edge-backdrop';
+import { useHideOnScroll } from '../../hooks/use-hide-on-scroll';
 import { useLogbookDeleteActions, usePendingLogbookDeletes } from '../../providers/logbook-delete-provider';
 import { PressableSurface } from '../PressableSurface';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -218,6 +219,9 @@ export function LogbookTab({
   scrollEdge,
 }: LogbookTabProps) {
   const nativeRootHeader = useNativeRootHeader();
+  // On the Profile tab the Android nav bar hides as this list scrolls down; each
+  // sub-tab is its own scroll source, so switching sub-tabs never reads as a jump.
+  const handleScroll = useHideOnScroll(scrollEdge?.listProps.onScroll);
   const [headerHeight, setHeaderHeight] = useState(0);
   const hasComposedHeader = renderHeader != null;
   const headerMeasured = !hasComposedHeader || headerHeight > 0;
@@ -235,7 +239,7 @@ export function LogbookTab({
   const boardOptions = useLogbookBoardOptions(userId);
   const { pinned: pinnedChips, isPinned } = useLogbookPinnedChips();
   const scopedRouter = useScopedRouter();
-  const { openClimbActions } = useDrawerHost();
+  const { getClimbActions } = useDrawerHost();
   const bottomChrome = useBottomChromeMetrics();
   // One dimension subscription for the whole list; rows take fontScale as a prop.
   const { fontScale } = useWindowDimensions();
@@ -535,8 +539,8 @@ export function LogbookTab({
 
   // Tap → the climb opens playing from this logbook (own and another climber's
   // alike, issue #6665): swipes walk the rows on screen, in their order, and
-  // page on through the feed. Light the board when I tap a climb and the crew
-  // rule decide whether it goes up or opens as a preview.
+  // page on through the feed. Driving the wall decides whether it goes up or
+  // opens as a preview.
   const listRowsInputRef = useRef(listRowsInput);
   listRowsInputRef.current = listRowsInput;
   const fetchNextGroupedPage = groupedFeed.fetchNextPage;
@@ -751,7 +755,7 @@ export function LogbookTab({
   // resolve (no frames / MoonBoard) — nothing to render in the actions sheet.
   const handleOpenActions = useCallback(
     (ascent: AscentFeedItem) => {
-      // Fall back to the consensus grade so the reaction menu shows a grade even when
+      // Fall back to the consensus grade so the climb menu has a grade even when
       // the climber didn't log a personal one (tickToClimb only reads difficultyName).
       const climb = tickToClimb({
         ...ascent,
@@ -759,7 +763,7 @@ export function LogbookTab({
       });
       const config = renderBoardToPlaylistConfig(ascent.boardType, ascent.layoutId, ascent.renderBoard);
       if (!climb || !config) return;
-      openClimbActions(
+      return getClimbActions(
         climb,
         {
           boardName: config.boardName,
@@ -771,7 +775,7 @@ export function LogbookTab({
         viewerIsOwner ? { onEditEntry: () => handleEdit(ascent, 'a11y') } : undefined,
       );
     },
-    [openClimbActions, viewerIsOwner, handleEdit],
+    [getClimbActions, viewerIsOwner, handleEdit],
   );
 
   const handleEndReached = useCallback(() => {
@@ -919,6 +923,7 @@ export function LogbookTab({
                 keyExtractor={keyExtractor}
                 getItemType={getRowType}
                 {...scrollEdge?.listProps}
+                onScroll={handleScroll}
                 // The native controls are measured after this list mounts. Keeping
                 // a row anchored would scroll away the padding added for them.
                 maintainVisibleContentPosition={hasComposedHeader && nativeRootHeader ? { disabled: true } : undefined}

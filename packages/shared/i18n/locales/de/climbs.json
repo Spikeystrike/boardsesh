@@ -10,7 +10,6 @@
     "allSetters": "Alle Routenbauer*innen",
     "followingClimbs": "Boulder von Leuten, denen ich folge",
     "playlistSubtitleSort": "Alle Boulder auf diesem Board · {{sort}}",
-    "signIn": "Melde dich an, um zu folgen",
     "syncNeeded": "Verbinde dich, um deine Abos und verknüpften Routenbauer*innen zu synchronisieren.",
     "followError": "Folgen konnte nicht aktualisiert werden. Versuch es erneut.",
     "loadError": "Diese Boulder konnten nicht geladen werden.",
@@ -30,7 +29,9 @@
       "description": "Stöber durch Boulder auf {{boardName}} bei {{angle}}°",
       "fallbackTitle": "Boulder",
       "fallbackDescription": "Boulder durchstöbern",
-      "paginatedTitle": "{{boardName}}-Boulder bei {{angle}}° — Seite {{page}}"
+      "paginatedTitle": "{{boardName}}-Boulder bei {{angle}}° — Seite {{page}}",
+      "ogTitle": "Boulder an {{name}} bei {{angle}}°",
+      "ogDescription": "Such dir einen aus, beleuchte ihn am Board und trag die Begehung ein."
     },
     "view": {
       "title": "{{climbName}} - {{grade}}",
@@ -510,6 +511,10 @@
       "quickFiltersFooter": "Wähle, welche Filter oben in der Leiste erscheinen und in welcher Reihenfolge.",
       "established2plus": "Etabliert 2+",
       "benchmark": "Benchmarks",
+      "verified": "Verifiziert",
+      "verifiedDescription": "Verifizierte Boulder werden von Kilter mit Kletterer*innen und Routenbauer*innen ausgewählt.",
+      "onlyBenchmarks": "Nur Benchmark-Boulder",
+      "onlyVerified": "Nur verifizierte Boulder",
       "showCount_one": "{{count}} Boulder zeigen",
       "showCount_other": "{{count}} Boulder zeigen",
       "close": "Filter schließen",
@@ -678,6 +683,7 @@
       "anyFeet": "Freie Füße",
       "noKickboard": "Ohne FL",
       "benchmark": "Benchmark",
+      "verified": "Verifizierter Boulder",
       "method": {
         "footless": "Ohne Füße",
         "footlessKickboard": "Ohne Füße + KB",
@@ -733,7 +739,6 @@
       }
     },
     "hidden": {
-      "short": "ausgeblendet",
       "chip": "Ausgeblendet",
       "banner": "Von der Community ausgeblendet"
     },
@@ -748,8 +753,8 @@
       "editorHint_other": "Entferne die grauen Griffe, um zu speichern"
     },
     "climbActions": {
-      "preview": "Vorschau",
       "playNext": "Als Nächstes dran",
+      "playNextActiveHint": "Dieser Boulder ist bereits aktiv. Wähle einen anderen Boulder, um ihn als Nächstes einzureihen.",
       "playLast": "Als Letztes dran",
       "replayFromHere": "Ab hier wiederholen",
       "nameCopied": "Name kopiert",
@@ -764,7 +769,6 @@
       "editEntry": "Routenbuch-Eintrag bearbeiten",
       "report": "Boulder melden",
       "changeGrade": "Grad ändern",
-      "closeOverlay": "Boulder-Aktionen schließen",
       "openQueue": "Warteschlange öffnen",
       "deleteClimb": {
         "row": "Boulder löschen",
@@ -822,6 +826,7 @@
       "settings": {
         "draftLabel": "Als Entwurf speichern",
         "draftDescription": "Entwürfe bleiben privat, bis du sie veröffentlichst.",
+        "draftDescriptionApps": "Entwürfe bleiben nicht gelistet, bis du sie veröffentlichst. Verbundene Apps von Leuten, die einen davon eintragen, sehen ihn trotzdem.",
         "noMatchLabel": "Kein Matchen",
         "noMatchDescription": "Hände dürfen nicht am selben Griff matchen",
         "noKickboardLabel": "Ohne Fußleiste",
@@ -830,7 +835,8 @@
         "campusDescription": "Nur Hände, keine Füße",
         "anyFeetLabel": "Freie Füße",
         "anyFeetDescription": "Füße dürfen jeden Griff nutzen, nicht nur die markierten",
-        "wallDraftDescription": "Alle mit Zugang zu dieser Spraywall können deine gespeicherten Entwürfe klettern."
+        "wallDraftDescription": "Alle mit Zugang zu dieser Spraywall können deine gespeicherten Entwürfe klettern.",
+        "wallDraftDescriptionApps": "Alle mit Zugang zu dieser Spraywall können deine gespeicherten Entwürfe klettern. Verbundene Apps von Leuten, die einen davon eintragen, sehen ihn auch."
       },
       "drafts": {
         "holds_one": "{{count}} Griff",
@@ -1077,7 +1083,10 @@
       },
       "metadata": {
         "title": "{{wallName}} | Spraywall",
-        "description": "{{wallName}}, eine Spraywall mit {{angle}}°. Sieh dir die Spraywall an und öffne sie in der Boardsesh-App."
+        "description": "{{wallName}}, eine Spraywall mit {{angle}}°. Sieh dir die Spraywall an und öffne sie in der Boardsesh-App.",
+        "ogTitle": "{{wallName}} · Spraywall",
+        "ogDescription_one": "Eine Spraywall mit {{angle}}° und {{count}} Griff. Sieh dir die Spraywall an und probier, was geschraubt ist.",
+        "ogDescription_other": "Eine Spraywall mit {{angle}}° und {{count}} Griffen. Sieh dir die Spraywall an und probier, was geschraubt ist."
       }
     },
     "install": {
